@@ -107,6 +107,9 @@ case class Field(val name: FieldName, val access: AccessLevel, val static: Boole
 }
 
 case class Arg(val name: String, val argType: Type)
+object Arg {
+  implicit def pair2Arg(pair: (String,Type)): Arg = Arg(pair._1, pair._2)
+}
 case class MethodSignature(val name: MethodName, val access: AccessLevel, val static: Boolean, val returnType: Type, val args: List[Arg]) {
   val pretty: String = {
     val staticStr = if (static) " static" else ""
@@ -171,6 +174,9 @@ object ClassType {
 case class ArrayType(val innerType: Type) extends Type {
   val bytecodeName: String = s"[${innerType.bytecodeName}"
   val prettyName: String = s"${innerType.prettyName}[]"
+}
+object ArrayType {
+  def apply(qualifiedName: String): ArrayType = ArrayType(ClassType(qualifiedName))
 }
 case object VoidType extends Type {
   val name: String = "void"

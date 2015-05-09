@@ -39,7 +39,7 @@ object Main {
             Field(FieldName(className, "fieldOne"), Public, false, LongType)),
         methods = List(
             Method(
-                MethodSignature(MethodName(className, "main"), Public, true, VoidType, List(Arg("args", ArrayType(ClassType("java.lang.String"))))),
+                MethodSignature(MethodName(className, "main"), Public, true, VoidType, List("args" -> ArrayType("java.lang.String"))),
                 Sequence(VirtualMethodCall(
                     obj = StaticField(FieldName("java.lang.System.out"), ClassType("java.io.PrintStream")),
                     signature = MethodSignature(MethodName("java.io.PrintStream.println"), Public, true, VoidType, List(Arg("value", ClassType("java.lang.String")))),
