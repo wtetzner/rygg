@@ -4,6 +4,7 @@ object Main {
   def main(args: Array[String]): Unit = {
     val Array(inputFile) = args
     CodeGen.generateCode()
+    println(s"input file: ${inputFile}")
   }
 }
 
