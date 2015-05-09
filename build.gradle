@@ -19,7 +19,8 @@ repositories{
 }
 
 dependencies {
-  compile 'asm:asm:3.3.1'
+  //compile 'asm:asm:3.3.1'
+  compile 'org.ow2.asm:asm-all:5.0.3'
   compile "org.scala-lang:scala-library:2.11.4"
   compile "org.rogach:scallop_2.11:0.9.5"
   compile "com.codecommit:gll-combinators_2.11:2.2"
