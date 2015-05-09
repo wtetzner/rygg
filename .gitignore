@@ -3,3 +3,8 @@
 /.ensime_lucene
 /build/
 /.gradle/
+/bin/
+/.cache
+/.classpath
+/.project
+/.settings/
