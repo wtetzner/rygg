@@ -1,23 +1,33 @@
 package org.bovinegenius.rygg.jil
 
-import java.io.OutputStream
-import org.objectweb.asm.Opcodes
+import org.objectweb.asm._
 import org.objectweb.asm.ClassWriter
-import org.objectweb.asm.MethodVisitor
-import com.sun.org.apache.bcel.internal.generic.ALOAD
-import com.sun.org.apache.bcel.internal.generic.INVOKEVIRTUAL
-import com.sun.org.apache.bcel.internal.generic.NEW
-import com.sun.org.apache.bcel.internal.generic.GETSTATIC
-import com.sun.org.apache.bcel.internal.generic.RETURN
-import com.sun.org.apache.bcel.internal.generic.DUP
-import com.sun.org.apache.bcel.internal.generic.INVOKESPECIAL
 import org.objectweb.asm.FieldVisitor
-import org.objectweb.asm.{ Type => AsmType }
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
+import org.objectweb.asm.Opcodes.ACC_PRIVATE
+import org.objectweb.asm.Opcodes.ACC_PROTECTED
+import org.objectweb.asm.Opcodes.ACC_PUBLIC
+import org.objectweb.asm.Opcodes.ACC_STATIC
+import org.objectweb.asm.{Type => AsmType}
 
-object CodeGenerator {
-  def writeClass(jilClass: Class): Array[Byte] = {
+case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) {
+  private val classes: Classes = CombinationClasses(InputClasses(inputClasses), ResourceClasses(classpath))
+
+  def writeClass(className: ClassName): Array[Byte] = classes.lookup(className) match {
+    case None => throw new RuntimeException(s"No such class: ${className.bytecodeName}")
+    case Some(cls: Class) => writeClass(cls)
+    case Some(interface: Interface) => writeInterface(interface)
+  }
+
+  private def writeInterface(inteface: Interface): Array[Byte] = {
+    null
+  }
+
+  private def writeClass(jilClass: Class): Array[Byte] = {
+    println("lookedup: %s".format(classes.lookup(ClassName(PackageName("java.io"), "PrintStream")).map(_.pretty)))
     import org.objectweb.asm.Opcodes._
-    val cw: ClassWriter = new ClassWriter(0)
+    val cw: ClassWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES)
     cw.visit(Opcodes.V1_6, accessLevel(jilClass.access) | Opcodes.ACC_SUPER, jilClass.classType.name.bytecodeName, null, "java/lang/Object", null);
     cw.visitSource(jilClass.sourceFile, null);
 
@@ -30,16 +40,22 @@ object CodeGenerator {
 
     cw.toByteArray()
   }
-  
+
   private def writeMethod(method: Method, cw: ClassWriter): Unit = {
     val mv: MethodVisitor = cw.visitMethod(accessLevel(method.signature.access) | static(method.signature.static), method.signature.name.name, descriptor(method.signature), null, null);
     mv.visitCode()
     writeExpression(method.body, mv)
     mv.visitInsn(Opcodes.RETURN)
-    mv.visitMaxs(2, 1)
+    // Don't need to use real values here, since we're using the COMPUTE_MAXS flag
+    mv.visitMaxs(0, 0)
     mv.visitEnd()
   }
 
+  private def writeExpression(expression: Option[Expression], mv: MethodVisitor): Unit = expression match {
+    case None => ()
+    case Some(expr) => writeExpression(expr, mv)
+  }
+  
   private def writeExpression(expression: Expression, mv: MethodVisitor): Unit = {
     expression match {
       case StaticField(fieldName, fieldType) => mv.visitFieldInsn(Opcodes.GETSTATIC, fieldName.className.bytecodeName, fieldName.name, descriptor(fieldType))
@@ -49,9 +65,13 @@ object CodeGenerator {
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, expr.expressionType.bytecodeName, sig.name.name, descriptor(sig), false)
       }
       case LiteralString(str) => mv.visitLdcInsn(str)
+      case Sequence(expr1, expr2) => {
+        writeExpression(expr1, mv)
+        writeExpression(expr2, mv)
+      }
     }
   }
-  
+
   private def writeField(field: Field, cw: ClassWriter): Unit = {
     val fv: FieldVisitor = cw.visitField(accessLevel(field.access) | static(field.static), field.name.name, descriptor(field.fieldType), null, null)
   }
@@ -61,7 +81,7 @@ object CodeGenerator {
     val types: List[AsmType] = argTypes.map((x: Type) => asmType(x))
     AsmType.getMethodType(asmType(method.returnType), types.toArray :_*)
   }
-  
+
   private def asmType(jilType: Type): AsmType = {
     jilType match {
       case ClassType(name) => AsmType.getObjectType(name.bytecodeName)
@@ -77,10 +97,10 @@ object CodeGenerator {
       case ArrayType(inner) => AsmType.getType(s"[${asmType(inner)}")
     }
   }
-  
+
   private def descriptor(method: MethodSignature): String = methodType(method).getDescriptor()
   private def descriptor(jilType: Type): String = asmType(jilType).getDescriptor()
-  
+
   private def static(static: Boolean): Int = {
     import org.objectweb.asm.Opcodes._
     if (static) {
@@ -89,7 +109,7 @@ object CodeGenerator {
       0
     }
   }
-  
+
   private def accessLevel(level: AccessLevel): Int = {
     import org.objectweb.asm.Opcodes._
     level match {
