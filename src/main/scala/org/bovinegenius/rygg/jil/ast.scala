@@ -60,6 +60,19 @@ object AccessLevel {
 sealed trait Classy {
   def className: ClassName
   def pretty: String
+  def field(fieldName: FieldName): Option[Field]
+  def methodSignatures: List[MethodSignature]
+  def resolveMethod(name: MethodName, argTypes: List[Type]): Option[MethodSignature] =
+    methodSignatures.view.filter(s => methodMatches(name, argTypes, s)).headOption
+
+  private def methodMatches(name: MethodName, argTypes: List[Type], sig: MethodSignature): Boolean = {
+    sig.name == name &&
+    sig.args.length == argTypes.length &&
+    sig.args.map(a => a.argType).zip(argTypes).forall(p => assignable(p._1, p._2))
+  }
+
+  // Exact match for now
+  private def assignable(inputType: Type, slot: Type): Boolean = inputType.sameAs(slot)
 }
 case class Class(val sourceFile: String, val access: AccessLevel, val classType: ClassType, val fields: List[Field], val methods: List[Method]) extends Classy {
   val className: ClassName = classType.name
@@ -68,6 +81,8 @@ case class Class(val sourceFile: String, val access: AccessLevel, val classType:
     val prettyMethods = methods.map(_.signature.pretty).mkString(";\n  ")
     s"${access.prettyName} class ${classType.prettyName} {\n  ${prettyFields}\n  ${prettyMethods}\n}"
   }
+  def field(name: FieldName): Option[Field] = fields.view.filter(f => f.name == name).headOption
+  lazy val methodSignatures: List[MethodSignature] = methods.map(_.signature)
 }
 case class Interface(val sourceFile: String, val access: AccessLevel, val classType: ClassType, val methods: List[MethodSignature]) extends Classy{
   val className: ClassName = classType.name
@@ -75,6 +90,9 @@ case class Interface(val sourceFile: String, val access: AccessLevel, val classT
     val prettyMethods = methods.map(_.pretty).mkString(";\n  ")
     s"${access.prettyName} interface ${classType.prettyName} {\n  ${prettyMethods}\n}"
   }
+  val methodSignatures: List[MethodSignature] = methods
+  // For now, return None
+  def field(name: FieldName): Option[Field] = None
 }
 
 case class FieldName(val className: ClassName, val name: String) {
@@ -127,7 +145,10 @@ sealed trait Expression {
 //case class StaticMethodCall(val signature: MethodSignature, val args: List[Expression]) extends Expression {
 //  val expressionType: Type = signature.returnType
 //}
-case class StaticField(val fieldName: FieldName, val fieldType: Type) extends Expression {
+case class StaticFieldAccess(val fieldName: FieldName, val fieldType: Type) extends Expression {
+  val expressionType: Type = fieldType
+}
+case class FieldAccess(val obj: Expression, val fieldName: FieldName, val fieldType: Type) extends Expression {
   val expressionType: Type = fieldType
 }
 case class VirtualMethodCall(val obj: Expression, val signature: MethodSignature, val args: List[Expression]) extends Expression {
@@ -143,6 +164,8 @@ case class Sequence(expr1: Expression, expr2: Expression) extends Expression {
 sealed trait Type {
   def bytecodeName: String
   def prettyName: String
+  def boxed: Type
+  def sameAs(other: Type): Boolean
 }
 object Type {
   implicit def fromAsmType(asmType: AsmType): Type = {
@@ -166,6 +189,8 @@ object Type {
 case class ClassType(val name: ClassName) extends Type {
   val bytecodeName: String = name.bytecodeName
   val prettyName: String = name.prettyName
+  def sameAs(otherType: Type): Boolean = this == otherType
+  val boxed: Type = this
 }
 object ClassType {
   def apply(qualifiedName: String): ClassType = ClassType(ClassName(qualifiedName))
@@ -174,6 +199,11 @@ object ClassType {
 case class ArrayType(val innerType: Type) extends Type {
   val bytecodeName: String = s"[${innerType.bytecodeName}"
   val prettyName: String = s"${innerType.prettyName}[]"
+  def sameAs(otherType: Type): Boolean = otherType match {
+    case ArrayType(inner) => inner.sameAs(innerType)
+    case _ => false
+  }
+  val boxed: Type = this
 }
 object ArrayType {
   def apply(qualifiedName: String): ArrayType = ArrayType(ClassType(qualifiedName))
@@ -182,44 +212,62 @@ case object VoidType extends Type {
   val name: String = "void"
   val bytecodeName: String = name;
   val prettyName: String = name;
+  val boxed: Type = ClassType(ClassName("java.lang.Void"))
+  def sameAs(otherType: Type): Boolean = this == otherType || boxed == otherType.boxed
 }
 case object IntType extends Type {
   val name: String = "int"
   val bytecodeName: String = name;
   val prettyName: String = name;
+  val boxed: Type = ClassType(ClassName("java.lang.Integer"))
+  def sameAs(otherType: Type): Boolean = this == otherType || boxed == otherType.boxed
 }
 case object ByteType extends Type {
   val name: String = "byte"
   val bytecodeName: String = name;
   val prettyName: String = name;
+  val boxed: Type = ClassType(ClassName("java.lang.Byte"))
+  def sameAs(otherType: Type): Boolean = this == otherType || boxed == otherType.boxed
 }
 case object ShortType extends Type {
   val name: String = "short"
   val bytecodeName: String = name;
   val prettyName: String = name;
+  val boxed: Type = ClassType(ClassName("java.lang.Short"))
+  def sameAs(otherType: Type): Boolean = this == otherType || boxed == otherType.boxed
 }
 case object LongType extends Type {
   val name: String = "long"
   val bytecodeName: String = name;
   val prettyName: String = name;
+  val boxed: Type = ClassType(ClassName("java.lang.Long"))
+  def sameAs(otherType: Type): Boolean = this == otherType || boxed == otherType.boxed
 }
 case object FloatType extends Type {
   val name: String = "float"
   val bytecodeName: String = name;
   val prettyName: String = name;
+  val boxed: Type = ClassType(ClassName("java.lang.Float"))
+  def sameAs(otherType: Type): Boolean = this == otherType || boxed == otherType.boxed
 }
 case object DoubleType extends Type {
   val name: String = "double"
   val bytecodeName: String = name;
   val prettyName: String = name;
+  val boxed: Type = ClassType(ClassName("java.lang.Double"))
+  def sameAs(otherType: Type): Boolean = this == otherType || boxed == otherType.boxed
 }
 case object BooleanType extends Type {
   val name: String = "boolean"
   val bytecodeName: String = name;
   val prettyName: String = name;
+  val boxed: Type = ClassType(ClassName("java.lang.Boolean"))
+  def sameAs(otherType: Type): Boolean = this == otherType || boxed == otherType.boxed
 }
 case object CharType extends Type {
   val name: String = "char"
   val bytecodeName: String = name;
   val prettyName: String = name;
+  val boxed: Type = ClassType(ClassName("java.lang.Character"))
+  def sameAs(otherType: Type): Boolean = this == otherType || boxed == otherType.boxed
 }

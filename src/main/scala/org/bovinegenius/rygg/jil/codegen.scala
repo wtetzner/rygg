@@ -14,6 +14,8 @@ import org.objectweb.asm.{Type => AsmType}
 case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) {
   private val classes: Classes = CombinationClasses(InputClasses(inputClasses), ResourceClasses(classpath))
 
+  val astBuider: AstBuilder = AstBuilder(classes)
+
   def writeClass(className: ClassName): Array[Byte] = classes.lookup(className) match {
     case None => throw new RuntimeException(s"No such class: ${className.bytecodeName}")
     case Some(cls: Class) => writeClass(cls)
@@ -58,7 +60,11 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
   
   private def writeExpression(expression: Expression, mv: MethodVisitor): Unit = {
     expression match {
-      case StaticField(fieldName, fieldType) => mv.visitFieldInsn(Opcodes.GETSTATIC, fieldName.className.bytecodeName, fieldName.name, descriptor(fieldType))
+      case StaticFieldAccess(fieldName, fieldType) => mv.visitFieldInsn(Opcodes.GETSTATIC, fieldName.className.bytecodeName, fieldName.name, descriptor(fieldType))
+      case FieldAccess(expr, fieldName, fieldType) => {
+        writeExpression(expr, mv)
+        mv.visitFieldInsn(Opcodes.GETFIELD, fieldName.className.bytecodeName, fieldName.name, descriptor(fieldType))
+      }
       case VirtualMethodCall(expr, sig, args) => {
         writeExpression(expr, mv)
         args.foreach { arg => writeExpression(arg, mv) }

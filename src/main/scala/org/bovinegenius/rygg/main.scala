@@ -17,20 +17,21 @@ import org.bovinegenius.rygg.jil.VoidType
 import org.bovinegenius.rygg.jil.Arg
 import org.bovinegenius.rygg.jil.ArrayType
 import org.bovinegenius.rygg.jil.Method
-import org.bovinegenius.rygg.jil.StaticField
 import org.bovinegenius.rygg.jil.VirtualMethodCall
 import org.bovinegenius.rygg.jil.LiteralString
 import org.bovinegenius.rygg.jil.Sequence
+import org.bovinegenius.rygg.jil.AstBuilder
 
 object Main {
   def main(args: Array[String]): Unit = {
     val Array(classpath, inputFile, outputDir) = args
     CodeGen.generateCode()
-    
-    //val classFile = AsmBuilder.HelloWorld
-    //IO.spit(outputFile, classFile)
 
-    val className = ClassName(PackageName("org.bovinegenius.test"), "TestClass")
+
+    val astBuilder: AstBuilder = CodeGenerator(classpath, List()).astBuider
+    import astBuilder._
+
+    val className = ClassName("org.bovinegenius.test.TestClass")
     val testClass = Class(
         sourceFile = inputFile,
         access = Public,
@@ -40,22 +41,23 @@ object Main {
         methods = List(
             Method(
                 MethodSignature(MethodName(className, "main"), Public, true, VoidType, List("args" -> ArrayType("java.lang.String"))),
-                Sequence(VirtualMethodCall(
-                    obj = StaticField(FieldName("java.lang.System.out"), ClassType("java.io.PrintStream")),
-                    signature = MethodSignature(MethodName("java.io.PrintStream.println"), Public, true, VoidType, List(Arg("value", ClassType("java.lang.String")))),
-                    args = List(LiteralString("Some stuff"))
+                progn(invokeVirtual(
+                    obj = lookupField("java.lang.System.out"),
+                    methodName = MethodName("java.io.PrintStream.out.println"),
+                    args = List(const("Some stuff"))
                 ),
-                VirtualMethodCall(
-                    obj = StaticField(FieldName("java.lang.System.out"), ClassType("java.io.PrintStream")),
-                    signature = MethodSignature(MethodName("java.io.PrintStream.println"), Public, true, VoidType, List(Arg("value", ClassType("java.lang.String")))),
-                    args = List(LiteralString("Some stuff"))
+                invokeVirtual(
+                    obj = lookupField("java.lang.System.out"),
+                    methodName = MethodName("java.io.PrintStream.out.println"),
+                    args = List(const("Some stuff"))
+                )
                 ))
-                )))
+                ))
 
     val codeGenerator = CodeGenerator(classpath, List(testClass))
     val classFile = codeGenerator.writeClass(testClass.className)
     val outputFile = outputDir + "/" + className.bytecodeName + ".class"
-    //new File(outputFile).mkdirs()
+
     IO.spit(outputFile, classFile)
     println(s"${inputFile} -> ${outputFile}")
   }

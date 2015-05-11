@@ -1,0 +1,13 @@
+namespace org.bovinegenius.example
+
+module Map : sig
+ 
+end = {
+  type x = int;
+  type y 'a = Ok of int | Error of 'a;
+
+  cheese = "45";
+
+  some-function(x, y, z) = (x * y).as-string + ": " + z;
+}
+
