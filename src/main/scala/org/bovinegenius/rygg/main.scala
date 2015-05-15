@@ -39,8 +39,7 @@ object Main {
         fields = List(
             Field(FieldName(className, "fieldOne"), Public, false, LongType)),
         methods = List(
-            Method(
-                MethodSignature(MethodName(className, "main"), Public, true, VoidType, List("args" -> ArrayType("java.lang.String"))),
+            Method(MethodSignature(MethodName(className, "main"), Public, true, VoidType, List("args" -> ArrayType("java.lang.String")))) { () =>
                 progn(invokeVirtual(
                     obj = lookupField("java.lang.System.out"),
                     methodName = MethodName("java.io.PrintStream.out.println"),
@@ -51,8 +50,8 @@ object Main {
                     methodName = MethodName("java.io.PrintStream.out.println"),
                     args = List(const("Some stuff"))
                 )
-                ))
-                ))
+                )
+                }))
 
     val codeGenerator = CodeGenerator(classpath, List(testClass))
     val classFile = codeGenerator.writeClass(testClass.className)

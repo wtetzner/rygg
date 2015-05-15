@@ -12,9 +12,9 @@ import org.objectweb.asm.Opcodes.ACC_STATIC
 import org.objectweb.asm.{Type => AsmType}
 
 case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) {
-  private val classes: Classes = CombinationClasses(InputClasses(inputClasses), ResourceClasses(classpath))
+  private val classes: CombinationClasses = CombinationClasses(InputClasses(inputClasses), ResourceClasses(classpath))
 
-  val astBuider: AstBuilder = AstBuilder(classes)
+  val astBuider: AstBuilder = AstBuilder(classes, cls => { classes.addClass(cls) })
 
   def writeClass(className: ClassName): Array[Byte] = classes.lookup(className) match {
     case None => throw new RuntimeException(s"No such class: ${className.bytecodeName}")

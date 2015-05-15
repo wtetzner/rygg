@@ -135,9 +135,11 @@ case class MethodSignature(val name: MethodName, val access: AccessLevel, val st
     s"${access.prettyName}${staticStr} ${returnType.prettyName} ${name.prettyName}(${argsStr})"
   }
 }
-case class Method(val signature: MethodSignature, val body: Option[Expression])
+case class Method(val signature: MethodSignature, val bodyThunk: Option[() => Expression]) {
+  lazy val body: Option[Expression] = bodyThunk.map(_.apply())
+}
 object Method {
-  def apply(signature: MethodSignature, body: Expression): Method = Method(signature, Some(body))
+  def apply(signature: MethodSignature)(body: () => Expression): Method = Method(signature, Some(body))
 }
 sealed trait Expression {
   def expressionType: Type

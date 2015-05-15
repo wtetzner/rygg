@@ -1,6 +1,6 @@
 package org.bovinegenius.rygg.jil
 
-case class AstBuilder(classes: Classes) {
+case class AstBuilder(classes: Classes, addClass: Class => Unit) {
   def lookupField(fieldName: FieldName): StaticFieldAccess = {
     val maybeField = classes.lookup(fieldName.className).flatMap(_.field(fieldName))
     if (maybeField.isEmpty) {
@@ -61,5 +61,11 @@ case class AstBuilder(classes: Classes) {
       }
       current
     }
+  }
+  
+  def newClass(sourceFile: String, access: AccessLevel, classType: ClassType, fields: List[Field], methods: List[Method]): Class = {
+    val result = Class(sourceFile, access, classType, fields, methods)
+    addClass(result)
+    result
   }
 }

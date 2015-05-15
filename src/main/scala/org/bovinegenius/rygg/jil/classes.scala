@@ -18,6 +18,10 @@ case class InputClasses(classes: List[Classy]) extends Classes {
     classes.groupBy(_.className).mapValues(_.head)
 
   override def lookup(className: ClassName): Option[Classy] = classMap.get(className)
+  
+  def addClass(cls: Class): InputClasses = {
+    InputClasses(classes :+ cls)
+  }
 }
 
 case class ResourceClasses(classpath: String) extends Classes {
@@ -77,7 +81,9 @@ class BytecodeToClassVisitor() extends ClassVisitor(Opcodes.ASM5) {
   }
 }
 
-case class CombinationClasses(classeses: Classes*) extends Classes {
+case class CombinationClasses private(added: InputClasses, classesesInput: List[Classes]) extends Classes {
+  private val classeses: List[Classes] = classesesInput :+ added
+
   override def lookup(className: ClassName): Option[Classy] = {
     for (classes <- classeses) {
       val result = classes.lookup(className)
@@ -87,4 +93,15 @@ case class CombinationClasses(classeses: Classes*) extends Classes {
     }
     return None
   }
+  
+  def addClass(cls: Class): CombinationClasses = {
+    new CombinationClasses(added.addClass(cls), classeses)
+  }
 }
+object CombinationClasses {
+  def apply(classeses: Classes*): CombinationClasses = {
+    CombinationClasses(InputClasses(List()), classeses.toList)
+  }
+}
+
+
