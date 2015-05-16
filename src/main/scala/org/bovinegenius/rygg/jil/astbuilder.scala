@@ -49,7 +49,7 @@ case class AstBuilder(classes: Classes, addClass: Class => Unit) {
     invokeVirtual(obj, name, args.toList)
   }
   
-  def const(lit: String): LiteralString = LiteralString(lit)
+  def const(lit: String): StringLiteral = StringLiteral(lit)
 
   def progn(expr: Expression, exprs: Expression*): Expression = {
     if (exprs.isEmpty) {
@@ -57,7 +57,7 @@ case class AstBuilder(classes: Classes, addClass: Class => Unit) {
     } else {
       var current: Expression = expr
       for (exp <- exprs) {
-        current = Sequence(current, expr)
+        current = Sequence(current, exp)
       }
       current
     }
@@ -67,5 +67,48 @@ case class AstBuilder(classes: Classes, addClass: Class => Unit) {
     val result = Class(sourceFile, access, classType, fields, methods)
     addClass(result)
     result
+  }
+  
+  def method(methodName: MemberName, access: AccessLevel, staticness: Staticness, returnType: Type, args: (String, Type)*)(body: () => Expression): Method = {
+    val sig = MethodSignature(methodName.asMethodName, access, staticness.isStatic, returnType, args.map(p => Arg.pair2Arg(p)).toList)
+    Method(sig, Some(body))
+  }
+
+  def method(methodName: MemberName, access: AccessLevel, returnType: Type, args: (String, Type)*)(body: () => Expression): Method = {
+    method(methodName, access, NonStatic, returnType, args :_*)(body)
+  }
+  
+  def constructor(className: ClassName, access: AccessLevel, args: (String, Type)*)(body: () => Expression): Method = {
+    method(className("<init>"), access, NonStatic, VoidType, args :_*)(body)
+  }
+  
+  def setField(obj: Expression, fieldName: String, value: Expression): SetField = {
+    SetField(obj, obj.expressionType.asInstanceOf[ClassType].name("fieldName").asFieldName, value)
+  }
+  
+  def getThis(classType: ClassType): AccessThis = {
+    AccessThis(classType)
+  }
+  
+  def getArg(index: Int, argType: Type): AccessArgument = {
+    AccessArgument(index, argType)
+  }
+  
+  def field(fieldName: MemberName, access: AccessLevel, staticness: Staticness, fieldType: Type): Field = {
+    Field(fieldName.asFieldName, access, staticness.isStatic, fieldType)
+  }
+  
+  def recordField(fieldName: MemberName, fieldType: Type): Field = {
+    field(fieldName, Public, NonStatic, fieldType)
+  }
+  
+  def let(name: String, value: Expression)(body: (LocalVariableLookup) => Expression): Let = {
+    val localVar = LocalVariable(LocalVariableName(name), value.expressionType)
+    val bodyExpr = body(LocalVariableLookup(localVar))
+    Let(localVar, value, bodyExpr)
+  }
+  
+  def println(item: Expression): VirtualMethodCall = {
+    invokeVirtual(lookupField("java.lang.System.out"), "java.io.PrintStream.println", item)
   }
 }

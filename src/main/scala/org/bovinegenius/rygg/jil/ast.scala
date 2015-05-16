@@ -13,6 +13,7 @@ case class ClassName(val packageName: PackageName, val name: String) {
   val bytecodeName: String = s"${packageName.bytecodeName}/${name}"
   val classpath: String = s"${bytecodeName}.class"
   val prettyName: String = s"${packageName.name}.${name}"
+  def apply(memberName: String): MemberName = MemberName(this, memberName)
 }
 object ClassName {
   def apply(qualifiedName: String): ClassName = {
@@ -21,6 +22,11 @@ object ClassName {
     val packageName = PackageName(parts.slice(0, parts.length - 1).mkString("."))
     ClassName(packageName, parts.last)
   }
+}
+
+case class MemberName(val className: ClassName, val name: String) {
+  def asMethodName: MethodName = MethodName(className, name)
+  def asFieldName: FieldName = FieldName(className, name)
 }
 
 case class InternalName(parts: Array[String]) {
@@ -55,6 +61,24 @@ object AccessLevel {
       Package
     }
   }
+}
+
+sealed trait Staticness {
+  def isStatic: Boolean
+}
+case object Static extends Staticness {
+  override val isStatic: Boolean = true
+}
+case object NonStatic extends Staticness {
+  override val isStatic: Boolean = false
+}
+object Staticness {
+  def apply(static: Boolean): Staticness =
+    if (static) {
+      Static
+    } else {
+      NonStatic
+    }
 }
 
 sealed trait Classy {
@@ -117,6 +141,9 @@ object MethodName {
   }
 }
 
+case class LocalVariableName(name: String)
+case class LocalVariable(name: LocalVariableName, varType: Type)
+
 case class Field(val name: FieldName, val access: AccessLevel, val static: Boolean, val fieldType: Type) {
   val pretty: String = {
     val staticStr = if (static) " static" else ""
@@ -153,14 +180,35 @@ case class StaticFieldAccess(val fieldName: FieldName, val fieldType: Type) exte
 case class FieldAccess(val obj: Expression, val fieldName: FieldName, val fieldType: Type) extends Expression {
   val expressionType: Type = fieldType
 }
+case class AccessThis(val classType: ClassType) extends Expression {
+  val expressionType: Type = classType
+}
+case class AccessArgument(val index: Int, val argType: Type) extends Expression {
+  val expressionType: Type = argType
+}
+case class SetField(val obj: Expression, val fieldName: FieldName, val value: Expression) extends Expression {
+  val expressionType: Type = value.expressionType
+}
 case class VirtualMethodCall(val obj: Expression, val signature: MethodSignature, val args: List[Expression]) extends Expression {
   val expressionType: Type = signature.returnType
 }
-case class LiteralString(val value: String) extends Expression {
+case class StringLiteral(val value: String) extends Expression {
   val expressionType: Type = ClassType(ClassName(PackageName("java.lang"), "String"))
+}
+case class IntLiteral(val value: Int) extends Expression {
+  val expressionType: Type = IntType
+}
+case class LongLiteral(val value: Long) extends Expression {
+  val expressionType: Type = LongType
 }
 case class Sequence(expr1: Expression, expr2: Expression) extends Expression {
   val expressionType: Type = expr2.expressionType
+}
+case class Let(name: LocalVariable, value: Expression, body: Expression) extends Expression {
+  val expressionType: Type = body.expressionType
+}
+case class LocalVariableLookup(variable: LocalVariable) extends Expression {
+  val expressionType: Type = variable.varType
 }
 
 sealed trait Type {

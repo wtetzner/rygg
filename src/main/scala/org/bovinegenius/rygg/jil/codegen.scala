@@ -10,11 +10,12 @@ import org.objectweb.asm.Opcodes.ACC_PROTECTED
 import org.objectweb.asm.Opcodes.ACC_PUBLIC
 import org.objectweb.asm.Opcodes.ACC_STATIC
 import org.objectweb.asm.{Type => AsmType}
+import org.objectweb.asm.commons.LocalVariablesSorter
 
 case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) {
-  private val classes: CombinationClasses = CombinationClasses(InputClasses(inputClasses), ResourceClasses(classpath))
+  private var classes: CombinationClasses = CombinationClasses(InputClasses(inputClasses), ResourceClasses(classpath))
 
-  val astBuider: AstBuilder = AstBuilder(classes, cls => { classes.addClass(cls) })
+  val astBuider: AstBuilder = AstBuilder(classes, cls => { classes = classes.addClass(cls) })
 
   def writeClass(className: ClassName): Array[Byte] = classes.lookup(className) match {
     case None => throw new RuntimeException(s"No such class: ${className.bytecodeName}")
@@ -22,12 +23,14 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
     case Some(interface: Interface) => writeInterface(interface)
   }
 
+  def writeInputClasses(): Iterator[(ClassName, Array[Byte])] =
+    classes.addedClasses.map(c => (c, writeClass(c)))
+
   private def writeInterface(inteface: Interface): Array[Byte] = {
     null
   }
 
   private def writeClass(jilClass: Class): Array[Byte] = {
-    println("lookedup: %s".format(classes.lookup(ClassName(PackageName("java.io"), "PrintStream")).map(_.pretty)))
     import org.objectweb.asm.Opcodes._
     val cw: ClassWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES)
     cw.visit(Opcodes.V1_6, accessLevel(jilClass.access) | Opcodes.ACC_SUPER, jilClass.classType.name.bytecodeName, null, "java/lang/Object", null);
@@ -43,8 +46,11 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
     cw.toByteArray()
   }
 
+  private def localVariablesSorter(apiVersion: Int, cw: ClassWriter, access: Int, name: String, desc: String): LocalVariablesSorter =
+    new LocalVariablesSorter(Opcodes.ASM5, access, desc, cw.visitMethod(access, name, desc, null, null)) {}
+  
   private def writeMethod(method: Method, cw: ClassWriter): Unit = {
-    val mv: MethodVisitor = cw.visitMethod(accessLevel(method.signature.access) | static(method.signature.static), method.signature.name.name, descriptor(method.signature), null, null);
+    val mv: LocalVariablesSorter = localVariablesSorter(Opcodes.V1_6, cw, accessLevel(method.signature.access) | static(method.signature.static), method.signature.name.name, descriptor(method.signature)) // cw.visitMethod(accessLevel(method.signature.access) | static(method.signature.static), method.signature.name.name, descriptor(method.signature), null, null);
     mv.visitCode()
     writeExpression(method.body, mv)
     mv.visitInsn(Opcodes.RETURN)
@@ -53,31 +59,84 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
     mv.visitEnd()
   }
 
-  private def writeExpression(expression: Option[Expression], mv: MethodVisitor): Unit = expression match {
+  private def writeExpression(expression: Option[Expression], mv: LocalVariablesSorter): Unit = expression match {
     case None => ()
-    case Some(expr) => writeExpression(expr, mv)
+    case Some(expr) => writeExpression(expr, mv, EmptyLocalEnvironment)
   }
   
-  private def writeExpression(expression: Expression, mv: MethodVisitor): Unit = {
+  private def writeExpression(expression: Expression, mv: LocalVariablesSorter, env: LocalEnvironmentMap): Unit = {
     expression match {
       case StaticFieldAccess(fieldName, fieldType) => mv.visitFieldInsn(Opcodes.GETSTATIC, fieldName.className.bytecodeName, fieldName.name, descriptor(fieldType))
       case FieldAccess(expr, fieldName, fieldType) => {
-        writeExpression(expr, mv)
+        writeExpression(expr, mv, env)
         mv.visitFieldInsn(Opcodes.GETFIELD, fieldName.className.bytecodeName, fieldName.name, descriptor(fieldType))
       }
       case VirtualMethodCall(expr, sig, args) => {
-        writeExpression(expr, mv)
-        args.foreach { arg => writeExpression(arg, mv) }
+        writeExpression(expr, mv, env)
+        args.foreach { arg => writeExpression(arg, mv, env) }
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, expr.expressionType.bytecodeName, sig.name.name, descriptor(sig), false)
       }
-      case LiteralString(str) => mv.visitLdcInsn(str)
+      case StringLiteral(str) => mv.visitLdcInsn(str)
       case Sequence(expr1, expr2) => {
-        writeExpression(expr1, mv)
-        writeExpression(expr2, mv)
+        writeExpression(expr1, mv, env)
+        writeExpression(expr2, mv, env)
+      }
+      case LongLiteral(long) => mv.visitLdcInsn(long)
+      case IntLiteral(int) => mv.visitLdcInsn(int)
+      case Let(variable, value, body) => {
+        val startLabel = new Label
+        mv.visitLabel(startLabel)
+        val varIndex = mv.newLocal(asmType(variable.varType))
+        writeExpression(value, mv, env)
+        mv.visitVarInsn(storeInstruction(value.expressionType), varIndex)
+        val newEnv = env.withVar(LocalVariableInfo(variable, varIndex))
+        writeExpression(body, mv, newEnv)
+        val endLabel = new Label
+        mv.visitLabel(endLabel)
+        mv.visitLocalVariable(variable.name.name, descriptor(variable.varType), null, startLabel, endLabel, varIndex)
+      }
+      case LocalVariableLookup(variable) => {
+        val index = env(variable.name).getOrElse(throw new RuntimeException(s"No such variable: ${variable.name.name}")).index
+        mv.visitVarInsn(loadInstruction(variable.varType), index)
+      }
+      case AccessThis(cls) => {
+        mv.visitVarInsn(Opcodes.ALOAD, 0);
+      }
+      case SetField(obj, field, value) => {
+        writeExpression(obj, mv, env)
+        writeExpression(value, mv, env)
+        mv.visitFieldInsn(storeInstruction(value.expressionType), obj.expressionType.bytecodeName, field.name, descriptor(value.expressionType))
+      }
+      case AccessArgument(index, argType) => {
+        mv.visitVarInsn(loadInstruction(argType), index)
       }
     }
   }
 
+  private def storeInstruction(varType: Type): Int = {
+    varType match {
+      case ClassType(_) => Opcodes.ASTORE
+      case ArrayType(_) => Opcodes.ASTORE
+      case IntType | ByteType | ShortType | BooleanType | CharType => Opcodes.ISTORE
+      case DoubleType => Opcodes.DSTORE
+      case FloatType => Opcodes.FSTORE
+      case LongType => Opcodes.LSTORE
+      case VoidType => throw new RuntimeException("Can't store a variable that's Void")
+    }
+  }
+  
+  private def loadInstruction(varType: Type): Int = {
+    varType match {
+      case ClassType(_) => Opcodes.ALOAD
+      case ArrayType(_) => Opcodes.ALOAD
+      case IntType | ByteType | ShortType | BooleanType | CharType => Opcodes.ILOAD
+      case DoubleType => Opcodes.DLOAD
+      case FloatType => Opcodes.FLOAD
+      case LongType => Opcodes.LLOAD
+      case VoidType => throw new RuntimeException("Can't load a variable that's Void")
+    }
+  }
+  
   private def writeField(field: Field, cw: ClassWriter): Unit = {
     val fv: FieldVisitor = cw.visitField(accessLevel(field.access) | static(field.static), field.name.name, descriptor(field.fieldType), null, null)
   }

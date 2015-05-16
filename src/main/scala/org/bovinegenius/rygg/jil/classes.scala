@@ -22,6 +22,8 @@ case class InputClasses(classes: List[Classy]) extends Classes {
   def addClass(cls: Class): InputClasses = {
     InputClasses(classes :+ cls)
   }
+
+  def classNames: Iterator[ClassName] = classMap.keys.iterator
 }
 
 case class ResourceClasses(classpath: String) extends Classes {
@@ -97,6 +99,8 @@ case class CombinationClasses private(added: InputClasses, classesesInput: List[
   def addClass(cls: Class): CombinationClasses = {
     new CombinationClasses(added.addClass(cls), classeses)
   }
+  
+  def addedClasses: Iterator[ClassName] = added.classNames
 }
 object CombinationClasses {
   def apply(classeses: Classes*): CombinationClasses = {
