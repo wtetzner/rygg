@@ -30,6 +30,7 @@ import org.bovinegenius.rygg.jil.SetField
 import org.bovinegenius.rygg.jil.Expression
 import org.bovinegenius.rygg.jil.ShortType
 import org.bovinegenius.rygg.jil.CharType
+import org.bovinegenius.rygg.jil.Interface
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -41,17 +42,20 @@ object Main {
       val astBuilder: AstBuilder = codeGenerator.astBuider
 
       //testRecord(inputFile, astBuilder)
+      //makeFieldInterface(astBuilder, "foo", LongType)
+      //makeFieldInterface(astBuilder, "bar", ClassType("java.lang.String"))
       makeRecord(inputFile, astBuilder, ClassName("org.bovinegenius.test.TestRecord"),
           List(
               "foo" -> LongType,
               "bar" -> BooleanType,
               "baz" -> LongType,
               "text" -> ClassType("java.lang.String")))
-      makeRecord(inputFile, astBuilder, ClassName("org.bovinegenius.test.TestRecord2"),
+      makeRecord(inputFile, astBuilder, ClassName("org.bovinegenius.test.TestRecord-2"),
           List(
               "foo" -> ClassType("org.bovinegenius.test.TestRecord"),
               "bar" -> CharType,
               "baz" -> ShortType,
+              "text-stuff" -> ClassType("java.lang.String"),
               "text" -> ClassType("java.lang.String")))
       testClass(inputFile, astBuilder)
 
@@ -64,14 +68,48 @@ object Main {
     })
   }
 
+  def fieldInterfaceName(fieldName: String, fieldType: Type): String = {
+    val typeName = fieldType.prettyName
+      .replace("\\", "\\\\")
+      .replace("(", "\\(")
+      .replace(".", "(DOT)")
+      .replace("[", "(LBRACKET)")
+      .replace("]", "(RBRACKET)")
+    s"org.bovinegenius.rygg.recordinterfaces.RecordField__${fieldName}__${typeName}"
+  }
+  
+  def makeFieldInterface(astBuilder: AstBuilder, fieldName: String, fieldType: Type): Interface = {
+    import astBuilder._
+    
+    val className = ClassName(fieldInterfaceName(fieldName, fieldType))
+    val classType = ClassType(className)
+    
+    newInterface(
+        sourceFile = "<generated>",
+        access = Public,
+        classType = classType,
+        methods = List(
+            MethodSignature(className(fieldName).asMethodName, Public, false, fieldType, List())
+        )
+    )
+  }
+  
   def makeRecord(source: String, astBuilder: AstBuilder, className: ClassName, fields: List[(String,Type)]): Class = {
     import astBuilder._
     val classType = ClassType(className)
+    
+    val interfaces = fields.map(f => {
+      val interfaceName = fieldInterfaceName(f._1, f._2)
+      getClassy(ClassName(interfaceName), () => {
+        makeFieldInterface(astBuilder, f._1, f._2)
+      }).className
+    })
     
     newClass(
         sourceFile = source,
         access = Public,
         classType = classType,
+        interfaces = interfaces,
         fields = fields.map(f => recordField(className(f._1), f._2)),
         methods = List(
             constructor(className, Public, fields :_*) { () =>
@@ -102,7 +140,12 @@ object Main {
               val concatArgs = fullList.flatMap(x => x)
               concat(concatArgs :_*)
             }
-        )
+        ) ++
+        fields.map(f => {
+          method(className(f._1), Public, f._2) { () =>
+            FieldAccess(getThis(classType), className(f._1).asFieldName, f._2)
+          }
+        })
     )
   }
   
@@ -163,7 +206,7 @@ object Main {
                       println(otherVar)
                     },
                     let("record", makeNew(ClassType("org.bovinegenius.test.TestRecord"), const(9L), const(true), const(8L), const("The Text"))) { record =>
-                      let("record2", makeNew(ClassType("org.bovinegenius.test.TestRecord2"), record, const('x'), const(5:Short), const("Some Text"))) { record2 =>
+                      let("\\record-2?", makeNew(ClassType("org.bovinegenius.test.TestRecord-2"), record, const('x'), const(5:Short), const("Some Text"), const("more text"))) { record2 =>
                         progn(
                             println(astBuilder.toString(record)),
                             println(astBuilder.toString(record2))

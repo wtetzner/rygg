@@ -1,6 +1,6 @@
 package org.bovinegenius.rygg.jil
 
-case class AstBuilder(classes: Classes, addClass: Class => Unit) {
+case class AstBuilder(classes: Classes, addClass: Classy => Unit) {
   def lookupField(fieldName: FieldName): StaticFieldAccess = {
     val maybeField = classes.lookup(fieldName.className).flatMap(_.field(fieldName))
     if (maybeField.isEmpty) {
@@ -85,9 +85,30 @@ case class AstBuilder(classes: Classes, addClass: Class => Unit) {
   }
   
   def newClass(sourceFile: String, access: AccessLevel, classType: ClassType, fields: List[Field], methods: List[Method]): Class = {
-    val result = Class(sourceFile, access, classType, fields, methods)
+    val result = Class(sourceFile, access, classType, fields, methods, List())
     addClass(result)
     result
+  }
+  
+  def newClass(sourceFile: String, access: AccessLevel, classType: ClassType, fields: List[Field], methods: List[Method], interfaces: List[ClassName]): Class = {
+    val result = Class(sourceFile, access, classType, fields, methods, interfaces)
+    addClass(result)
+    result
+  }
+  
+  def newInterface(sourceFile: String, access: AccessLevel, classType: ClassType, methods: List[MethodSignature]): Interface = {
+    val result = Interface(sourceFile, access, classType, methods)
+    addClass(result)
+    result
+  }
+  
+  def getClassy(className: ClassName, generate: () => Classy): Classy = {
+    val result = classes.lookup(className)
+    if (result.isEmpty) {
+      generate()
+    } else {
+      result.get
+    }
   }
   
   def method(methodName: MemberName, access: AccessLevel, staticness: Staticness, returnType: Type, args: (String, Type)*)(body: () => Expression): Method = {
@@ -124,7 +145,7 @@ case class AstBuilder(classes: Classes, addClass: Class => Unit) {
   }
 
   def recordField(fieldName: MemberName, fieldType: Type): Field = {
-    field(fieldName, Public, NonStatic, Final, fieldType)
+    field(fieldName, Private, NonStatic, Final, fieldType)
   }
 
   def let(name: String, value: Expression)(body: (LocalVariableLookup) => Expression): Let = {

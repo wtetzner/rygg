@@ -19,11 +19,12 @@ case class InputClasses(classes: List[Classy]) extends Classes {
 
   override def lookup(className: ClassName): Option[Classy] = classMap.get(className)
   
-  def addClass(cls: Class): InputClasses = {
+  def addClass(cls: Classy): InputClasses = {
     InputClasses(classes :+ cls)
   }
 
   def classNames: Iterator[ClassName] = classMap.keys.iterator
+  def allClasses: Iterator[Classy] = classMap.values.iterator
 }
 
 case class ResourceClasses(classpath: String) extends Classes {
@@ -62,14 +63,13 @@ class BytecodeToClassVisitor() extends ClassVisitor(Opcodes.ASM5) {
     if (access.isSet(Opcodes.ACC_INTERFACE)) {
       classy = Interface("<unknown>", AccessLevel(access), ClassType(InternalName(name).className), List())
     } else {
-      classy = Class("<unknown>", AccessLevel(access), ClassType(InternalName(name).className), List(), List())
+      classy = Class("<unknown>", AccessLevel(access), ClassType(InternalName(name).className), List(), List(), List())
     }
   }
 
   override def visitField(access: Int, name: String, desc: String, signature: String, value: Object): FieldVisitor = {
     val accessFlags: AccessFlags = access
     fields = fields :+ Field(FieldName(classy.className, name), AccessLevel(accessFlags), accessFlags.isSet(Opcodes.ACC_STATIC), accessFlags.isSet(Opcodes.ACC_FINAL), AsmType.getType(desc))
-    println(s"field name: $name, desc: $desc, signature: $signature")
     super.visitField(access, name, desc, signature, value)
   }
 
@@ -78,13 +78,12 @@ class BytecodeToClassVisitor() extends ClassVisitor(Opcodes.ASM5) {
     val methodType: AsmType = AsmType.getType(desc)
     methods = methods :+ MethodSignature(MethodName(classy.className, name), AccessLevel(accessFlags), accessFlags.isSet(Opcodes.ACC_STATIC), methodType.getReturnType,
         methodType.getArgumentTypes.toList.map(t => Arg("_", t)))
-    println(s"method name: $name, desc: $desc, signature: $signature")
     super.visitMethod(access, name, desc, signature, exceptions)
   }
 }
 
 case class CombinationClasses private(added: InputClasses, classesesInput: List[Classes]) extends Classes {
-  private val classeses: List[Classes] = classesesInput :+ added
+  private val classeses: List[Classes] = List(added) ++ classesesInput
 
   override def lookup(className: ClassName): Option[Classy] = {
     for (classes <- classeses) {
@@ -96,11 +95,11 @@ case class CombinationClasses private(added: InputClasses, classesesInput: List[
     return None
   }
   
-  def addClass(cls: Class): CombinationClasses = {
+  def addClass(cls: Classy): CombinationClasses = {
     new CombinationClasses(added.addClass(cls), classeses)
   }
   
-  def addedClasses: Iterator[ClassName] = added.classNames
+  def addedClasses: Iterator[Classy] = added.allClasses
 }
 object CombinationClasses {
   def apply(classeses: Classes*): CombinationClasses = {

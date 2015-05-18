@@ -17,23 +17,30 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
 
   val astBuider: AstBuilder = AstBuilder(classes, cls => { classes = classes.addClass(cls) })
 
-  def writeClass(className: ClassName): Array[Byte] = classes.lookup(className) match {
-    case None => throw new RuntimeException(s"No such class: ${className.bytecodeName}")
-    case Some(cls: Class) => writeClass(cls)
-    case Some(interface: Interface) => writeInterface(interface)
+  def writeClass(classy: Classy): Array[Byte] = classy match {
+    case cls: Class => writeClass(cls)
+    case interface: Interface => writeInterface(interface)
   }
 
-  def writeInputClasses(): Iterator[(ClassName, Array[Byte])] =
-    classes.addedClasses.map(c => (c, writeClass(c)))
+  def writeInputClasses(): Iterator[(ClassName, Array[Byte])] = {
+    classes.addedClasses.map(c => (c.className, writeClass(c)))
+  }
 
-  private def writeInterface(inteface: Interface): Array[Byte] = {
-    null
+  private def writeInterface(interface: Interface): Array[Byte] = {
+    val cw: ClassWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES)
+    cw.visit(Opcodes.V1_6, Opcodes.ACC_INTERFACE | Opcodes.ACC_PUBLIC | Opcodes.ACC_ABSTRACT, interface.classType.bytecodeName, null, "java/lang/Object", null)
+    for(method <- interface.methods) {
+      writeMethodSignature(method, cw)
+    }
+    cw.visitEnd()
+    cw.toByteArray()
   }
 
   private def writeClass(jilClass: Class): Array[Byte] = {
     import org.objectweb.asm.Opcodes._
     val cw: ClassWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES)
-    cw.visit(Opcodes.V1_6, accessLevel(jilClass.access) | Opcodes.ACC_SUPER, jilClass.classType.name.bytecodeName, null, "java/lang/Object", null);
+    val interfaces: Array[String] = jilClass.interfaces.map(_.bytecodeName).toArray
+    cw.visit(Opcodes.V1_6, accessLevel(jilClass.access) | Opcodes.ACC_SUPER, jilClass.classType.name.bytecodeName, null, "java/lang/Object", interfaces);
     cw.visitSource(jilClass.sourceFile, null);
 
     for (field <- jilClass.fields) {
@@ -60,6 +67,11 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
     mv.visitEnd()
   }
 
+  private def writeMethodSignature(method: MethodSignature, cw: ClassWriter): Unit = {
+    val mv: MethodVisitor = cw.visitMethod(accessLevel(method.access) | Opcodes.ACC_ABSTRACT, method.name.name, descriptor(method), null, null)
+    mv.visitEnd()
+  }
+  
   private def writeExpression(expression: Option[Expression], mv: LocalVariablesSorter): Unit = expression match {
     case None => ()
     case Some(expr) => writeExpression(expr, mv, EmptyLocalEnvironment)
@@ -107,7 +119,6 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
         mv.visitVarInsn(Opcodes.ALOAD, 0);
       }
       case SetField(obj, field, value) => {
-        println(s"SetField field: ${field}")
         writeExpression(obj, mv, env)
         writeExpression(value, mv, env)
         mv.visitFieldInsn(Opcodes.PUTFIELD, obj.expressionType.bytecodeName, field.name, descriptor(value.expressionType))
@@ -171,7 +182,6 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
   }
   
   private def writeField(field: Field, cw: ClassWriter): Unit = {
-    println(s"Field: ${field}")
     val fv: FieldVisitor = cw.visitField(accessLevel(field.access) | static(field.static) | isFinal(field.isFinal), field.name.name, descriptor(field.fieldType), null, null)
   }
 

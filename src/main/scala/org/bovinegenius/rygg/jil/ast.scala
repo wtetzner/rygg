@@ -109,7 +109,6 @@ sealed trait Classy {
   }
 
   private def methodMatches(name: MethodName, argTypes: List[Type], sig: MethodSignature): Boolean = {
-    println(s"method: ${name}, argTypes: ${argTypes}, sig: ${sig}")
     sig.name == name &&
     sig.args.length == argTypes.length &&
     sig.args.map(a => a.argType).zip(argTypes).forall(p => assignable(p._2, p._1))
@@ -117,12 +116,11 @@ sealed trait Classy {
 
   // Kept simple for now
   private def assignable(inputType: Type, slot: Type): Boolean = {
-    println(s"assignable: ${slot} <- ${inputType}")
     inputType.sameAs(slot) ||
     inputType.bytecodeType.sameAs(slot)
   }
 }
-case class Class(val sourceFile: String, val access: AccessLevel, val classType: ClassType, val fields: List[Field], val methods: List[Method]) extends Classy {
+case class Class(val sourceFile: String, val access: AccessLevel, val classType: ClassType, val fields: List[Field], val methods: List[Method], val interfaces: List[ClassName]) extends Classy {
   val className: ClassName = classType.name
   val pretty: String = {
     val prettyFields = fields.map(_.pretty).mkString(";\n  ")
