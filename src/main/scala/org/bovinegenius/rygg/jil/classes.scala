@@ -68,7 +68,7 @@ class BytecodeToClassVisitor() extends ClassVisitor(Opcodes.ASM5) {
 
   override def visitField(access: Int, name: String, desc: String, signature: String, value: Object): FieldVisitor = {
     val accessFlags: AccessFlags = access
-    fields = fields :+ Field(FieldName(classy.className, name), AccessLevel(accessFlags), accessFlags.isSet(Opcodes.ACC_STATIC), AsmType.getType(desc))
+    fields = fields :+ Field(FieldName(classy.className, name), AccessLevel(accessFlags), accessFlags.isSet(Opcodes.ACC_STATIC), accessFlags.isSet(Opcodes.ACC_FINAL), AsmType.getType(desc))
     println(s"field name: $name, desc: $desc, signature: $signature")
     super.visitField(access, name, desc, signature, value)
   }

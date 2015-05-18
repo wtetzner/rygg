@@ -53,7 +53,8 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
     val mv: LocalVariablesSorter = localVariablesSorter(Opcodes.V1_6, cw, accessLevel(method.signature.access) | static(method.signature.static), method.signature.name.name, descriptor(method.signature)) // cw.visitMethod(accessLevel(method.signature.access) | static(method.signature.static), method.signature.name.name, descriptor(method.signature), null, null);
     mv.visitCode()
     writeExpression(method.body, mv)
-    mv.visitInsn(Opcodes.RETURN)
+    mv.visitInsn(returnInstruction(method.signature.returnType))
+    
     // Don't need to use real values here, since we're using the COMPUTE_MAXS flag
     mv.visitMaxs(0, 0)
     mv.visitEnd()
@@ -83,6 +84,9 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
       }
       case LongLiteral(long) => mv.visitLdcInsn(long)
       case IntLiteral(int) => mv.visitLdcInsn(int)
+      case ShortLiteral(lit) => mv.visitLdcInsn(lit)
+      case CharLiteral(lit) => mv.visitLdcInsn(lit)
+      case BooleanLiteral(bool) => mv.visitLdcInsn(bool)
       case Let(variable, value, body) => {
         val startLabel = new Label
         mv.visitLabel(startLabel)
@@ -103,12 +107,29 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
         mv.visitVarInsn(Opcodes.ALOAD, 0);
       }
       case SetField(obj, field, value) => {
+        println(s"SetField field: ${field}")
         writeExpression(obj, mv, env)
         writeExpression(value, mv, env)
-        mv.visitFieldInsn(storeInstruction(value.expressionType), obj.expressionType.bytecodeName, field.name, descriptor(value.expressionType))
+        mv.visitFieldInsn(Opcodes.PUTFIELD, obj.expressionType.bytecodeName, field.name, descriptor(value.expressionType))
       }
       case AccessArgument(index, argType) => {
         mv.visitVarInsn(loadInstruction(argType), index)
+      }
+      case New(classType, args) => {
+        mv.visitTypeInsn(Opcodes.NEW, classType.bytecodeName)
+        mv.visitInsn(Opcodes.DUP)
+        args.foreach { arg => writeExpression(arg, mv, env) }
+        val methodSig = MethodSignature(classType.name("<init>").asMethodName, Public, false, VoidType, args.map(e => Arg("name", e.expressionType)))
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, classType.bytecodeName, methodSig.name.name, descriptor(methodSig), false)
+      }
+      case InvokeSpecial(expr, sig, args) => {
+        writeExpression(expr, mv, env)
+        args.foreach { arg => writeExpression(arg, mv, env) }
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, expr.expressionType.bytecodeName, sig.name.name, descriptor(sig), false)
+      }
+      case InvokeStatic(classType, sig, args) => {
+        args.foreach { arg => writeExpression(arg, mv, env) }
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, classType.name.bytecodeName, sig.name.name, descriptor(sig), false)
       }
     }
   }
@@ -125,6 +146,18 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
     }
   }
   
+    private def returnInstruction(varType: Type): Int = {
+    varType match {
+      case ClassType(_) => Opcodes.ARETURN
+      case ArrayType(_) => Opcodes.ARETURN
+      case IntType | ByteType | ShortType | BooleanType | CharType => Opcodes.IRETURN
+      case DoubleType => Opcodes.DRETURN
+      case FloatType => Opcodes.FRETURN
+      case LongType => Opcodes.LRETURN
+      case VoidType => Opcodes.RETURN
+    }
+  }
+  
   private def loadInstruction(varType: Type): Int = {
     varType match {
       case ClassType(_) => Opcodes.ALOAD
@@ -138,9 +171,17 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
   }
   
   private def writeField(field: Field, cw: ClassWriter): Unit = {
-    val fv: FieldVisitor = cw.visitField(accessLevel(field.access) | static(field.static), field.name.name, descriptor(field.fieldType), null, null)
+    println(s"Field: ${field}")
+    val fv: FieldVisitor = cw.visitField(accessLevel(field.access) | static(field.static) | isFinal(field.isFinal), field.name.name, descriptor(field.fieldType), null, null)
   }
 
+  private def isFinal(isFinal: Boolean): Int =
+    if (isFinal) {
+      Opcodes.ACC_FINAL
+    } else {
+      0
+    }
+  
   private def methodType(method: MethodSignature): AsmType = {
     val argTypes: List[Type] = method.args.map(_.argType)
     val types: List[AsmType] = argTypes.map((x: Type) => asmType(x))

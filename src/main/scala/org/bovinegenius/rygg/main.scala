@@ -23,6 +23,13 @@ import org.bovinegenius.rygg.jil.Sequence
 import org.bovinegenius.rygg.jil.AstBuilder
 import org.bovinegenius.rygg.jil.Static
 import org.bovinegenius.rygg.jil.BooleanType
+import org.bovinegenius.rygg.jil.Final
+import org.bovinegenius.rygg.jil.FieldAccess
+import org.bovinegenius.rygg.jil.Type
+import org.bovinegenius.rygg.jil.SetField
+import org.bovinegenius.rygg.jil.Expression
+import org.bovinegenius.rygg.jil.ShortType
+import org.bovinegenius.rygg.jil.CharType
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -33,7 +40,19 @@ object Main {
       val codeGenerator: CodeGenerator = CodeGenerator(classpath, List())
       val astBuilder: AstBuilder = codeGenerator.astBuider
 
-      testRecord(inputFile, astBuilder)
+      //testRecord(inputFile, astBuilder)
+      makeRecord(inputFile, astBuilder, ClassName("org.bovinegenius.test.TestRecord"),
+          List(
+              "foo" -> LongType,
+              "bar" -> BooleanType,
+              "baz" -> LongType,
+              "text" -> ClassType("java.lang.String")))
+      makeRecord(inputFile, astBuilder, ClassName("org.bovinegenius.test.TestRecord2"),
+          List(
+              "foo" -> ClassType("org.bovinegenius.test.TestRecord"),
+              "bar" -> CharType,
+              "baz" -> ShortType,
+              "text" -> ClassType("java.lang.String")))
       testClass(inputFile, astBuilder)
 
       codeGenerator.writeInputClasses()
@@ -45,6 +64,48 @@ object Main {
     })
   }
 
+  def makeRecord(source: String, astBuilder: AstBuilder, className: ClassName, fields: List[(String,Type)]): Class = {
+    import astBuilder._
+    val classType = ClassType(className)
+    
+    newClass(
+        sourceFile = source,
+        access = Public,
+        classType = classType,
+        fields = fields.map(f => recordField(className(f._1), f._2)),
+        methods = List(
+            constructor(className, Public, fields :_*) { () =>
+              val prepare = invokeSpecial(getThis(ClassType(ClassName("java.lang.Object"))), "java.lang.Object.<init>")
+              var currentArgIndex = 1
+              var currentSetters: List[SetField] = List()
+              for (field <- fields) {
+                currentSetters = currentSetters :+ setField(getThis(classType), field._1, getArg(currentArgIndex, field._2))
+                currentArgIndex += field._2.stackSize
+              }
+              progn(prepare, currentSetters :_*)
+            },
+            method(className("toString"), Public, ClassType(ClassName("java.lang.String"))) { () =>
+              val start = const("{") //const(className.name + "(")
+              val end = const("}") //const(")")
+              val prefixes = fields.map(f => List(const(f._1 + "="), FieldAccess(getThis(classType), className(f._1).asFieldName, f._2)))
+              var fullList: List[List[Expression]] = List(List(start))
+              var first = true
+              for (prefix <- prefixes) {
+                if (first) {
+                  first = false
+                } else {
+                  fullList = fullList :+ List(const(", "))
+                }
+                fullList = fullList :+ prefix
+              }
+              fullList = fullList :+ List(end)
+              val concatArgs = fullList.flatMap(x => x)
+              concat(concatArgs :_*)
+            }
+        )
+    )
+  }
+  
   def testRecord(source: String, astBuilder: AstBuilder): Class = {
     import astBuilder._
     val className = ClassName("org.bovinegenius.test.TestRecord")
@@ -61,10 +122,14 @@ object Main {
         methods = List(
             constructor(className, Public, "foo" -> LongType, "bar" -> BooleanType, "baz" -> LongType) { () =>
               progn(
+                  invokeSpecial(getThis(ClassType(ClassName("java.lang.Object"))), "java.lang.Object.<init>"),
                   setField(getThis(ClassType(className)), "foo", getArg(1, LongType)),
-                  setField(getThis(ClassType(className)), "bar", getArg(2, BooleanType)),
-                  setField(getThis(ClassType(className)), "baz", getArg(3, LongType))
+                  setField(getThis(ClassType(className)), "bar", getArg(3, BooleanType)),
+                  setField(getThis(ClassType(className)), "baz", getArg(4, LongType))
               )
+            },
+            method(className("toString"), Public, ClassType(ClassName("java.lang.String"))) { () =>
+              concat(const("TestRecord(foo="), FieldAccess(getThis(ClassType(className)), className("foo").asFieldName, LongType), const(")"), const("."))
             }
         )
     )
@@ -80,7 +145,7 @@ object Main {
         access = Public,
         classType = ClassType(className),
         fields = List(
-            Field(FieldName(className, "fieldOne"), Public, true, LongType)),
+            Field(FieldName(className, "fieldOne"), Public, true, false, LongType)),
         methods = List(
             method(className("main"), Public, Static, VoidType, "args" -> ArrayType("java.lang.String")) { () =>
                 progn(
@@ -96,6 +161,14 @@ object Main {
                     },
                     let("someOtherVar", const("Other Var")) { otherVar =>
                       println(otherVar)
+                    },
+                    let("record", makeNew(ClassType("org.bovinegenius.test.TestRecord"), const(9L), const(true), const(8L), const("The Text"))) { record =>
+                      let("record2", makeNew(ClassType("org.bovinegenius.test.TestRecord2"), record, const('x'), const(5:Short), const("Some Text"))) { record2 =>
+                        progn(
+                            println(astBuilder.toString(record)),
+                            println(astBuilder.toString(record2))
+                        )
+                      }
                     }
                 )
                 }))
