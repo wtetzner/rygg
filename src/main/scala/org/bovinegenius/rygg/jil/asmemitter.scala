@@ -5,7 +5,10 @@ import org.objectweb.asm.{Type => AsmType}
 import org.objectweb.asm.tree.FieldInsnNode
 import org.objectweb.asm.tree.InsnNode
 import org.objectweb.asm.tree.IincInsnNode
-import scala.collection.mutable.{ Map => MutableMap }
+import scala.collection.mutable.{
+  Map => MutableMap,
+  ListBuffer
+}
 
 case class AsmEmitter() {
   
@@ -40,15 +43,116 @@ case class VariableManager() {
 }
 
 object Data {
-  case class LabelMarker(val name: String)
+  case class LabelMarker private[Data](val name: String)
+  case class LabelMaker() {
+    private var latest: Int = 0
+    
+    private var seen: Set[String] = Set[String]()
+    
+    def make(name: String): LabelMarker = {
+      if (seen.contains(name)) {
+        val num = latest
+        latest += 1
+        make(s"${name}_${num}")
+      } else {
+        seen = seen + name
+        LabelMarker(name)
+      }
+    }
+  }
   case class LocalVariable(val name: String, val varType: Type, val index: Int)
   case class MethodSignature(val returnType: Type, val argTypes: List[Type])
 }
 
+case class Instructions() {
+  import Instructions._
+  import Data._
+  
+  case class LabelledInstruction[T <: Instruction](val instruction: T, val label: LabelMarker)
+  
+  private val instructions: ListBuffer[LabelledInstruction[_ <: Instruction]] = ListBuffer[LabelledInstruction[_ <: Instruction]]()
+  private val labelMaker: LabelMaker = LabelMaker()
+  
+  def newLabel(name: String): LabelMarker = labelMaker.make(name)
+  
+  def toList: List[LabelledInstruction[_ <: Instruction]] = instructions.toList
+  
+  private def add[T <: Instruction](inst: T, label: LabelMarker): LabelledInstruction[T] = {
+    val labelled = LabelledInstruction(inst, label);
+    instructions += labelled
+    labelled
+  }
+  
+  def aLoad(containedType: Type, label: LabelMarker = labelMaker.make("g:aLoad")): LabelledInstruction[ALoad] =
+    add(ALoad(containedType), label)
+  def aStore(containedType: Type, label: LabelMarker = labelMaker.make("g:aStore")): LabelledInstruction[AStore] =
+    add(AStore(containedType), label)
+  
+  // String constant
+  def const(value: String): LabelledInstruction[Const] =
+    add(Const(value), labelMaker.make("g:strConst"))
+  def const(value: String, label: LabelMarker): LabelledInstruction[Const] =
+    add(Const(value), label)
+
+  // Int constant
+  def const(value: Int): LabelledInstruction[Const] =
+    add(Const(value), labelMaker.make("g:iConst"))
+  def const(value: Int, label: LabelMarker): LabelledInstruction[Const] =
+    add(Const(value), label)
+    
+  // Long constant
+  def const(value: Long): LabelledInstruction[Const] =
+    add(Const(value), labelMaker.make("g:lConst"))
+  def const(value: Long, label: LabelMarker): LabelledInstruction[Const] =
+    add(Const(value), label)
+    
+  // Float constant
+  def const(value: Float): LabelledInstruction[Const] =
+    add(Const(value), labelMaker.make("g:fConst"))
+  def const(value: Float, label: LabelMarker): LabelledInstruction[Const] =
+    add(Const(value), label)
+    
+  // Double constant
+  def const(value: Double): LabelledInstruction[Const] =
+    add(Const(value), labelMaker.make("g:dConst"))
+  def const(value: Double, label: LabelMarker): LabelledInstruction[Const] =
+    add(Const(value), label)
+    
+  // ClassType constant
+  def const(value: ClassType): LabelledInstruction[Const] =
+    add(Const(value), labelMaker.make("g:classConst"))
+  def const(value: ClassType, label: LabelMarker): LabelledInstruction[Const] =
+    add(Const(value), label)
+    
+  // ArrayType constant
+  def const(value: ArrayType): LabelledInstruction[Const] =
+    add(Const(value), labelMaker.make("g:arrConst"))
+  def const(value: ArrayType, label: LabelMarker): LabelledInstruction[Const] =
+    add(Const(value), label)
+    
+  // null ClassType constant
+  def nullConst(value: ClassType): LabelledInstruction[Const] =
+    add(NullConst.of(value), labelMaker.make("g:nullConst"))
+  def nullConst(value: ClassType, label: LabelMarker): LabelledInstruction[Const] =
+    add(NullConst.of(value), label)
+    
+  // null ArrayType constant
+  def nullConst(value: ArrayType): LabelledInstruction[Const] =
+    add(NullConst.of(value), labelMaker.make("g:nullConst"))
+  def nullConst(value: ArrayType, label: LabelMarker): LabelledInstruction[Const] =
+    add(NullConst.of(value), label)
+    
+  def load(variable: LocalVariable, label: LabelMarker = labelMaker.make("g:load")): LabelledInstruction[Load] =
+    add(Load(variable), label)
+    
+  def store(variable: LocalVariable, label: LabelMarker = labelMaker.make("g:load")): LabelledInstruction[Store] =
+    add(Store(variable), label)
+}
+
 object Instructions {
   import Data._
-
-  sealed trait Instruction{
+  
+  sealed trait Instruction {
     def consumes: Int
     def produces: Int
   }
@@ -82,8 +186,8 @@ object Instructions {
     val produces: Int = refType.stackSize
   }
   object NullConst {
-    def NullConst(refType: ClassType): NullConst = NullConst(refType)
-    def NullConst(refType: ArrayType): NullConst = NullConst(refType)
+    def of(refType: ClassType): NullConst = NullConst(refType)
+    def of(refType: ArrayType): NullConst = NullConst(refType)
   }
   object Const {
     def apply(value: Long): Const = SimpleConst(LongType, value)
