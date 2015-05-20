@@ -5,9 +5,38 @@ import org.objectweb.asm.{Type => AsmType}
 import org.objectweb.asm.tree.FieldInsnNode
 import org.objectweb.asm.tree.InsnNode
 import org.objectweb.asm.tree.IincInsnNode
+import scala.collection.mutable.{ Map => MutableMap }
 
 case class AsmEmitter() {
   
+}
+
+case class VariableManager() {
+  import Data.LocalVariable
+
+  private var latest: Int = 0
+  private val known: MutableMap[String,LocalVariable] = MutableMap()
+
+  def variable(name: String, varType: Type): LocalVariable = {
+    val existing = known.get(name)
+    if (existing.isDefined) {
+      throw new RuntimeException(s"Cannot create local variable ${name} of type ${varType.prettyName}; already exists")
+    } else {
+      val localVar = LocalVariable(name, varType, latest)
+      latest += 1
+      known.put(name, localVar)
+      localVar
+    }
+  }
+
+  def variable(name: String): LocalVariable = {
+    val existing = known.get(name)
+    if (existing.isDefined) {
+      existing.get
+    } else {
+      throw new RuntimeException(s"Local variable with name ${name} is not defined")
+    }
+  }
 }
 
 object Data {
