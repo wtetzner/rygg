@@ -43,9 +43,6 @@ object Main {
       val codeGenerator: CodeGenerator = CodeGenerator(classpath, List())
       val astBuilder: AstBuilder = codeGenerator.astBuider
 
-      //testRecord(inputFile, astBuilder)
-      //makeFieldInterface(astBuilder, "foo", LongType)
-      //makeFieldInterface(astBuilder, "bar", ClassType("java.lang.String"))
       makeRecord(inputFile, astBuilder, ClassName("org.bovinegenius.test.TestRecord"),
           List(
               "foo" -> LongType,
