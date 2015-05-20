@@ -210,7 +210,7 @@ case class AccessArgument(val index: Int, val argType: Type) extends Expression 
   val expressionType: Type = argType
 }
 case class SetField(val obj: Expression, val fieldName: FieldName, val value: Expression) extends Expression {
-  val expressionType: Type = value.expressionType
+  val expressionType: Type = VoidType
 }
 case class New(val classType: ClassType, args: List[Expression]) extends Expression {
   val expressionType: Type = classType
@@ -250,6 +250,12 @@ case class Let(name: LocalVariable, value: Expression, body: Expression) extends
 }
 case class LocalVariableLookup(variable: LocalVariable) extends Expression {
   val expressionType: Type = variable.varType
+}
+case class TryBlock(val body: Expression, val catches: List[CatchBlock], val finallyBlock: Option[Expression]) extends Expression {
+  val expressionType: Type = body.expressionType
+}
+case class CatchBlock(exceptionType: ClassType, body: Expression) {
+  val expressionType: Type = body.expressionType
 }
 
 sealed trait Type {

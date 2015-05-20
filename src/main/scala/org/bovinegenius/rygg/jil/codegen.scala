@@ -92,6 +92,11 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
       case StringLiteral(str) => mv.visitLdcInsn(str)
       case Sequence(expr1, expr2) => {
         writeExpression(expr1, mv, env)
+        if (expr1.expressionType.stackSize == 2) {
+          mv.visitInsn(Opcodes.POP2)
+        } else if(expr1.expressionType.stackSize == 1) {
+          mv.visitInsn(Opcodes.POP)
+        }
         writeExpression(expr2, mv, env)
       }
       case LongLiteral(long) => mv.visitLdcInsn(long)
@@ -142,9 +147,80 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
         args.foreach { arg => writeExpression(arg, mv, env) }
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, classType.name.bytecodeName, sig.name.name, descriptor(sig), false)
       }
+      case block: TryBlock => {
+        val decorated = Try(block)
+        val varIndex = mv.newLocal(asmType(decorated.tryBody.body.expressionType))
+        for (catchBlock <- decorated.catches) {
+          mv.visitTryCatchBlock(decorated.tryBody.start, decorated.tryBody.end, catchBlock.start, catchBlock.exceptionType.name.bytecodeName)
+        }
+        mv.visitLabel(decorated.tryBody.start)
+        writeExpression(decorated.tryBody.body, mv, env)
+        mv.visitVarInsn(storeInstruction(decorated.tryBody.body.expressionType), varIndex)
+        mv.visitJumpInsn(Opcodes.GOTO, decorated.catches.last.end)
+        mv.visitLabel(decorated.tryBody.end)
+        for (catchBlock <- decorated.catches) {
+          mv.visitLabel(catchBlock.start)
+          //mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, List(catchBlock.exceptionType.name.bytecodeName).toArray);
+          writeExpression(catchBlock.body, mv, env)
+          mv.visitVarInsn(storeInstruction(catchBlock.body.expressionType), varIndex)
+          if (decorated.catches.last != catchBlock) {
+            mv.visitJumpInsn(Opcodes.GOTO, decorated.catches.last.end)
+          }
+          mv.visitLabel(catchBlock.end)
+        }
+        //mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(loadInstruction(decorated.tryBody.body.expressionType), varIndex)
+      }
     }
   }
 
+  private def writeTryExpression(decorated: Try, mv: LocalVariablesSorter, env: LocalEnvironmentMap): Unit = {
+    for (catchBlock <- decorated.catches) {
+      mv.visitTryCatchBlock(decorated.tryBody.start, decorated.tryBody.end, catchBlock.start, catchBlock.exceptionType.name.bytecodeName)
+    }
+    mv.visitLabel(decorated.tryBody.start)
+    writeExpression(decorated.tryBody.body, mv, env)
+    mv.visitLabel(decorated.tryBody.end)
+    mv.visitJumpInsn(Opcodes.GOTO, decorated.catches.last.end)
+    for (catchBlock <- decorated.catches) {
+      mv.visitLabel(catchBlock.start)
+      //mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, List(catchBlock.exceptionType.name.bytecodeName).toArray);
+      writeExpression(catchBlock.body, mv, env)
+      mv.visitLabel(catchBlock.end)
+    }
+  }
+
+  private def writeVoidTryExpression(decorated: Try, mv: LocalVariablesSorter, env: LocalEnvironmentMap): Unit = {
+    for (catchBlock <- decorated.catches) {
+      mv.visitTryCatchBlock(decorated.tryBody.start, decorated.tryBody.end, catchBlock.start, catchBlock.exceptionType.name.bytecodeName)
+    }
+    mv.visitLabel(decorated.tryBody.start)
+    writeExpression(decorated.tryBody.body, mv, env)
+    mv.visitLabel(decorated.tryBody.end)
+    mv.visitJumpInsn(Opcodes.GOTO, decorated.catches.last.end)
+    for (catchBlock <- decorated.catches) {
+      mv.visitLabel(catchBlock.start)
+      //mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, List(catchBlock.exceptionType.name.bytecodeName).toArray);
+      writeExpression(catchBlock.body, mv, env)
+      mv.visitLabel(catchBlock.end)
+    }
+  }
+  
+  case class Try(val tryBody: TryBody, val catches: List[CatchBody], val finallyBlock: Option[Expression])
+  case class TryBody(val body: Expression, val start: Label, val end: Label)
+  case class CatchBody(val exceptionType: ClassType, val body: Expression, val start: Label, val end: Label)
+  object CatchBody {
+    def apply(catchBlock: CatchBlock): CatchBody =
+      CatchBody(catchBlock.exceptionType, catchBlock.body, new Label(), new Label())
+  }
+  object Try {
+    def apply(tryBlock: TryBlock): Try = {
+      val body = TryBody(tryBlock.body, new Label(), new Label())
+      val catches = tryBlock.catches.map(CatchBody.apply _)
+      Try(body, catches, tryBlock.finallyBlock)
+    }
+  }
+  
   private def storeInstruction(varType: Type): Int = {
     varType match {
       case ClassType(_) => Opcodes.ASTORE

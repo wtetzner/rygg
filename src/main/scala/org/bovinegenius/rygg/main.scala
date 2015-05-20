@@ -31,6 +31,8 @@ import org.bovinegenius.rygg.jil.Expression
 import org.bovinegenius.rygg.jil.ShortType
 import org.bovinegenius.rygg.jil.CharType
 import org.bovinegenius.rygg.jil.Interface
+import org.bovinegenius.rygg.jil.TryBlock
+import org.bovinegenius.rygg.jil.CatchBlock
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -209,7 +211,9 @@ object Main {
                       let("\\record-2?", makeNew(ClassType("org.bovinegenius.test.TestRecord-2"), record, const('x'), const(5:Short), const("Some Text"), const("more text"))) { record2 =>
                         progn(
                             println(astBuilder.toString(record)),
-                            println(astBuilder.toString(record2))
+                            println(astBuilder.toString(record2)),
+                            TryBlock(progn(println(astBuilder.toString(record)), const("done")), List(CatchBlock(ClassType("java.lang.RuntimeException"), progn(println(const("missed")), const("missed")))), None),
+                            println(const("end"))
                         )
                       }
                     }
