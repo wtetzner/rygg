@@ -296,6 +296,7 @@ case class ClassType(val name: ClassName) extends Type {
   val bytecodeType: Type = this
 }
 object ClassType {
+  val string: ClassType = ClassType("java.lang.String")
   def apply(qualifiedName: String): ClassType = ClassType(ClassName(qualifiedName))
 }
 
