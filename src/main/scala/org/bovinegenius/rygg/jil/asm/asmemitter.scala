@@ -1,4 +1,4 @@
-package org.bovinegenius.rygg.jil
+package org.bovinegenius.rygg.jil.asm
 
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.{Type => AsmType}
@@ -62,18 +62,38 @@ object Data {
   }
   case class LocalVariable(val name: String, val varType: Type, val index: Int)
   case class MethodSignature(val returnType: Type, val argTypes: List[Type])
+  case class TryCatch(start: LabelMarker, end: LabelMarker, handler: LabelMarker, exceptionType: ClassType)
 }
 
-case class Instructions() {
+case class Instructions(val name: String, val returnValue: Type, args: List[MethodArg]) {
   import Instructions._
   import Data._
-  
+
   private val instructions: ListBuffer[LabelledInstruction[_ <: Instruction]] = ListBuffer[LabelledInstruction[_ <: Instruction]]()
   private val labelMaker: LabelMaker = LabelMaker()
-  
+  private val tryCatches: ListBuffer[TryCatch] = ListBuffer[TryCatch]()
+  private val variableManager: VariableManager = {
+    val manager = VariableManager()
+    for (arg <- args) {
+      manager.variable(arg.name, arg.argType)
+    }
+    manager
+  }
+
+  def variable(name: String, varType: Type): LocalVariable = variableManager.variable(name, varType)
+  def variable(name: String): LocalVariable = variableManager.variable(name)
   def newLabel(name: String): LabelMarker = labelMaker.make(name)
-  
-  def toList: List[LabelledInstruction[_ <: Instruction]] = instructions.toList
+
+  def recordTryCatch(start: LabelMarker, end: LabelMarker, handler: LabelMarker, exceptionType: ClassType): TryCatch = {
+    val tryCatch = TryCatch(start, end, handler, exceptionType)
+    tryCatches += tryCatch;
+    tryCatch
+  }
+
+  private def toList: List[LabelledInstruction[_ <: Instruction]] = instructions.toList
+  def toMethod: MethodCode = {
+    MethodCode(name, returnValue, args, MethodBody(toList, tryCatches.toList))
+  }
   
   private def add[T <: Instruction](inst: T, label: LabelMarker): LabelledInstruction[T] = {
     val labelled = LabelledInstruction(inst, label);
@@ -392,12 +412,12 @@ object Instructions {
   
   case class LabelledInstruction[T <: Instruction](val instruction: T, val label: LabelMarker)
   
-  def emit(emitter: Instructions => Unit): List[LabelledInstruction[_ <: Instruction]] = {
-    val instrs = Instructions()
+  def emitMethod(name: String, returnType: Type, args: List[MethodArg])(emitter: Instructions => Unit): MethodCode = {
+    val instrs = Instructions(name, returnType, args)
     emitter(instrs)
-    instrs.toList
+    instrs.toMethod
   }
-  
+
   sealed trait Instruction {
     def consumes: Int
     def produces: Int
@@ -571,11 +591,11 @@ object Instructions {
   
   case class GetStatic(val fieldType: Type, val owner: ClassType, val name: String) extends Inst(0, fieldType.stackSize)
   case class PutStatic(val fieldType: Type, val owner: ClassType, val name: String) extends Inst(fieldType.stackSize, 0)
-  
+
   case object Swap extends Inst(2, 2)
-  
+
   case class Goto(val label: LabelMarker) extends Inst(0, 0)
-  
+
   case class InstanceOf(val kind: ClassType) extends Inst(1, 1)
   // case class InvokeDynamic // TODO: need to handle Method/Handle types first
   case class InvokeInterface(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Inst(
@@ -593,8 +613,12 @@ object Instructions {
   
   case class JumpSubRoutine(val label: LabelMarker) extends Inst(0, 1)
   case class Ret(val returnValueVar: LocalVariable) extends Inst(0, 0)
-  
 }
+
+case class MethodArg(val name: String, val argType: Type)
+case class MethodCode(val name: String, val returnType: Type, args: List[MethodArg], body: MethodBody)
+
+case class MethodBody(val instructions: List[Instructions.LabelledInstruction[_ <: Instructions.Instruction]], val tryCatches: List[Data.TryCatch])
 
 object InstructionConstructors {
   object IInc {
@@ -646,8 +670,8 @@ object InstructionConstructors {
 }
 
 object InstructionMapper {
-  def methodType(method: MethodSignature): AsmType = {
-    val argTypes: List[Type] = method.args.map(_.argType)
+  def methodType(method: Data.MethodSignature): AsmType = {
+    val argTypes: List[Type] = method.argTypes
     val types: List[AsmType] = argTypes.map((x: Type) => asmType(x))
     AsmType.getMethodType(asmType(method.returnType), types.toArray :_*)
   }
@@ -668,7 +692,7 @@ object InstructionMapper {
     }
   }
   
-  def descriptor(method: MethodSignature): String = methodType(method).getDescriptor()
+  def descriptor(method: Data.MethodSignature): String = methodType(method).getDescriptor()
   def descriptor(jilType: Type): String = asmType(jilType).getDescriptor()
   
   def returnInstruction(varType: Type): Int = {
