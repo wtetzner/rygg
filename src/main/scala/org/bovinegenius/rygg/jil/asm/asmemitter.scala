@@ -46,9 +46,9 @@ object Data {
   case class LabelMarker private[Data](val name: String)
   case class LabelMaker() {
     private var latest: Int = 0
-    
+
     private var seen: Set[String] = Set[String]()
-    
+
     def make(name: String): LabelMarker = {
       if (seen.contains(name)) {
         val num = latest
@@ -68,8 +68,6 @@ case class Instructions() {
   import Instructions._
   import Data._
   
-  case class LabelledInstruction[T <: Instruction](val instruction: T, val label: LabelMarker)
-  
   private val instructions: ListBuffer[LabelledInstruction[_ <: Instruction]] = ListBuffer[LabelledInstruction[_ <: Instruction]]()
   private val labelMaker: LabelMaker = LabelMaker()
   
@@ -83,314 +81,322 @@ case class Instructions() {
     labelled
   }
   
-  def aLoad(containedType: Type, label: LabelMarker = labelMaker.make("g:aLoad")): LabelledInstruction[ALoad] =
+  def aLoad(containedType: Type, label: LabelMarker = labelMaker.make("g#aLoad")): LabelledInstruction[ALoad] =
     add(ALoad(containedType), label)
-  def aStore(containedType: Type, label: LabelMarker = labelMaker.make("g:aStore")): LabelledInstruction[AStore] =
+  def aStore(containedType: Type, label: LabelMarker = labelMaker.make("g#aStore")): LabelledInstruction[AStore] =
     add(AStore(containedType), label)
   
   // String constant
   def const(value: String): LabelledInstruction[Const] =
-    add(Const(value), labelMaker.make("g:strConst"))
+    add(Const(value), labelMaker.make("g#strConst"))
   def const(value: String, label: LabelMarker): LabelledInstruction[Const] =
     add(Const(value), label)
 
   // Int constant
   def const(value: Int): LabelledInstruction[Const] =
-    add(Const(value), labelMaker.make("g:iConst"))
+    add(Const(value), labelMaker.make("g#iConst"))
   def const(value: Int, label: LabelMarker): LabelledInstruction[Const] =
     add(Const(value), label)
     
   // Long constant
   def const(value: Long): LabelledInstruction[Const] =
-    add(Const(value), labelMaker.make("g:lConst"))
+    add(Const(value), labelMaker.make("g#lConst"))
   def const(value: Long, label: LabelMarker): LabelledInstruction[Const] =
     add(Const(value), label)
     
   // Float constant
   def const(value: Float): LabelledInstruction[Const] =
-    add(Const(value), labelMaker.make("g:fConst"))
+    add(Const(value), labelMaker.make("g#fConst"))
   def const(value: Float, label: LabelMarker): LabelledInstruction[Const] =
     add(Const(value), label)
     
   // Double constant
   def const(value: Double): LabelledInstruction[Const] =
-    add(Const(value), labelMaker.make("g:dConst"))
+    add(Const(value), labelMaker.make("g#dConst"))
   def const(value: Double, label: LabelMarker): LabelledInstruction[Const] =
     add(Const(value), label)
     
   // ClassType constant
   def const(value: ClassType): LabelledInstruction[Const] =
-    add(Const(value), labelMaker.make("g:classConst"))
+    add(Const(value), labelMaker.make("g#classConst"))
   def const(value: ClassType, label: LabelMarker): LabelledInstruction[Const] =
     add(Const(value), label)
     
   // ArrayType constant
   def const(value: ArrayType): LabelledInstruction[Const] =
-    add(Const(value), labelMaker.make("g:arrConst"))
+    add(Const(value), labelMaker.make("g#arrConst"))
   def const(value: ArrayType, label: LabelMarker): LabelledInstruction[Const] =
     add(Const(value), label)
     
   // null ClassType constant
   def nullConst(value: ClassType): LabelledInstruction[Const] =
-    add(NullConst.of(value), labelMaker.make("g:nullConst"))
+    add(NullConst.of(value), labelMaker.make("g#nullConst"))
   def nullConst(value: ClassType, label: LabelMarker): LabelledInstruction[Const] =
     add(NullConst.of(value), label)
     
   // null ArrayType constant
   def nullConst(value: ArrayType): LabelledInstruction[Const] =
-    add(NullConst.of(value), labelMaker.make("g:nullConst"))
+    add(NullConst.of(value), labelMaker.make("g#nullConst"))
   def nullConst(value: ArrayType, label: LabelMarker): LabelledInstruction[Const] =
     add(NullConst.of(value), label)
     
-  def load(variable: LocalVariable, label: LabelMarker = labelMaker.make("g:load")): LabelledInstruction[Load] =
+  def load(variable: LocalVariable, label: LabelMarker = labelMaker.make("g#load")): LabelledInstruction[Load] =
     add(Load(variable), label)
     
-  def store(variable: LocalVariable, label: LabelMarker = labelMaker.make("g:load")): LabelledInstruction[Store] =
+  def store(variable: LocalVariable, label: LabelMarker = labelMaker.make("g#load")): LabelledInstruction[Store] =
     add(Store(variable), label)
 
-  def newArray(innerType: Type, label: LabelMarker = labelMaker.make("g:newArray")): LabelledInstruction[NewArray] =
+  def newArray(innerType: Type, label: LabelMarker = labelMaker.make("g#newArray")): LabelledInstruction[NewArray] =
     add(NewArray(innerType), label)
 
-  def newMultidimensionalArray(kind: Type, dimensions: Array[Int], label: LabelMarker = labelMaker.make("g:newMultidimensionalArray")): LabelledInstruction[NewMultidimensionalArray] =
+  def newMultidimensionalArray(kind: Type, dimensions: Array[Int], label: LabelMarker = labelMaker.make("g#newMultidimensionalArray")): LabelledInstruction[NewMultidimensionalArray] =
     add(NewMultidimensionalArray(kind, dimensions), label)
     
-  def `new`(classType: ClassType, label: LabelMarker = labelMaker.make("g:new")): LabelledInstruction[New] =
+  def `new`(classType: ClassType, label: LabelMarker = labelMaker.make("g#new")): LabelledInstruction[New] =
     add(New(classType), label)
 
-  def `return`(returnType: Type, label: LabelMarker = labelMaker.make("g:return")): LabelledInstruction[Return] =
+  def `return`(returnType: Type, label: LabelMarker = labelMaker.make("g#return")): LabelledInstruction[Return] =
     add(Return(returnType), label)
 
-  def arrayLength(label: LabelMarker = labelMaker.make("g:arrayLength")): LabelledInstruction[ArrayLength.type] =
+  def arrayLength(label: LabelMarker = labelMaker.make("g#arrayLength")): LabelledInstruction[ArrayLength.type] =
     add(ArrayLength, label)
     
-  def `throw`(throwable: ClassType, label: LabelMarker = labelMaker.make("g:throw")): LabelledInstruction[Throw] =
+  def `throw`(throwable: ClassType, label: LabelMarker = labelMaker.make("g#throw")): LabelledInstruction[Throw] =
     add(Throw(throwable), label)
 
-  def push(value: Short, label: LabelMarker = labelMaker.make("g:push")): LabelledInstruction[Push] =
+  def push(value: Short, label: LabelMarker = labelMaker.make("g#push")): LabelledInstruction[Push] =
     add(Push(value), label)
 
-  def checkCast(castType: ClassType, label: LabelMarker = labelMaker.make("g:checkCast")): LabelledInstruction[CheckCast] =
+  def checkCast(castType: ClassType, label: LabelMarker = labelMaker.make("g#checkCast")): LabelledInstruction[CheckCast] =
     add(CheckCast(castType), label)
     
-  def doubleToFloat(label: LabelMarker = labelMaker.make("g:doubleToFloat")): LabelledInstruction[DoubleToFloat.type] =
+  def doubleToFloat(label: LabelMarker = labelMaker.make("g#doubleToFloat")): LabelledInstruction[DoubleToFloat.type] =
     add(DoubleToFloat, label)
     
-  def doubleToInt(label: LabelMarker = labelMaker.make("g:doubleToInt")): LabelledInstruction[DoubleToInt.type] =
+  def doubleToInt(label: LabelMarker = labelMaker.make("g#doubleToInt")): LabelledInstruction[DoubleToInt.type] =
     add(DoubleToInt, label)
     
-  def doubleToLong(label: LabelMarker = labelMaker.make("g:doubleToLong")): LabelledInstruction[DoubleToLong.type] =
+  def doubleToLong(label: LabelMarker = labelMaker.make("g#doubleToLong")): LabelledInstruction[DoubleToLong.type] =
     add(DoubleToLong, label)
    
-  def floatToDouble(label: LabelMarker = labelMaker.make("g:floatToDouble")): LabelledInstruction[FloatToDouble.type] =
+  def floatToDouble(label: LabelMarker = labelMaker.make("g#floatToDouble")): LabelledInstruction[FloatToDouble.type] =
     add(FloatToDouble, label)
   
-  def floatToInt(label: LabelMarker = labelMaker.make("g:floatToInt")): LabelledInstruction[FloatToInt.type] =
+  def floatToInt(label: LabelMarker = labelMaker.make("g#floatToInt")): LabelledInstruction[FloatToInt.type] =
     add(FloatToInt, label)
     
-  def floatToLong(label: LabelMarker = labelMaker.make("g:floatToLong")): LabelledInstruction[FloatToLong.type] =
+  def floatToLong(label: LabelMarker = labelMaker.make("g#floatToLong")): LabelledInstruction[FloatToLong.type] =
     add(FloatToLong, label)
   
-  def intToByte(label: LabelMarker = labelMaker.make("g:intToByte")): LabelledInstruction[IntToByte.type] =
+  def intToByte(label: LabelMarker = labelMaker.make("g#intToByte")): LabelledInstruction[IntToByte.type] =
     add(IntToByte, label)
     
-  def intToChar(label: LabelMarker = labelMaker.make("g:intToChar")): LabelledInstruction[IntToChar.type] =
+  def intToChar(label: LabelMarker = labelMaker.make("g#intToChar")): LabelledInstruction[IntToChar.type] =
     add(IntToChar, label)
-  def intToDouble(label: LabelMarker = labelMaker.make("g:intToDouble")): LabelledInstruction[IntToDouble.type] =
+  def intToDouble(label: LabelMarker = labelMaker.make("g#intToDouble")): LabelledInstruction[IntToDouble.type] =
     add(IntToDouble, label)
-  def intToFloat(label: LabelMarker = labelMaker.make("g:intToFloat")): LabelledInstruction[IntToFloat.type] =
+  def intToFloat(label: LabelMarker = labelMaker.make("g#intToFloat")): LabelledInstruction[IntToFloat.type] =
     add(IntToFloat, label)
-  def intToLong(label: LabelMarker = labelMaker.make("g:intToLong")): LabelledInstruction[IntToLong.type] =
+  def intToLong(label: LabelMarker = labelMaker.make("g#intToLong")): LabelledInstruction[IntToLong.type] =
     add(IntToLong, label)
-  def intToShort(label: LabelMarker = labelMaker.make("g:intToShort")): LabelledInstruction[IntToShort.type] =
+  def intToShort(label: LabelMarker = labelMaker.make("g#intToShort")): LabelledInstruction[IntToShort.type] =
     add(IntToShort, label)
   
-  def longToDouble(label: LabelMarker = labelMaker.make("g:longToDouble")): LabelledInstruction[LongToDouble.type] =
+  def longToDouble(label: LabelMarker = labelMaker.make("g#longToDouble")): LabelledInstruction[LongToDouble.type] =
     add(LongToDouble, label)
-  def longToFloat(label: LabelMarker = labelMaker.make("g:longToFloat")): LabelledInstruction[LongToFloat.type] =
+  def longToFloat(label: LabelMarker = labelMaker.make("g#longToFloat")): LabelledInstruction[LongToFloat.type] =
     add(LongToFloat, label)
-  def longToInt(label: LabelMarker = labelMaker.make("g:longToInt")): LabelledInstruction[LongToInt.type] =
+  def longToInt(label: LabelMarker = labelMaker.make("g#longToInt")): LabelledInstruction[LongToInt.type] =
     add(LongToInt, label)
   
-  def doubleCompareG(label: LabelMarker = labelMaker.make("g:doubleCompareG")): LabelledInstruction[DoubleCompareG.type] =
+  def doubleCompareG(label: LabelMarker = labelMaker.make("g#doubleCompareG")): LabelledInstruction[DoubleCompareG.type] =
     add(DoubleCompareG, label)
-  def doubleCompareL(label: LabelMarker = labelMaker.make("g:doubleCompareL")): LabelledInstruction[DoubleCompareL.type] =
+  def doubleCompareL(label: LabelMarker = labelMaker.make("g#doubleCompareL")): LabelledInstruction[DoubleCompareL.type] =
     add(DoubleCompareL, label)
-  def doubleDivide(label: LabelMarker = labelMaker.make("g:doubleDivide")): LabelledInstruction[DoubleDivide.type] =
+  def doubleDivide(label: LabelMarker = labelMaker.make("g#doubleDivide")): LabelledInstruction[DoubleDivide.type] =
     add(DoubleDivide, label)
-  def doubleMultiply(label: LabelMarker = labelMaker.make("g:doubleMultiply")): LabelledInstruction[DoubleMultiply.type] =
+  def doubleMultiply(label: LabelMarker = labelMaker.make("g#doubleMultiply")): LabelledInstruction[DoubleMultiply.type] =
     add(DoubleMultiply, label)
-  def doubleNegate(label: LabelMarker = labelMaker.make("g:doubleNegate")): LabelledInstruction[DoubleNegate.type] =
+  def doubleNegate(label: LabelMarker = labelMaker.make("g#doubleNegate")): LabelledInstruction[DoubleNegate.type] =
     add(DoubleNegate, label)
-  def doubleRemainder(label: LabelMarker = labelMaker.make("g:doubleRemainder")): LabelledInstruction[DoubleRemainder.type] =
+  def doubleRemainder(label: LabelMarker = labelMaker.make("g#doubleRemainder")): LabelledInstruction[DoubleRemainder.type] =
     add(DoubleRemainder, label)
-  def doubleSubtract(label: LabelMarker = labelMaker.make("g:doubleSubtract")): LabelledInstruction[DoubleSubtract.type] =
+  def doubleSubtract(label: LabelMarker = labelMaker.make("g#doubleSubtract")): LabelledInstruction[DoubleSubtract.type] =
     add(DoubleSubtract, label)
-  def doubleAdd(label: LabelMarker = labelMaker.make("g:doubleAdd")): LabelledInstruction[DoubleAdd.type] =
+  def doubleAdd(label: LabelMarker = labelMaker.make("g#doubleAdd")): LabelledInstruction[DoubleAdd.type] =
     add(DoubleAdd, label)
   
-  def floatAdd(label: LabelMarker = labelMaker.make("g:floatAdd")): LabelledInstruction[FloatAdd.type] =
+  def floatAdd(label: LabelMarker = labelMaker.make("g#floatAdd")): LabelledInstruction[FloatAdd.type] =
     add(FloatAdd, label)
-  def floatCompareG(label: LabelMarker = labelMaker.make("g:floatCompareG")): LabelledInstruction[FloatCompareG.type] =
+  def floatCompareG(label: LabelMarker = labelMaker.make("g#floatCompareG")): LabelledInstruction[FloatCompareG.type] =
     add(FloatCompareG, label)
-  def floatCompareL(label: LabelMarker = labelMaker.make("g:floatCompareL")): LabelledInstruction[FloatCompareL.type] =
+  def floatCompareL(label: LabelMarker = labelMaker.make("g#floatCompareL")): LabelledInstruction[FloatCompareL.type] =
     add(FloatCompareL, label)
-  def floatDivide(label: LabelMarker = labelMaker.make("g:floatDivide")): LabelledInstruction[FloatDivide.type] =
+  def floatDivide(label: LabelMarker = labelMaker.make("g#floatDivide")): LabelledInstruction[FloatDivide.type] =
     add(FloatDivide, label)
-  def floatMultiply(label: LabelMarker = labelMaker.make("g:floatMultiply")): LabelledInstruction[FloatMultiply.type] =
+  def floatMultiply(label: LabelMarker = labelMaker.make("g#floatMultiply")): LabelledInstruction[FloatMultiply.type] =
     add(FloatMultiply, label)
-  def floatNegate(label: LabelMarker = labelMaker.make("g:floatNegate")): LabelledInstruction[FloatNegate.type] =
+  def floatNegate(label: LabelMarker = labelMaker.make("g#floatNegate")): LabelledInstruction[FloatNegate.type] =
     add(FloatNegate, label)
-  def floatRemainder(label: LabelMarker = labelMaker.make("g:floatRemainder")): LabelledInstruction[FloatRemainder.type] =
+  def floatRemainder(label: LabelMarker = labelMaker.make("g#floatRemainder")): LabelledInstruction[FloatRemainder.type] =
     add(FloatRemainder, label)
-  def floatSubtract(label: LabelMarker = labelMaker.make("g:floatSubtract")): LabelledInstruction[FloatSubtract.type] =
+  def floatSubtract(label: LabelMarker = labelMaker.make("g#floatSubtract")): LabelledInstruction[FloatSubtract.type] =
     add(FloatSubtract, label)
   
-  def intAdd(label: LabelMarker = labelMaker.make("g:intAdd")): LabelledInstruction[IntAdd.type] =
+  def intAdd(label: LabelMarker = labelMaker.make("g#intAdd")): LabelledInstruction[IntAdd.type] =
     add(IntAdd, label)
-  def intAnd(label: LabelMarker = labelMaker.make("g:intAnd")): LabelledInstruction[IntAnd.type] =
+  def intAnd(label: LabelMarker = labelMaker.make("g#intAnd")): LabelledInstruction[IntAnd.type] =
     add(IntAnd, label)
-  def intDivide(label: LabelMarker = labelMaker.make("g:intDivide")): LabelledInstruction[IntDivide.type] =
+  def intDivide(label: LabelMarker = labelMaker.make("g#intDivide")): LabelledInstruction[IntDivide.type] =
     add(IntDivide, label)
-  def intIncrement(variable: LocalVariable, amount: Byte, label: LabelMarker = labelMaker.make("g:intIncrement")): LabelledInstruction[IntIncrement] =
+  def intIncrement(variable: LocalVariable, amount: Byte, label: LabelMarker = labelMaker.make("g#intIncrement")): LabelledInstruction[IntIncrement] =
     add(IntIncrement(variable, amount), label)
-  def intMultiply(label: LabelMarker = labelMaker.make("g:intMultiply")): LabelledInstruction[IntMultiply.type] =
+  def intMultiply(label: LabelMarker = labelMaker.make("g#intMultiply")): LabelledInstruction[IntMultiply.type] =
     add(IntMultiply, label)
-  def intNegate(label: LabelMarker = labelMaker.make("g:intNegate")): LabelledInstruction[IntNegate.type] =
+  def intNegate(label: LabelMarker = labelMaker.make("g#intNegate")): LabelledInstruction[IntNegate.type] =
     add(IntNegate, label)
-  def intOr(label: LabelMarker = labelMaker.make("g:intOr")): LabelledInstruction[IntOr.type] =
+  def intOr(label: LabelMarker = labelMaker.make("g#intOr")): LabelledInstruction[IntOr.type] =
     add(IntOr, label)
-  def intRemainder(label: LabelMarker = labelMaker.make("g:intRemainder")): LabelledInstruction[IntRemainder.type] =
+  def intRemainder(label: LabelMarker = labelMaker.make("g#intRemainder")): LabelledInstruction[IntRemainder.type] =
     add(IntRemainder, label)
-  def intShiftLeft(label: LabelMarker = labelMaker.make("g:intShiftLeft")): LabelledInstruction[IntShiftLeft.type] =
+  def intShiftLeft(label: LabelMarker = labelMaker.make("g#intShiftLeft")): LabelledInstruction[IntShiftLeft.type] =
     add(IntShiftLeft, label)
-  def intShiftRight(label: LabelMarker = labelMaker.make("g:intShiftRight")): LabelledInstruction[IntShiftRight.type] =
+  def intShiftRight(label: LabelMarker = labelMaker.make("g#intShiftRight")): LabelledInstruction[IntShiftRight.type] =
     add(IntShiftRight, label)
-  def intSubtract(label: LabelMarker = labelMaker.make("g:intSubtract")): LabelledInstruction[IntSubtract.type] =
+  def intSubtract(label: LabelMarker = labelMaker.make("g#intSubtract")): LabelledInstruction[IntSubtract.type] =
     add(IntSubtract, label)
-  def intUnsignedShiftRight(label: LabelMarker = labelMaker.make("g:intUnsignedShiftRight")): LabelledInstruction[IntUnsignedShiftRight.type] =
+  def intUnsignedShiftRight(label: LabelMarker = labelMaker.make("g#intUnsignedShiftRight")): LabelledInstruction[IntUnsignedShiftRight.type] =
     add(IntUnsignedShiftRight, label)
-  def intExclusiveOr(label: LabelMarker = labelMaker.make("g:intExclusiveOr")): LabelledInstruction[IntExclusiveOr.type] =
+  def intExclusiveOr(label: LabelMarker = labelMaker.make("g#intExclusiveOr")): LabelledInstruction[IntExclusiveOr.type] =
     add(IntExclusiveOr, label)
   
-  def longAdd(label: LabelMarker = labelMaker.make("g:longAdd")): LabelledInstruction[LongAdd.type] =
+  def longAdd(label: LabelMarker = labelMaker.make("g#longAdd")): LabelledInstruction[LongAdd.type] =
     add(LongAdd, label)
-  def longAnd(label: LabelMarker = labelMaker.make("g:longAnd")): LabelledInstruction[LongAnd.type] =
+  def longAnd(label: LabelMarker = labelMaker.make("g#longAnd")): LabelledInstruction[LongAnd.type] =
     add(LongAnd, label)
-  def longCompare(label: LabelMarker = labelMaker.make("g:longCompare")): LabelledInstruction[LongCompare.type] =
+  def longCompare(label: LabelMarker = labelMaker.make("g#longCompare")): LabelledInstruction[LongCompare.type] =
     add(LongCompare, label)
-  def longDivide(label: LabelMarker = labelMaker.make("g:longDivide")): LabelledInstruction[LongDivide.type] =
+  def longDivide(label: LabelMarker = labelMaker.make("g#longDivide")): LabelledInstruction[LongDivide.type] =
     add(LongDivide, label)
-  def longMultiply(label: LabelMarker = labelMaker.make("g:longMultiply")): LabelledInstruction[LongMultiply.type] =
+  def longMultiply(label: LabelMarker = labelMaker.make("g#longMultiply")): LabelledInstruction[LongMultiply.type] =
     add(LongMultiply, label)
-  def longNegate(label: LabelMarker = labelMaker.make("g:longNegate")): LabelledInstruction[LongNegate.type] =
+  def longNegate(label: LabelMarker = labelMaker.make("g#longNegate")): LabelledInstruction[LongNegate.type] =
     add(LongNegate, label)
-  def longOr(label: LabelMarker = labelMaker.make("g:longOr")): LabelledInstruction[LongOr.type] =
+  def longOr(label: LabelMarker = labelMaker.make("g#longOr")): LabelledInstruction[LongOr.type] =
     add(LongOr, label)
-  def longRemainder(label: LabelMarker = labelMaker.make("g:longRemainder")): LabelledInstruction[LongRemainder.type] =
+  def longRemainder(label: LabelMarker = labelMaker.make("g#longRemainder")): LabelledInstruction[LongRemainder.type] =
     add(LongRemainder, label)
-  def longShiftLeft(label: LabelMarker = labelMaker.make("g:longShiftLeft")): LabelledInstruction[LongShiftLeft.type] =
+  def longShiftLeft(label: LabelMarker = labelMaker.make("g#longShiftLeft")): LabelledInstruction[LongShiftLeft.type] =
     add(LongShiftLeft, label)
-  def longShiftRight(label: LabelMarker = labelMaker.make("g:longShiftRight")): LabelledInstruction[LongShiftRight.type] =
+  def longShiftRight(label: LabelMarker = labelMaker.make("g#longShiftRight")): LabelledInstruction[LongShiftRight.type] =
     add(LongShiftRight, label)
-  def longSubtract(label: LabelMarker = labelMaker.make("g:longSubtract")): LabelledInstruction[LongSubtract.type] =
+  def longSubtract(label: LabelMarker = labelMaker.make("g#longSubtract")): LabelledInstruction[LongSubtract.type] =
     add(LongSubtract, label)
-  def longUnsignedShiftRight(label: LabelMarker = labelMaker.make("g:longUnsignedShiftRight")): LabelledInstruction[LongUnsignedShiftRight.type] =
+  def longUnsignedShiftRight(label: LabelMarker = labelMaker.make("g#longUnsignedShiftRight")): LabelledInstruction[LongUnsignedShiftRight.type] =
     add(LongUnsignedShiftRight, label)
-  def longExclusiveOr(label: LabelMarker = labelMaker.make("g:longExclusiveOr")): LabelledInstruction[LongExclusiveOr.type] =
+  def longExclusiveOr(label: LabelMarker = labelMaker.make("g#longExclusiveOr")): LabelledInstruction[LongExclusiveOr.type] =
     add(LongExclusiveOr, label)
 
-  def monitorEnter(label: LabelMarker = labelMaker.make("g:monitorEnter")): LabelledInstruction[MonitorEnter.type] =
+  def monitorEnter(label: LabelMarker = labelMaker.make("g#monitorEnter")): LabelledInstruction[MonitorEnter.type] =
     add(MonitorEnter, label)
-  def monitorExit(label: LabelMarker = labelMaker.make("g:monitorExit")): LabelledInstruction[MonitorExit.type] =
+  def monitorExit(label: LabelMarker = labelMaker.make("g#monitorExit")): LabelledInstruction[MonitorExit.type] =
     add(MonitorExit, label)
 
-  def noOp(label: LabelMarker = labelMaker.make("g:noOp")): LabelledInstruction[NoOp.type] =
+  def noOp(label: LabelMarker = labelMaker.make("g#noOp")): LabelledInstruction[NoOp.type] =
     add(NoOp, label)
-  def pop(label: LabelMarker = labelMaker.make("g:pop")): LabelledInstruction[Pop.type] =
+  def pop(label: LabelMarker = labelMaker.make("g#pop")): LabelledInstruction[Pop.type] =
     add(Pop, label)
-  def pop2(label: LabelMarker = labelMaker.make("g:pop2")): LabelledInstruction[Pop2.type] =
+  def pop2(label: LabelMarker = labelMaker.make("g#pop2")): LabelledInstruction[Pop2.type] =
     add(Pop2, label)
     
-  def ifEqual(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifEqual")): LabelledInstruction[IfEqual] =
+  def ifEqual(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifEqual")): LabelledInstruction[IfEqual] =
     add(IfEqual(kind, targetLabel), label)
-  def ifNotEqual(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifNotEqual")): LabelledInstruction[IfNotEqual] =
+  def ifNotEqual(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifNotEqual")): LabelledInstruction[IfNotEqual] =
     add(IfNotEqual(kind, targetLabel), label)
-  def ifGreaterEqual(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifGreaterEqual")): LabelledInstruction[IfGreaterEqual] =
+  def ifGreaterEqual(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifGreaterEqual")): LabelledInstruction[IfGreaterEqual] =
     add(IfGreaterEqual(kind, targetLabel), label)
-  def ifGreater(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifGreater")): LabelledInstruction[IfGreater] =
+  def ifGreater(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifGreater")): LabelledInstruction[IfGreater] =
     add(IfGreater(kind, targetLabel), label)
-  def ifLessEqual(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifLessEqual")): LabelledInstruction[IfLessEqual] =
+  def ifLessEqual(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifLessEqual")): LabelledInstruction[IfLessEqual] =
     add(IfLessEqual(kind, targetLabel), label)
-  def ifLess(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifLess")): LabelledInstruction[IfLess] =
+  def ifLess(kind: Type, targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifLess")): LabelledInstruction[IfLess] =
     add(IfLess(kind, targetLabel), label)
     
-  def ifEqualZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifEqualZero")): LabelledInstruction[IfEqualZero] =
+  def ifEqualZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifEqualZero")): LabelledInstruction[IfEqualZero] =
     add(IfEqualZero(targetLabel), label)
-  def ifGreaterEqualZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifGreaterEqualZero")): LabelledInstruction[IfGreaterEqualZero] =
+  def ifGreaterEqualZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifGreaterEqualZero")): LabelledInstruction[IfGreaterEqualZero] =
     add(IfGreaterEqualZero(targetLabel), label)
-  def ifGreaterZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifGreaterZero")): LabelledInstruction[IfGreaterZero] =
+  def ifGreaterZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifGreaterZero")): LabelledInstruction[IfGreaterZero] =
     add(IfGreaterZero(targetLabel), label)
-  def ifLessEqualZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifLessEqualZero")): LabelledInstruction[IfLessEqualZero] =
+  def ifLessEqualZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifLessEqualZero")): LabelledInstruction[IfLessEqualZero] =
     add(IfLessEqualZero(targetLabel), label)
-  def ifLessZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifLessZero")): LabelledInstruction[IfLessZero] =
+  def ifLessZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifLessZero")): LabelledInstruction[IfLessZero] =
     add(IfLessZero(targetLabel), label)
-  def ifNotEqualZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifNotEqualZero")): LabelledInstruction[IfNotEqualZero] =
+  def ifNotEqualZero(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifNotEqualZero")): LabelledInstruction[IfNotEqualZero] =
     add(IfNotEqualZero(targetLabel), label)
   
-  def ifNonNull(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifNonNull")): LabelledInstruction[IfNonNull] =
+  def ifNonNull(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifNonNull")): LabelledInstruction[IfNonNull] =
     add(IfNonNull(targetLabel), label)
-  def ifNull(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:ifNull")): LabelledInstruction[IfNull] =
+  def ifNull(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#ifNull")): LabelledInstruction[IfNull] =
     add(IfNull(targetLabel), label)
 
-  def dup(label: LabelMarker = labelMaker.make("g:dup")): LabelledInstruction[Dup.type] =
+  def dup(label: LabelMarker = labelMaker.make("g#dup")): LabelledInstruction[Dup.type] =
     add(Dup, label)
-  def dup2(label: LabelMarker = labelMaker.make("g:dup2")): LabelledInstruction[Dup2.type] =
+  def dup2(label: LabelMarker = labelMaker.make("g#dup2")): LabelledInstruction[Dup2.type] =
     add(Dup2, label)
-  def dupX1(label: LabelMarker = labelMaker.make("g:dupX1")): LabelledInstruction[DupX1.type] =
+  def dupX1(label: LabelMarker = labelMaker.make("g#dupX1")): LabelledInstruction[DupX1.type] =
     add(DupX1, label)
-  def dupX2(label: LabelMarker = labelMaker.make("g:dupX2")): LabelledInstruction[DupX2.type] =
+  def dupX2(label: LabelMarker = labelMaker.make("g#dupX2")): LabelledInstruction[DupX2.type] =
     add(DupX2, label)
-  def dup2X1(label: LabelMarker = labelMaker.make("g:dup2X1")): LabelledInstruction[Dup2X1.type] =
+  def dup2X1(label: LabelMarker = labelMaker.make("g#dup2X1")): LabelledInstruction[Dup2X1.type] =
     add(Dup2X1, label)
-  def dup2X2(label: LabelMarker = labelMaker.make("g:dup2X2")): LabelledInstruction[Dup2X2.type] =
+  def dup2X2(label: LabelMarker = labelMaker.make("g#dup2X2")): LabelledInstruction[Dup2X2.type] =
     add(Dup2X2, label)
 
-  def getField(fieldType: Type, owner: ClassType, name: String, label: LabelMarker = labelMaker.make("g:getField")): LabelledInstruction[GetField] =
+  def getField(fieldType: Type, owner: ClassType, name: String, label: LabelMarker = labelMaker.make("g#getField")): LabelledInstruction[GetField] =
     add(GetField(fieldType, owner, name), label)
-  def putField(fieldType: Type, owner: ClassType, name: String, label: LabelMarker = labelMaker.make("g:putField")): LabelledInstruction[PutField] =
+  def putField(fieldType: Type, owner: ClassType, name: String, label: LabelMarker = labelMaker.make("g#putField")): LabelledInstruction[PutField] =
     add(PutField(fieldType, owner, name), label)
   
-  def getStatic(fieldType: Type, owner: ClassType, name: String, label: LabelMarker = labelMaker.make("g:getStatic")): LabelledInstruction[GetStatic] =
+  def getStatic(fieldType: Type, owner: ClassType, name: String, label: LabelMarker = labelMaker.make("g#getStatic")): LabelledInstruction[GetStatic] =
     add(GetStatic(fieldType, owner, name), label)
-  def putStatic(fieldType: Type, owner: ClassType, name: String, label: LabelMarker = labelMaker.make("g:putStatic")): LabelledInstruction[PutStatic] =
+  def putStatic(fieldType: Type, owner: ClassType, name: String, label: LabelMarker = labelMaker.make("g#putStatic")): LabelledInstruction[PutStatic] =
     add(PutStatic(fieldType, owner, name), label)
 
-  def swap(label: LabelMarker = labelMaker.make("g:swap")): LabelledInstruction[Swap.type] =
+  def swap(label: LabelMarker = labelMaker.make("g#swap")): LabelledInstruction[Swap.type] =
     add(Swap, label)
 
-  def goto(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:Goto")): LabelledInstruction[Goto] =
+  def goto(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#Goto")): LabelledInstruction[Goto] =
     add(Goto(targetLabel), label)
 
-  def instanceOf(kind: ClassType, label: LabelMarker = labelMaker.make("g:instanceOf")): LabelledInstruction[InstanceOf] =
+  def instanceOf(kind: ClassType, label: LabelMarker = labelMaker.make("g#instanceOf")): LabelledInstruction[InstanceOf] =
     add(InstanceOf(kind), label)
 
-  def invokeInterface(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g:invokeInterface")): LabelledInstruction[InvokeInterface] =
+  def invokeInterface(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g#invokeInterface")): LabelledInstruction[InvokeInterface] =
     add(InvokeInterface(owner, methodName, methodSignature), label)
-  def invokeSpecial(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g:invokeSpecial")): LabelledInstruction[InvokeSpecial] =
+  def invokeSpecial(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g#invokeSpecial")): LabelledInstruction[InvokeSpecial] =
     add(InvokeSpecial(owner, methodName, methodSignature), label)
-  def invokeStatic(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g:invokeStatic")): LabelledInstruction[InvokeStatic] =
+  def invokeStatic(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g#invokeStatic")): LabelledInstruction[InvokeStatic] =
     add(InvokeStatic(owner, methodName, methodSignature), label)
-  def invokeVirtual(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g:invokeVirtual")): LabelledInstruction[InvokeVirtual] =
+  def invokeVirtual(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g#invokeVirtual")): LabelledInstruction[InvokeVirtual] =
     add(InvokeVirtual(owner, methodName, methodSignature), label)
 
-  def jumpSubRoutine(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g:jumpSubRoutine")): LabelledInstruction[JumpSubRoutine] =
+  def jumpSubRoutine(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#jumpSubRoutine")): LabelledInstruction[JumpSubRoutine] =
     add(JumpSubRoutine(targetLabel), label)
-  def ret(returnValueVar: LocalVariable, label: LabelMarker = labelMaker.make("g:ret")): LabelledInstruction[Ret] =
+  def ret(returnValueVar: LocalVariable, label: LabelMarker = labelMaker.make("g#ret")): LabelledInstruction[Ret] =
     add(Ret(returnValueVar), label)
 }
 
 object Instructions {
   import Data._
+  
+  case class LabelledInstruction[T <: Instruction](val instruction: T, val label: LabelMarker)
+  
+  def emit(emitter: Instructions => Unit): List[LabelledInstruction[_ <: Instruction]] = {
+    val instrs = Instructions()
+    emitter(instrs)
+    instrs.toList
+  }
   
   sealed trait Instruction {
     def consumes: Int

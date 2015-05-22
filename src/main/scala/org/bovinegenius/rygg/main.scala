@@ -12,7 +12,7 @@ import org.bovinegenius.rygg.jil.CodeGenerator
 import org.bovinegenius.rygg.io.IO
 import java.io.File
 import org.bovinegenius.rygg.jil.MethodName
-import org.bovinegenius.rygg.jil.MethodSignature
+//import org.bovinegenius.rygg.jil.MethodSignature
 import org.bovinegenius.rygg.jil.VoidType
 import org.bovinegenius.rygg.jil.Arg
 import org.bovinegenius.rygg.jil.ArrayType
@@ -33,12 +33,31 @@ import org.bovinegenius.rygg.jil.CharType
 import org.bovinegenius.rygg.jil.Interface
 import org.bovinegenius.rygg.jil.TryBlock
 import org.bovinegenius.rygg.jil.CatchBlock
+import org.bovinegenius.rygg.jil.Instructions
+import org.bovinegenius.rygg.jil.Data
 
 object Main {
   def main(args: Array[String]): Unit = {
     val Array(classpath, inputFile, outputDir) = args
     CodeGen.generateCode()
 
+    val listing = Instructions.emit { instructions =>
+      import instructions._
+      import Data.MethodSignature
+      
+      getStatic(ClassType("java.io.PrintStream"), ClassType("java.lang.System"), "out")
+      const("Some String")
+      invokeVirtual(ClassType("java.io.PrintStream"), "println", MethodSignature(VoidType, List(ClassType.string)))
+    }
+    
+    val max = listing.length.toString().length()
+    var line = 0
+    for (instr <- listing) {
+      println(s"[${padZeros(line.toString(), max)}] ${instr.label.name}: ${instr.instruction}")
+      line += 1
+    }
+    
+    /*
     val classFiles = {
       val codeGenerator: CodeGenerator = CodeGenerator(classpath, List())
       val astBuilder: AstBuilder = codeGenerator.astBuider
@@ -65,8 +84,22 @@ object Main {
       IO.spit(outputFile, p._2)
       println(s"${inputFile} -> ${outputFile}")
     })
+    */
   }
 
+  def padZeros(str: String, size: Int): String = {
+    if (str.length() >= size) {
+      str
+    } else {
+      var result = str
+      while(result.length() < size) {
+        result = "0" + result
+      }
+      result
+    }
+  }
+  
+  /*
   def fieldInterfaceName(fieldName: String, fieldType: Type): String = {
     val typeName = fieldType.prettyName
       .replace("\\", "\\\\")
@@ -216,6 +249,6 @@ object Main {
                     }
                 )
                 }))
-  }
+  } */
 }
 
