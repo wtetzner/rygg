@@ -20,8 +20,14 @@ object Main {
       import instructions._
       import Data.MethodSignature
       
-      getStatic(ClassType("java.io.PrintStream"), ClassType("java.lang.System"), "out")
+      val temp = instructions.variable("temp", ClassType.string)
       const("Some String")
+      store(temp)
+      getStatic(ClassType("java.io.PrintStream"), ClassType("java.lang.System"), "out")
+      load(temp)
+      invokeVirtual(ClassType("java.io.PrintStream"), "println", MethodSignature(VoidType, List(ClassType.string)))
+      getStatic(ClassType("java.io.PrintStream"), ClassType("java.lang.System"), "out")
+      load(temp)
       invokeVirtual(ClassType("java.io.PrintStream"), "println", MethodSignature(VoidType, List(ClassType.string)))
     }
 
@@ -31,6 +37,8 @@ object Main {
       println(s"[${padZeros(line.toString(), max)}] ${instr.label.name}: ${instr.instruction}")
       line += 1
     }
+    
+    println(s"\nSizes: ${method.metadata}")
     
     /*
     val classFiles = {

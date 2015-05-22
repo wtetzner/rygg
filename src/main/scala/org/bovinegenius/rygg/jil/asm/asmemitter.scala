@@ -163,7 +163,7 @@ case class Instructions(val name: String, val returnValue: Type, args: List[Meth
   def load(variable: LocalVariable, label: LabelMarker = labelMaker.make("g#load")): LabelledInstruction[Load] =
     add(Load(variable), label)
     
-  def store(variable: LocalVariable, label: LabelMarker = labelMaker.make("g#load")): LabelledInstruction[Store] =
+  def store(variable: LocalVariable, label: LabelMarker = labelMaker.make("g#store")): LabelledInstruction[Store] =
     add(Store(variable), label)
 
   def newArray(innerType: Type, label: LabelMarker = labelMaker.make("g#newArray")): LabelledInstruction[NewArray] =
@@ -418,6 +418,10 @@ object Instructions {
     instrs.toMethod
   }
 
+  sealed trait VariableAccessor {
+    def variable: LocalVariable
+  }
+  
   sealed trait Instruction {
     def consumes: Int
     def produces: Int
@@ -466,13 +470,13 @@ object Instructions {
   }
   
   // Load from a local variable
-  case class Load(val variable: LocalVariable) extends Instruction {
-    val consumes: Int = if (variable.index > 3) 1 else 0
+  case class Load(override val variable: LocalVariable) extends Instruction with VariableAccessor {
+    val consumes: Int = 0
     val produces: Int = variable.varType.stackSize
   }
-  case class Store(val variable: LocalVariable) extends Instruction {
-    val consumes: Int = if (variable.index > 3) 1 else 0
-    val produces: Int = variable.varType.stackSize
+  case class Store(override val variable: LocalVariable) extends Instruction with VariableAccessor {
+    val consumes: Int = variable.varType.stackSize
+    val produces: Int = 0
   }
   case class NewArray(val varType: Type) extends Inst(1, 1)
   case class NewMultidimensionalArray(val kind: Type, val dimensions: Array[Int]) extends Instruction {
@@ -527,7 +531,7 @@ object Instructions {
   case object IntAdd extends Inst(2, 1)
   case object IntAnd extends Inst(2, 1)
   case object IntDivide extends Inst(2, 1)
-  case class IntIncrement(val variable: LocalVariable, val amount: Byte) extends Inst(0, 0)
+  case class IntIncrement(override val variable: LocalVariable, val amount: Byte) extends Inst(0, 0) with VariableAccessor
   case object IntMultiply extends Inst(2, 1)
   case object IntNegate extends Inst(1, 1)
   case object IntOr extends Inst(2, 1)
@@ -599,24 +603,59 @@ object Instructions {
   case class InstanceOf(val kind: ClassType) extends Inst(1, 1)
   // case class InvokeDynamic // TODO: need to handle Method/Handle types first
   case class InvokeInterface(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Inst(
-      produces = 1 + methodSignature.argTypes.map(_.stackSize).sum,
-      consumes = methodSignature.returnType.stackSize)
+      consumes = 1 + methodSignature.argTypes.map(_.stackSize).sum,
+      produces = methodSignature.returnType.stackSize)
   case class InvokeSpecial(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Inst(
-      produces = 1 + methodSignature.argTypes.map(_.stackSize).sum,
-      consumes = methodSignature.returnType.stackSize)
+      consumes = 1 + methodSignature.argTypes.map(_.stackSize).sum,
+      produces = methodSignature.returnType.stackSize)
   case class InvokeStatic(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Inst(
-      produces = 1 + methodSignature.argTypes.map(_.stackSize).sum,
-      consumes = methodSignature.returnType.stackSize)
+      consumes = 1 + methodSignature.argTypes.map(_.stackSize).sum,
+      produces = methodSignature.returnType.stackSize)
   case class InvokeVirtual(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Inst(
-      produces = 1 + methodSignature.argTypes.map(_.stackSize).sum,
-      consumes = methodSignature.returnType.stackSize)
+      consumes = 1 + methodSignature.argTypes.map(_.stackSize).sum,
+      produces = methodSignature.returnType.stackSize)
   
   case class JumpSubRoutine(val label: LabelMarker) extends Inst(0, 1)
-  case class Ret(val returnValueVar: LocalVariable) extends Inst(0, 0)
+  case class Ret(val returnValueVar: LocalVariable) extends Inst(0, 0) with VariableAccessor {
+    override val variable: LocalVariable = returnValueVar
+  }
 }
 
+case class Frame()
+case class BytecodeMetadata(val maxStack: Int, val maxVariables: Int, val frames: List[Frame])
 case class MethodArg(val name: String, val argType: Type)
-case class MethodCode(val name: String, val returnType: Type, args: List[MethodArg], body: MethodBody)
+case class MethodCode(val name: String, val returnType: Type, args: List[MethodArg], body: MethodBody) {
+  lazy val metadata: BytecodeMetadata = {
+    var variables = Set[Int]()
+    var maxStack: Int = 0
+    var maxVariables: Int = 0
+    val frames: ListBuffer[Frame] = ListBuffer[Frame]()
+
+    var currentStack: Int = 0
+    
+    for (lInstr <- body.instructions) {
+      val instr = lInstr.instruction
+      if (instr.consumes > currentStack) {
+        throw new RuntimeException(s"Instruction ${instr} consumes ${instr.consumes} stack elements; The stack is only of size ${currentStack}")
+      }
+      currentStack = (currentStack - instr.consumes) + instr.produces
+      if (currentStack > maxStack) {
+        maxStack = currentStack
+      }
+      instr match {
+        case va: Instructions.VariableAccessor => {
+          variables = variables + va.variable.index
+        }
+        case _ => ()
+      }
+      if (variables.size > maxVariables) {
+        maxVariables = variables.size
+      }
+      println(s"instruction: ${lInstr.label.name} -> currentStack: ${currentStack}, maxStack: ${maxStack}, maxVariables: ${maxVariables}")
+    }
+    BytecodeMetadata(maxStack, maxVariables, frames.toList)
+  }
+}
 
 case class MethodBody(val instructions: List[Instructions.LabelledInstruction[_ <: Instructions.Instruction]], val tryCatches: List[Data.TryCatch])
 
