@@ -1,20 +1,35 @@
 package org.bovinegenius.rygg
 
 import org.bovinegenius.rygg.io.IO
-import java.io.File
-import org.bovinegenius.rygg.jil.asm.MethodArg
-import org.bovinegenius.rygg.jil.asm.Instructions
-import org.bovinegenius.rygg.jil.asm.Data.MethodSignature
-import org.bovinegenius.rygg.jil.asm.ClassType
-import org.bovinegenius.rygg.jil.asm.Data
-import org.bovinegenius.rygg.jil.asm.VoidType
-import org.bovinegenius.rygg.jil.asm.ArrayType
+import org.bovinegenius.rygg.jil.ArrayType
+import org.bovinegenius.rygg.jil.AstBuilder
+import org.bovinegenius.rygg.jil.BooleanType
+import org.bovinegenius.rygg.jil.CatchBlock
+import org.bovinegenius.rygg.jil.CharType
+import org.bovinegenius.rygg.jil.ClassName
+import org.bovinegenius.rygg.jil.ClassType
+import org.bovinegenius.rygg.jil.CodeGenerator
+import org.bovinegenius.rygg.jil.Expression
+import org.bovinegenius.rygg.jil.Field
+import org.bovinegenius.rygg.jil.FieldAccess
+import org.bovinegenius.rygg.jil.FieldName
+import org.bovinegenius.rygg.jil.Interface
+import org.bovinegenius.rygg.jil.LongType
+import org.bovinegenius.rygg.jil.MethodSignature
+import org.bovinegenius.rygg.jil.Public
+import org.bovinegenius.rygg.jil.SetField
+import org.bovinegenius.rygg.jil.ShortType
+import org.bovinegenius.rygg.jil.Static
+import org.bovinegenius.rygg.jil.TryBlock
+import org.bovinegenius.rygg.jil.Type
+import org.bovinegenius.rygg.jil.VoidType
+import org.bovinegenius.rygg.jil.Class
 
 
 object Main {
   def main(args: Array[String]): Unit = {
     val Array(classpath, inputFile, outputDir) = args
-    CodeGen.generateCode()
+    /* CodeGen.generateCode()
 
     val method = Instructions.emitMethod("main", VoidType, List(MethodArg("args", ArrayType(ClassType.string)))) { instructions =>
       import instructions._
@@ -38,9 +53,9 @@ object Main {
       line += 1
     }
     
-    println(s"\nSizes: ${method.metadata}")
+    println(s"\nSizes: ${method.metadata}") */
     
-    /*
+    
     val classFiles = {
       val codeGenerator: CodeGenerator = CodeGenerator(classpath, List())
       val astBuilder: AstBuilder = codeGenerator.astBuider
@@ -67,9 +82,9 @@ object Main {
       IO.spit(outputFile, p._2)
       println(s"${inputFile} -> ${outputFile}")
     })
-    */
+    
   }
-
+/*
   def padZeros(str: String, size: Int): String = {
     if (str.length() >= size) {
       str
@@ -81,8 +96,8 @@ object Main {
       result
     }
   }
+  */
   
-  /*
   def fieldInterfaceName(fieldName: String, fieldType: Type): String = {
     val typeName = fieldType.prettyName
       .replace("\\", "\\\\")
@@ -232,6 +247,6 @@ object Main {
                     }
                 )
                 }))
-  } */
+  }
 }
 

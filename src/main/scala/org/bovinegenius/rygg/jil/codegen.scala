@@ -157,9 +157,11 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
         writeExpression(decorated.tryBody.body, mv, env)
         mv.visitVarInsn(storeInstruction(decorated.tryBody.body.expressionType), varIndex)
         mv.visitJumpInsn(Opcodes.GOTO, decorated.catches.last.end)
-        mv.visitLabel(decorated.tryBody.end)
         for (catchBlock <- decorated.catches) {
+          mv.visitLabel(decorated.tryBody.end)
           mv.visitLabel(catchBlock.start)
+          val exceptionIndex = mv.newLocal(asmType(decorated.tryBody.body.expressionType))
+          mv.visitVarInsn(storeInstruction(decorated.tryBody.body.expressionType), exceptionIndex)
           //mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, List(catchBlock.exceptionType.name.bytecodeName).toArray);
           writeExpression(catchBlock.body, mv, env)
           mv.visitVarInsn(storeInstruction(catchBlock.body.expressionType), varIndex)

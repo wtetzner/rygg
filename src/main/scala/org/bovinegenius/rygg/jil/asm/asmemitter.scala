@@ -625,6 +625,71 @@ case class Frame()
 case class BytecodeMetadata(val maxStack: Int, val maxVariables: Int, val frames: List[Frame])
 case class MethodArg(val name: String, val argType: Type)
 case class MethodCode(val name: String, val returnType: Type, args: List[MethodArg], body: MethodBody) {
+  import Instructions.Instruction
+  import Instructions.LabelledInstruction
+  import Data._
+  
+  private case class CurrentState(
+      val instruction: Data.LabelMarker,
+      val currentStack: Int,
+      val maxStack: Int,
+      val maxVars: Int,
+      val variables: Set[Int])
+  
+  private lazy val instructionIndex: Map[LabelMarker,Int] = {
+    var map = Map[Data.LabelMarker,Int]()
+    var instruction = 0
+    for (linstr <- body.instructions) {
+      map = map + ((linstr.label, instruction))
+      instruction += 1
+    }
+    map
+  }
+  
+  private def instruction(label: Data.LabelMarker): Instructions.Instruction =
+    body.instructions(instructionIndex(label)).instruction
+    
+  private def instruction(index: Int): LabelledInstruction[_ <: Instruction] =
+    body.instructions(index)
+    
+  private def partialInterpret(currentState: CurrentState, seenStates: scala.collection.mutable.Map[LabelMarker,CurrentState]): BytecodeMetadata = {
+    var ic = instructionIndex(currentState.instruction)
+    seenStates(currentState.instruction) = currentState
+    var currentStack = currentState.currentStack
+    var maxStack = currentState.maxStack
+    var maxVars = currentState.maxVars
+    var vars = currentState.variables
+    
+    val lInstr = instruction(ic)
+    val instr = lInstr.instruction
+    
+    if (instr.consumes > currentStack) {
+      throw new RuntimeException(s"Instruction ${instr} consumes ${instr.consumes} stack elements; The stack is only of size ${currentStack}")
+    }
+    
+    def updateVariables(instr: Instruction): Unit = {
+      instr match {
+        case va: Instructions.VariableAccessor => {
+          vars = vars + va.variable.index
+        }
+        case _ => ()
+      }
+      if (vars.size > maxVars) {
+        maxVars = vars.size
+      }
+    }
+    def updateStack(instr: Instruction): Unit = {
+      currentStack = (currentStack - instr.consumes) + instr.produces
+      if (currentStack > maxStack) {
+        maxStack = currentStack
+      }
+    }
+    
+    
+    
+    null
+  }
+  
   lazy val metadata: BytecodeMetadata = {
     var variables = Set[Int]()
     var maxStack: Int = 0
