@@ -107,57 +107,57 @@ case class Instructions(val name: String, val returnValue: Type, args: List[Meth
     add(AStore(containedType), label)
   
   // String constant
-  def const(value: String): LabelledInstruction[Const] =
+  def const(value: String): LabelledInstruction[Instruction] =
     add(Const(value), labelMaker.make("g#strConst"))
-  def const(value: String, label: LabelMarker): LabelledInstruction[Const] =
+  def const(value: String, label: LabelMarker): LabelledInstruction[Instruction] =
     add(Const(value), label)
 
   // Int constant
-  def const(value: Int): LabelledInstruction[Const] =
+  def const(value: Int): LabelledInstruction[Instruction] =
     add(Const(value), labelMaker.make("g#iConst"))
-  def const(value: Int, label: LabelMarker): LabelledInstruction[Const] =
+  def const(value: Int, label: LabelMarker): LabelledInstruction[Instruction] =
     add(Const(value), label)
     
   // Long constant
-  def const(value: Long): LabelledInstruction[Const] =
+  def const(value: Long): LabelledInstruction[Instruction] =
     add(Const(value), labelMaker.make("g#lConst"))
-  def const(value: Long, label: LabelMarker): LabelledInstruction[Const] =
+  def const(value: Long, label: LabelMarker): LabelledInstruction[Instruction] =
     add(Const(value), label)
     
   // Float constant
-  def const(value: Float): LabelledInstruction[Const] =
+  def const(value: Float): LabelledInstruction[Instruction] =
     add(Const(value), labelMaker.make("g#fConst"))
-  def const(value: Float, label: LabelMarker): LabelledInstruction[Const] =
+  def const(value: Float, label: LabelMarker): LabelledInstruction[Instruction] =
     add(Const(value), label)
     
   // Double constant
-  def const(value: Double): LabelledInstruction[Const] =
+  def const(value: Double): LabelledInstruction[Instruction] =
     add(Const(value), labelMaker.make("g#dConst"))
-  def const(value: Double, label: LabelMarker): LabelledInstruction[Const] =
+  def const(value: Double, label: LabelMarker): LabelledInstruction[Instruction] =
     add(Const(value), label)
     
   // ClassType constant
-  def const(value: ClassType): LabelledInstruction[Const] =
+  def const(value: ClassType): LabelledInstruction[Instruction] =
     add(Const(value), labelMaker.make("g#classConst"))
-  def const(value: ClassType, label: LabelMarker): LabelledInstruction[Const] =
+  def const(value: ClassType, label: LabelMarker): LabelledInstruction[Instruction] =
     add(Const(value), label)
     
   // ArrayType constant
-  def const(value: ArrayType): LabelledInstruction[Const] =
+  def const(value: ArrayType): LabelledInstruction[Instruction] =
     add(Const(value), labelMaker.make("g#arrConst"))
-  def const(value: ArrayType, label: LabelMarker): LabelledInstruction[Const] =
+  def const(value: ArrayType, label: LabelMarker): LabelledInstruction[Instruction] =
     add(Const(value), label)
     
   // null ClassType constant
-  def nullConst(value: ClassType): LabelledInstruction[Const] =
+  def nullConst(value: ClassType): LabelledInstruction[Instruction] =
     add(NullConst.of(value), labelMaker.make("g#nullConst"))
-  def nullConst(value: ClassType, label: LabelMarker): LabelledInstruction[Const] =
+  def nullConst(value: ClassType, label: LabelMarker): LabelledInstruction[Instruction] =
     add(NullConst.of(value), label)
     
   // null ArrayType constant
-  def nullConst(value: ArrayType): LabelledInstruction[Const] =
+  def nullConst(value: ArrayType): LabelledInstruction[Instruction] =
     add(NullConst.of(value), labelMaker.make("g#nullConst"))
-  def nullConst(value: ArrayType, label: LabelMarker): LabelledInstruction[Const] =
+  def nullConst(value: ArrayType, label: LabelMarker): LabelledInstruction[Instruction] =
     add(NullConst.of(value), label)
     
   def load(variable: LocalVariable, label: LabelMarker = labelMaker.make("g#load")): LabelledInstruction[Load] =
@@ -438,12 +438,12 @@ object Instructions {
     val produces: Int = 0
   }
 
-  sealed trait Const extends Instruction
-  case class SimpleConst(val constantType: Type, val constant: Any) extends Const {
+  sealed trait Const
+  case class SimpleConst(val constantType: Type, val constant: Any) extends Const with Instruction {
     val consumes: Int = 0
     val produces: Int = constantType.stackSize
   }
-  case class ClassConst private(val classType: Type) extends Const {
+  case class ClassConst private(val classType: Type) extends Const with Instruction {
     val consumes: Int = 0
     val produces: Int = classType.stackSize
   }
@@ -451,7 +451,7 @@ object Instructions {
     def apply(classType: ClassType): ClassConst = ClassConst(classType)
     def apply(classType: ArrayType): ClassConst = ClassConst(classType)
   }
-  case class NullConst private(val refType: Type) extends Const {
+  case class NullConst private(val refType: Type) extends Const with Instruction {
     val consumes: Int = 0
     val produces: Int = refType.stackSize
   }
@@ -460,13 +460,13 @@ object Instructions {
     def of(refType: ArrayType): NullConst = NullConst(refType)
   }
   object Const {
-    def apply(value: Long): Const = SimpleConst(LongType, value)
-    def apply(value: Int): Const = SimpleConst(IntType, value)
-    def apply(value: Float): Const = SimpleConst(FloatType, value)
-    def apply(value: Double): Const = SimpleConst(DoubleType, value)
-    def apply(value: String): Const = SimpleConst(ClassType.string, value)
-    def apply(value: ClassType): Const = ClassConst(value)
-    def apply(value: ArrayType): Const = ClassConst(value)
+    def apply(value: Long): Instruction = SimpleConst(LongType, value)
+    def apply(value: Int): Instruction = SimpleConst(IntType, value)
+    def apply(value: Float): Instruction = SimpleConst(FloatType, value)
+    def apply(value: Double): Instruction = SimpleConst(DoubleType, value)
+    def apply(value: String): Instruction = SimpleConst(ClassType.string, value)
+    def apply(value: ClassType): Instruction = ClassConst(value)
+    def apply(value: ArrayType): Instruction = ClassConst(value)
   }
   
   // Load from a local variable

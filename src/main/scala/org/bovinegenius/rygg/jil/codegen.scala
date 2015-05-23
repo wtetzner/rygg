@@ -162,7 +162,6 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
           mv.visitLabel(catchBlock.start)
           val exceptionIndex = mv.newLocal(asmType(decorated.tryBody.body.expressionType))
           mv.visitVarInsn(storeInstruction(decorated.tryBody.body.expressionType), exceptionIndex)
-          //mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, List(catchBlock.exceptionType.name.bytecodeName).toArray);
           writeExpression(catchBlock.body, mv, env)
           mv.visitVarInsn(storeInstruction(catchBlock.body.expressionType), varIndex)
           if (decorated.catches.last != catchBlock) {
@@ -170,7 +169,6 @@ case class CodeGenerator(val classpath: String, val inputClasses: List[Classy]) 
           }
           mv.visitLabel(catchBlock.end)
         }
-        //mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
         mv.visitVarInsn(loadInstruction(decorated.tryBody.body.expressionType), varIndex)
       }
     }
