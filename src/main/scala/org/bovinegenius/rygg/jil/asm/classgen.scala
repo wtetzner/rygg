@@ -48,6 +48,7 @@ case class ClassGen() {
         mv.visitLocalVariable(variable.name, InstructionMapper.descriptor(variable.varType), null, null, null, variable.index)
         mv.visitVarInsn(InstructionMapper.storeInstruction(variable.varType), variable.index)
       }
+      case NewArray(varType) => mv.visitIntInsn(Opcodes.NEWARRAY, InstructionMapper.asmType(varType).getSort) // TODO: Not sure if the second arg is right
     }
   }
 }
