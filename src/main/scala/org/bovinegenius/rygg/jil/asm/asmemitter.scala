@@ -438,12 +438,11 @@ object Instructions {
     val produces: Int = 0
   }
 
-  sealed trait Const
-  case class SimpleConst(val constantType: Type, val constant: Any) extends Const with Instruction {
+  case class SimpleConst(val constantType: Type, val constant: Any) extends Instruction {
     val consumes: Int = 0
     val produces: Int = constantType.stackSize
   }
-  case class ClassConst private(val classType: Type) extends Const with Instruction {
+  case class ClassConst private(val classType: Type) extends Instruction {
     val consumes: Int = 0
     val produces: Int = classType.stackSize
   }
@@ -451,7 +450,7 @@ object Instructions {
     def apply(classType: ClassType): ClassConst = ClassConst(classType)
     def apply(classType: ArrayType): ClassConst = ClassConst(classType)
   }
-  case class NullConst private(val refType: Type) extends Const with Instruction {
+  case class NullConst private(val refType: Type) extends Instruction {
     val consumes: Int = 0
     val produces: Int = refType.stackSize
   }
