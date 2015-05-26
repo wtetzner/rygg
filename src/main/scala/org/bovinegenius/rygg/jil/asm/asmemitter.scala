@@ -615,8 +615,8 @@ object Instructions {
       produces = methodSignature.returnType.stackSize)
   
   case class JumpSubRoutine(val label: LabelMarker) extends Inst(0, 1)
-  case class Ret(val returnValueVar: LocalVariable) extends Inst(0, 0) with VariableAccessor {
-    override val variable: LocalVariable = returnValueVar
+  case class Ret(val returnLocationVar: LocalVariable) extends Inst(0, 0) with VariableAccessor {
+    override val variable: LocalVariable = returnLocationVar
   }
 }
 

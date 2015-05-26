@@ -179,6 +179,32 @@ case class ClassGen() {
       case IfLessEqualZero(label) => mv.visitJumpInsn(Opcodes.IFLE, labelMapper.label(label))
       case IfLessZero(label) => mv.visitJumpInsn(Opcodes.IFLT, labelMapper.label(label))
       case IfNotEqualZero(label) => mv.visitJumpInsn(Opcodes.IFNE, labelMapper.label(label))
+
+      case IfNonNull(label) => mv.visitJumpInsn(Opcodes.IFNONNULL, labelMapper.label(label))
+      case IfNull(label) => mv.visitJumpInsn(Opcodes.IFNULL, labelMapper.label(label))
+
+      case Dup => mv.visitInsn(Opcodes.DUP)
+      case Dup2 => mv.visitInsn(Opcodes.DUP2)
+      case DupX1 => mv.visitInsn(Opcodes.DUP_X1)
+      case DupX2 => mv.visitInsn(Opcodes.DUP_X2)
+      case Dup2X1 => mv.visitInsn(Opcodes.DUP2_X1)
+      case Dup2X2 => mv.visitInsn(Opcodes.DUP2_X2)
+      case GetField(fieldType, owner, name) => mv.visitFieldInsn(Opcodes.GETFIELD, owner.bytecodeName, name, InstructionMapper.descriptor(fieldType))
+      case PutField(fieldType, owner, name) => mv.visitFieldInsn(Opcodes.PUTFIELD, owner.bytecodeName, name, InstructionMapper.descriptor(fieldType))
+
+      case GetStatic(fieldType, owner, name) => mv.visitFieldInsn(Opcodes.GETSTATIC, owner.bytecodeName, name, InstructionMapper.descriptor(fieldType))
+      case PutStatic(fieldType, owner, name) => mv.visitFieldInsn(Opcodes.PUTSTATIC, owner.bytecodeName, name, InstructionMapper.descriptor(fieldType))
+      case Swap => mv.visitInsn(Opcodes.SWAP)
+      case Goto(label) => mv.visitJumpInsn(Opcodes.GOTO, labelMapper.label(label))
+      case InstanceOf(classType) => mv.visitTypeInsn(Opcodes.INSTANCEOF, classType.bytecodeName)
+
+      case InvokeInterface(owner, methodName, methodSignature) => mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, owner.bytecodeName, methodName, InstructionMapper.descriptor(methodSignature), true)
+      case InvokeSpecial(owner, methodName, methodSignature) => mv.visitMethodInsn(Opcodes.INVOKESPECIAL, owner.bytecodeName, methodName, InstructionMapper.descriptor(methodSignature), false)
+      case InvokeStatic(owner, methodName, methodSignature) => mv.visitMethodInsn(Opcodes.INVOKESTATIC, owner.bytecodeName, methodName, InstructionMapper.descriptor(methodSignature), false)
+      case InvokeVirtual(owner, methodName, methodSignature) => mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, owner.bytecodeName, methodName, InstructionMapper.descriptor(methodSignature), false)
+
+      case JumpSubRoutine(label) => mv.visitJumpInsn(Opcodes.JSR, labelMapper.label(label))
+      case Ret(returnLocationVar) => mv.visitVarInsn(Opcodes.RET, returnLocationVar.index)
     }
   }
 }
