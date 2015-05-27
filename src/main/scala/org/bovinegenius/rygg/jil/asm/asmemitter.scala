@@ -65,20 +65,14 @@ object Data {
   case class TryCatch(start: LabelMarker, end: LabelMarker, handler: LabelMarker, exceptionType: ClassType)
 }
 
-case class Instructions(val name: String, val returnValue: Type, args: List[MethodArg]) {
+case class InstructionEmitter(
+    instructions: ListBuffer[Instructions.LabelledInstruction[_ <: Instructions.Instruction]],
+    tryCatches: ListBuffer[Data.TryCatch],
+    labelMaker: Data.LabelMaker,
+    variableManager: VariableManager
+) {
   import Instructions._
   import Data._
-
-  private val instructions: ListBuffer[LabelledInstruction[_ <: Instruction]] = ListBuffer[LabelledInstruction[_ <: Instruction]]()
-  private val labelMaker: LabelMaker = LabelMaker()
-  private val tryCatches: ListBuffer[TryCatch] = ListBuffer[TryCatch]()
-  private val variableManager: VariableManager = {
-    val manager = VariableManager()
-    for (arg <- args) {
-      manager.variable(arg.name, arg.argType)
-    }
-    manager
-  }
 
   def variable(name: String, varType: Type): LocalVariable = variableManager.variable(name, varType)
   def variable(name: String): LocalVariable = variableManager.variable(name)
@@ -90,22 +84,17 @@ case class Instructions(val name: String, val returnValue: Type, args: List[Meth
     tryCatch
   }
 
-  private def toList: List[LabelledInstruction[_ <: Instruction]] = instructions.toList
-  def toMethod: MethodCode = {
-    MethodCode(name, returnValue, args, MethodBody(toList, tryCatches.toList))
-  }
-  
   private def add[T <: Instruction](inst: T, label: LabelMarker): LabelledInstruction[T] = {
     val labelled = LabelledInstruction(inst, label);
     instructions += labelled
     labelled
   }
-  
+
   def aLoad(containedType: Type, label: LabelMarker = labelMaker.make("g#aLoad")): LabelledInstruction[ALoad] =
     add(ALoad(containedType), label)
   def aStore(containedType: Type, label: LabelMarker = labelMaker.make("g#aStore")): LabelledInstruction[AStore] =
     add(AStore(containedType), label)
-  
+
   // String constant
   def const(value: String): LabelledInstruction[Instruction] =
     add(Const(value), labelMaker.make("g#strConst"))
@@ -289,7 +278,7 @@ case class Instructions(val name: String, val returnValue: Type, args: List[Meth
     add(IntUnsignedShiftRight, label)
   def intExclusiveOr(label: LabelMarker = labelMaker.make("g#intExclusiveOr")): LabelledInstruction[IntExclusiveOr.type] =
     add(IntExclusiveOr, label)
-  
+
   def longAdd(label: LabelMarker = labelMaker.make("g#longAdd")): LabelledInstruction[LongAdd.type] =
     add(LongAdd, label)
   def longAnd(label: LabelMarker = labelMaker.make("g#longAnd")): LabelledInstruction[LongAnd.type] =
@@ -407,13 +396,36 @@ case class Instructions(val name: String, val returnValue: Type, args: List[Meth
     add(Ret(returnValueVar), label)
 }
 
+case class MethodBuilder(val name: String, val returnValue: Type, args: List[MethodArg]) {
+  import Instructions._
+  import Data._
+
+  private val instructions: ListBuffer[LabelledInstruction[_ <: Instruction]] = ListBuffer[LabelledInstruction[_ <: Instruction]]()
+  private val labelMaker: LabelMaker = LabelMaker()
+  private val tryCatches: ListBuffer[TryCatch] = ListBuffer[TryCatch]()
+  private val variableManager: VariableManager = {
+    val manager = VariableManager()
+    for (arg <- args) {
+      manager.variable(arg.name, arg.argType)
+    }
+    manager
+  }
+
+  private def toList: List[LabelledInstruction[_ <: Instruction]] = instructions.toList
+  def toMethod: MethodCode = {
+    MethodCode(name, returnValue, args, MethodBody(toList, tryCatches.toList))
+  }
+
+  val instructionEmitter: InstructionEmitter = InstructionEmitter(instructions, tryCatches, labelMaker, variableManager)
+}
+
 object Instructions {
   import Data._
-  
+
   case class LabelledInstruction[T <: Instruction](val instruction: T, val label: LabelMarker)
-  
-  def emitMethod(name: String, returnType: Type, args: List[MethodArg])(emitter: Instructions => Unit): MethodCode = {
-    val instrs = Instructions(name, returnType, args)
+
+  def emitMethod(name: String, returnType: Type, args: List[MethodArg])(emitter: MethodBuilder => Unit): MethodCode = {
+    val instrs = MethodBuilder(name, returnType, args)
     emitter(instrs)
     instrs.toMethod
   }
@@ -613,7 +625,7 @@ object Instructions {
   case class InvokeVirtual(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Inst(
       consumes = 1 + methodSignature.argTypes.map(_.stackSize).sum,
       produces = methodSignature.returnType.stackSize)
-  
+
   case class JumpSubRoutine(val label: LabelMarker) extends Inst(0, 1)
   case class Ret(val returnLocationVar: LocalVariable) extends Inst(0, 0) with VariableAccessor {
     override val variable: LocalVariable = returnLocationVar

@@ -23,7 +23,7 @@ case class LabelMapper() {
 
 case class ClassGen() {
   import Instructions._
-  
+
   private def writeInstructions(mv: MethodVisitor, instructions: List[LabelledInstruction[_ <: Instruction]]): Unit = {
     val labelMapper = {
       val mapper = LabelMapper()
@@ -33,7 +33,7 @@ case class ClassGen() {
       mapper
     }
   }
-  
+
   private def writeInstruction(mv: MethodVisitor, lInstr: LabelledInstruction[_ <: Instruction], labelMapper: LabelMapper): Unit = {
     lInstr.instruction match {
       case ALoad(containedType) =>
