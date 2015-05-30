@@ -455,14 +455,14 @@ case class InstructionEmitter(
   def instanceOf(kind: ClassType, label: LabelMarker = labelMaker.make("g#instanceOf")): LabelledInstruction[InstanceOf] =
     add(InstanceOf(kind), label)
 
-  def invokeInterface(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g#invokeInterface")): LabelledInstruction[InvokeInterface] =
-    add(InvokeInterface(owner, methodName, methodSignature), label)
-  def invokeSpecial(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g#invokeSpecial")): LabelledInstruction[InvokeSpecial] =
-    add(InvokeSpecial(owner, methodName, methodSignature), label)
-  def invokeStatic(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g#invokeStatic")): LabelledInstruction[InvokeStatic] =
-    add(InvokeStatic(owner, methodName, methodSignature), label)
-  def invokeVirtual(owner: ClassType, methodName: String, methodSignature: MethodSignature, label: LabelMarker = labelMaker.make("g#invokeVirtual")): LabelledInstruction[InvokeVirtual] =
-    add(InvokeVirtual(owner, methodName, methodSignature), label)
+  def invokeInterface(owner: ClassType, methodName: String, returnType: Type, args: List[Type], label: LabelMarker = labelMaker.make("g#invokeInterface")): LabelledInstruction[InvokeInterface] =
+    add(InvokeInterface(owner, methodName, MethodSignature(returnType, args)), label)
+  def invokeSpecial(owner: ClassType, methodName: String, returnType: Type, args: List[Type], label: LabelMarker = labelMaker.make("g#invokeSpecial")): LabelledInstruction[InvokeSpecial] =
+    add(InvokeSpecial(owner, methodName, MethodSignature(returnType, args)), label)
+  def invokeStatic(owner: ClassType, methodName: String, returnType: Type, args: List[Type], label: LabelMarker = labelMaker.make("g#invokeStatic")): LabelledInstruction[InvokeStatic] =
+    add(InvokeStatic(owner, methodName, MethodSignature(returnType, args)), label)
+  def invokeVirtual(owner: ClassType, methodName: String, returnType: Type, args: List[Type], label: LabelMarker = labelMaker.make("g#invokeVirtual")): LabelledInstruction[InvokeVirtual] =
+    add(InvokeVirtual(owner, methodName, MethodSignature(returnType, args)), label)
 
   def jumpSubRoutine(targetLabel: LabelMarker, label: LabelMarker = labelMaker.make("g#jumpSubRoutine")): LabelledInstruction[JumpSubRoutine] =
     add(JumpSubRoutine(targetLabel), label)

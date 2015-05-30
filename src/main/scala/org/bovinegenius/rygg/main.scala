@@ -1,12 +1,10 @@
 package org.bovinegenius.rygg
 
-import org.bovinegenius.rygg.jil.asm.MethodArg
-import org.bovinegenius.rygg.jil.asm.Instructions
-import org.bovinegenius.rygg.jil.asm.Data.MethodSignature
-import org.bovinegenius.rygg.jil.asm.ClassType
-import org.bovinegenius.rygg.jil.asm.Data
-import org.bovinegenius.rygg.jil.asm.VoidType
 import org.bovinegenius.rygg.jil.asm.ArrayType
+import org.bovinegenius.rygg.jil.asm.ClassType
+import org.bovinegenius.rygg.jil.asm.Instructions
+import org.bovinegenius.rygg.jil.asm.MethodArg
+import org.bovinegenius.rygg.jil.asm.VoidType
 
 
 object Main {
@@ -17,17 +15,16 @@ object Main {
     val method = Instructions.emitMethod("main", VoidType, List(MethodArg("args", ArrayType(ClassType.string)))) { methodBuilder =>
       val instructions = methodBuilder.instructionEmitter
       import instructions._
-      import Data.MethodSignature
 
       val temp = instructions.variable("temp", ClassType.string)
       const("Some String")
       store(temp)
       getStatic(ClassType("java.io.PrintStream"), ClassType("java.lang.System"), "out")
       load(temp)
-      invokeVirtual(ClassType("java.io.PrintStream"), "println", MethodSignature(VoidType, List(ClassType.string)))
+      invokeVirtual(ClassType("java.io.PrintStream"), "println", VoidType, List(ClassType.string))
       getStatic(ClassType("java.io.PrintStream"), ClassType("java.lang.System"), "out")
       load(temp)
-      invokeVirtual(ClassType("java.io.PrintStream"), "println", MethodSignature(VoidType, List(ClassType.string)))
+      invokeVirtual(ClassType("java.io.PrintStream"), "println", VoidType, List(ClassType.string))
     }
 
     val max = method.body.instructions.length.toString().length()
