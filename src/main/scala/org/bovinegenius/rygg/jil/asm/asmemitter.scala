@@ -1,14 +1,84 @@
 package org.bovinegenius.rygg.jil.asm
 
+import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{Map => MutableMap}
+
+import org.bovinegenius.rygg.jil.asm.Instructions.ArrayLength
+import org.bovinegenius.rygg.jil.asm.Instructions.DoubleAdd
+import org.bovinegenius.rygg.jil.asm.Instructions.DoubleCompareG
+import org.bovinegenius.rygg.jil.asm.Instructions.DoubleCompareL
+import org.bovinegenius.rygg.jil.asm.Instructions.DoubleDivide
+import org.bovinegenius.rygg.jil.asm.Instructions.DoubleMultiply
+import org.bovinegenius.rygg.jil.asm.Instructions.DoubleNegate
+import org.bovinegenius.rygg.jil.asm.Instructions.DoubleRemainder
+import org.bovinegenius.rygg.jil.asm.Instructions.DoubleSubtract
+import org.bovinegenius.rygg.jil.asm.Instructions.DoubleToFloat
+import org.bovinegenius.rygg.jil.asm.Instructions.DoubleToInt
+import org.bovinegenius.rygg.jil.asm.Instructions.DoubleToLong
+import org.bovinegenius.rygg.jil.asm.Instructions.Dup
+import org.bovinegenius.rygg.jil.asm.Instructions.Dup2
+import org.bovinegenius.rygg.jil.asm.Instructions.Dup2X1
+import org.bovinegenius.rygg.jil.asm.Instructions.Dup2X2
+import org.bovinegenius.rygg.jil.asm.Instructions.DupX1
+import org.bovinegenius.rygg.jil.asm.Instructions.DupX2
+import org.bovinegenius.rygg.jil.asm.Instructions.FloatAdd
+import org.bovinegenius.rygg.jil.asm.Instructions.FloatCompareG
+import org.bovinegenius.rygg.jil.asm.Instructions.FloatCompareL
+import org.bovinegenius.rygg.jil.asm.Instructions.FloatDivide
+import org.bovinegenius.rygg.jil.asm.Instructions.FloatMultiply
+import org.bovinegenius.rygg.jil.asm.Instructions.FloatNegate
+import org.bovinegenius.rygg.jil.asm.Instructions.FloatRemainder
+import org.bovinegenius.rygg.jil.asm.Instructions.FloatSubtract
+import org.bovinegenius.rygg.jil.asm.Instructions.FloatToDouble
+import org.bovinegenius.rygg.jil.asm.Instructions.FloatToInt
+import org.bovinegenius.rygg.jil.asm.Instructions.FloatToLong
+import org.bovinegenius.rygg.jil.asm.Instructions.IntAdd
+import org.bovinegenius.rygg.jil.asm.Instructions.IntAnd
+import org.bovinegenius.rygg.jil.asm.Instructions.IntDivide
+import org.bovinegenius.rygg.jil.asm.Instructions.IntExclusiveOr
+import org.bovinegenius.rygg.jil.asm.Instructions.IntMultiply
+import org.bovinegenius.rygg.jil.asm.Instructions.IntNegate
+import org.bovinegenius.rygg.jil.asm.Instructions.IntOr
+import org.bovinegenius.rygg.jil.asm.Instructions.IntRemainder
+import org.bovinegenius.rygg.jil.asm.Instructions.IntShiftLeft
+import org.bovinegenius.rygg.jil.asm.Instructions.IntShiftRight
+import org.bovinegenius.rygg.jil.asm.Instructions.IntSubtract
+import org.bovinegenius.rygg.jil.asm.Instructions.IntToByte
+import org.bovinegenius.rygg.jil.asm.Instructions.IntToChar
+import org.bovinegenius.rygg.jil.asm.Instructions.IntToDouble
+import org.bovinegenius.rygg.jil.asm.Instructions.IntToFloat
+import org.bovinegenius.rygg.jil.asm.Instructions.IntToLong
+import org.bovinegenius.rygg.jil.asm.Instructions.IntToShort
+import org.bovinegenius.rygg.jil.asm.Instructions.IntUnsignedShiftRight
+import org.bovinegenius.rygg.jil.asm.Instructions.LongAdd
+import org.bovinegenius.rygg.jil.asm.Instructions.LongAnd
+import org.bovinegenius.rygg.jil.asm.Instructions.LongCompare
+import org.bovinegenius.rygg.jil.asm.Instructions.LongDivide
+import org.bovinegenius.rygg.jil.asm.Instructions.LongExclusiveOr
+import org.bovinegenius.rygg.jil.asm.Instructions.LongMultiply
+import org.bovinegenius.rygg.jil.asm.Instructions.LongNegate
+import org.bovinegenius.rygg.jil.asm.Instructions.LongOr
+import org.bovinegenius.rygg.jil.asm.Instructions.LongRemainder
+import org.bovinegenius.rygg.jil.asm.Instructions.LongShiftLeft
+import org.bovinegenius.rygg.jil.asm.Instructions.LongShiftRight
+import org.bovinegenius.rygg.jil.asm.Instructions.LongSubtract
+import org.bovinegenius.rygg.jil.asm.Instructions.LongToDouble
+import org.bovinegenius.rygg.jil.asm.Instructions.LongToFloat
+import org.bovinegenius.rygg.jil.asm.Instructions.LongToInt
+import org.bovinegenius.rygg.jil.asm.Instructions.LongUnsignedShiftRight
+import org.bovinegenius.rygg.jil.asm.Instructions.MonitorEnter
+import org.bovinegenius.rygg.jil.asm.Instructions.MonitorExit
+import org.bovinegenius.rygg.jil.asm.Instructions.NoOp
+import org.bovinegenius.rygg.jil.asm.Instructions.Pop
+import org.bovinegenius.rygg.jil.asm.Instructions.Pop2
+import org.bovinegenius.rygg.jil.asm.Instructions.Swap
+import org.bovinegenius.rygg.util.IntSequence
+import org.objectweb.asm._
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.{Type => AsmType}
 import org.objectweb.asm.tree.FieldInsnNode
-import org.objectweb.asm.tree.InsnNode
 import org.objectweb.asm.tree.IincInsnNode
-import scala.collection.mutable.{
-  Map => MutableMap,
-  ListBuffer
-}
+import org.objectweb.asm.tree.InsnNode
 
 case class AsmEmitter() {
   
@@ -45,18 +115,22 @@ case class VariableManager() {
 object Data {
   case class LabelMarker private[Data](val name: String)
   case class LabelMaker() {
-    private var latest: Int = 0
+    private val counts: MutableMap[String,IntSequence] = MutableMap[String,IntSequence]()
 
     private var seen: Set[String] = Set[String]()
 
     def make(name: String): LabelMarker = {
-      if (seen.contains(name)) {
-        val num = latest
-        latest += 1
-        make(s"${name}_${num}")
+      val text = if (counts.contains(name)) {
+        s"${name}_${counts(name).next}"
       } else {
-        seen = seen + name
-        LabelMarker(name)
+        counts(name) = IntSequence(2)
+        name
+      }
+      if (seen.contains(text)) {
+        make(name)
+      } else {
+        seen = seen + text
+        LabelMarker(text)
       }
     }
   }
