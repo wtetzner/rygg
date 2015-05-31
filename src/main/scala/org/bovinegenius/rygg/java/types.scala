@@ -5,9 +5,14 @@ import org.objectweb.asm.{Type => AsmType}
 import java.util.Arrays
 
 
+case class Field(val fieldName: FieldName, val access: FieldAccess, val fieldType: Type)
+
 case class Method[T](
-    methodName: MethodName
-    
+    val methodName: MethodName,
+    val access: MethodAccess,
+    val returnType: Type,
+    val args: List[(String,Type)],
+    val body: T
 )
 
 sealed trait Type {
