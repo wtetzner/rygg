@@ -15,6 +15,22 @@ case class Method[T](
     val body: T
 )
 
+case class InnerClass[T](
+    val className: ClassName,
+    val access: InnerClassAccess,
+    val fields: List[Field],
+    val methods: List[Method[T]],
+    val innerClasses: List[InnerClass[T]]
+)
+
+case class Class[T](
+    val className: ClassName,
+    val access: ClassAccess,
+    val fields: List[Field],
+    val methods: List[Method[T]],
+    val innerClasses: List[InnerClass[T]]
+)
+
 sealed trait Type {
   def bytecodeName: String
   def prettyName: String

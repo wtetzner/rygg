@@ -2,6 +2,8 @@ package org.bovinegenius.rygg.java
 
 case class MethodAccess(val level: AccessLevel, val options: Set[MethodAccessOption])
 case class FieldAccess(val level: AccessLevel, val options: Set[FieldAccessOption])
+case class ClassAccess(val level: AccessLevel, val options: Set[ClassAccessOption])
+case class InnerClassAccess(val level: AccessLevel, val options: Set[InnerClassAccessOption])
 
 sealed trait MethodAccessOption
 sealed trait FieldAccessOption

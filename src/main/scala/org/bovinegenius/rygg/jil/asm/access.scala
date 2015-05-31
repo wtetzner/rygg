@@ -18,6 +18,24 @@ object AccessFlags {
     }))
   }
 
+  def apply(access: FieldAccess): AccessFlags = {
+    new AccessFlags(access.options.foldLeft(accessLevelFlag(access.level))((result, option) => {
+      result | accessFlag(option)
+    }))
+  }
+
+  def apply(access: ClassAccess): AccessFlags = {
+    new AccessFlags(access.options.foldLeft(accessLevelFlag(access.level))((result, option) => {
+      result | accessFlag(option)
+    }))
+  }
+
+  def apply(access: InnerClassAccess): AccessFlags = {
+    new AccessFlags(access.options.foldLeft(accessLevelFlag(access.level))((result, option) => {
+      result | accessFlag(option)
+    }))
+  }
+
   private def accessFlag(option: MethodAccessOption): Int = option match {
         case Static => Opcodes.ACC_STATIC
         case Final => Opcodes.ACC_FINAL
