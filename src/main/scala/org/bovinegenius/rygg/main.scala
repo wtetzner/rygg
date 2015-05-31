@@ -16,7 +16,7 @@ object Main {
       val instructions = methodBuilder.instructionEmitter
       import instructions._
 
-      val temp = instructions.variable("temp", ClassType.string)
+      val temp = variable("temp", ClassType.string)
       const("Some String")
       store(temp)
       getStatic(ClassType("java.io.PrintStream"), ClassType("java.lang.System"), "out")
