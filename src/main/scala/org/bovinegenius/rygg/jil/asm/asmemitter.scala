@@ -507,12 +507,12 @@ object Instructions {
   sealed trait VariableAccessor {
     def variable: LocalVariable
   }
-  
+
   sealed trait Instruction {
     def consumes: Int
     def produces: Int
   }
-  sealed abstract class Inst(override val consumes: Int, override val produces: Int) extends Instruction
+
   // Represents array loading instructions
   case class ALoad(val containedType: Type) extends Instruction {
     val consumes: Int = 2
@@ -563,163 +563,451 @@ object Instructions {
     val consumes: Int = variable.varType.stackSize
     val produces: Int = 0
   }
-  case class NewArray(val varType: Type) extends Inst(1, 1)
+  case class NewArray(val varType: Type) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 1
+  }
   case class NewMultidimensionalArray(val kind: Type, val dimensions: Array[Int]) extends Instruction {
     val consumes: Int = dimensions.length * kind.stackSize
     val produces: Int = 1
   }
-  case class New(val kind: ClassType) extends Inst(0, 1)
-  case class Return(val returnType: Type) extends Inst(returnType.stackSize, 0)
-  case object ArrayLength extends Inst(1, 1)
-  case class Throw(val exceptionType: ClassType) extends Inst(1, 0)
+  case class New(val kind: ClassType) extends Instruction {
+    val consumes: Int = 0
+    val produces: Int = 1
+  }
+  case class Return(val returnType: Type) extends Instruction {
+    val consumes: Int = returnType.stackSize
+    val produces: Int = 0
+  }
+  case object ArrayLength extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 1
+  }
+  case class Throw(val exceptionType: ClassType) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
   
-  case class Push(val value: Short) extends Inst(0, 1)
-  case class CheckCast(val castType: ClassType) extends Inst(1, 1)
+  case class Push(val value: Short) extends Instruction {
+    val consumes: Int = 0
+    val produces: Int = 1
+  }
+  case class CheckCast(val castType: ClassType) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 1
+  }
   
-  case object DoubleToFloat extends Inst(2, 1)
-  case object DoubleToInt extends Inst(2, 1)
-  case object DoubleToLong extends Inst(2, 2)
+  case object DoubleToFloat extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object DoubleToInt extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object DoubleToLong extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 2
+  }
   
-  case object FloatToDouble extends Inst(1, 2)
-  case object FloatToInt extends Inst(1, 1)
-  case object FloatToLong extends Inst(1, 2)
+  case object FloatToDouble extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 2
+  }
+  case object FloatToInt extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 1
+  }
+  case object FloatToLong extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 2
+  }
   
-  case object IntToByte extends Inst(1, 1)
-  case object IntToChar extends Inst(1, 1)
-  case object IntToDouble extends Inst(1, 2)
-  case object IntToFloat extends Inst(1, 1)
-  case object IntToLong extends Inst(1, 2)
-  case object IntToShort extends Inst(1, 1)
+  case object IntToByte extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 1
+  }
+  case object IntToChar extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 1
+  }
+  case object IntToDouble extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 2
+  }
+  case object IntToFloat extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 1
+  }
+  case object IntToLong extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 2
+  }
+  case object IntToShort extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 1
+  }
   
-  case object LongToDouble extends Inst(2, 2)
-  case object LongToFloat extends Inst(2, 1)
-  case object LongToInt extends Inst(2, 1)
+  case object LongToDouble extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 2
+  }
+  case object LongToFloat extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object LongToInt extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
   
-  case object DoubleCompareG extends Inst(4, 1)
-  case object DoubleCompareL extends Inst(4, 1)
-  case object DoubleDivide extends Inst(4, 2)
-  case object DoubleMultiply extends Inst(4, 2)
-  case object DoubleNegate extends Inst(2, 2)
-  case object DoubleRemainder extends Inst(4, 2)
-  case object DoubleSubtract extends Inst(4, 2)
-  case object DoubleAdd extends Inst(4, 2)
+  case object DoubleCompareG extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 1
+  }
+  case object DoubleCompareL extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 1
+  }
+  case object DoubleDivide extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
+  case object DoubleMultiply extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
+  case object DoubleNegate extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 2
+  }
+  case object DoubleRemainder extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
+  case object DoubleSubtract extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
+  case object DoubleAdd extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
   
-  case object FloatAdd extends Inst(2, 1)
-  case object FloatCompareG extends Inst(2, 1)
-  case object FloatCompareL extends Inst(2, 1)
-  case object FloatDivide extends Inst(2, 1)
-  case object FloatMultiply extends Inst(2, 1)
-  case object FloatNegate extends Inst(1, 1)
-  case object FloatRemainder extends Inst(2, 1)
-  case object FloatSubtract extends Inst(2, 1)
+  case object FloatAdd extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object FloatCompareG extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object FloatCompareL extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object FloatDivide extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object FloatMultiply extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object FloatNegate extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 1
+  }
+  case object FloatRemainder extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object FloatSubtract extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
   
-  case object IntAdd extends Inst(2, 1)
-  case object IntAnd extends Inst(2, 1)
-  case object IntDivide extends Inst(2, 1)
-  case class IntIncrement(override val variable: LocalVariable, val amount: Byte) extends Inst(0, 0) with VariableAccessor
-  case object IntMultiply extends Inst(2, 1)
-  case object IntNegate extends Inst(1, 1)
-  case object IntOr extends Inst(2, 1)
-  case object IntRemainder extends Inst(2, 1)
-  case object IntShiftLeft extends Inst(2, 1)
-  case object IntShiftRight extends Inst(2, 1)
-  case object IntSubtract extends Inst(2, 1)
-  case object IntUnsignedShiftRight extends Inst(2, 1)
-  case object IntExclusiveOr extends Inst(2, 1)
+  case object IntAdd extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object IntAnd extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object IntDivide extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case class IntIncrement(override val variable: LocalVariable, val amount: Byte) extends Instruction with VariableAccessor {
+    val consumes: Int = 0
+    val produces: Int = 0
+  }
+  case object IntMultiply extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object IntNegate extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 1
+  }
+  case object IntOr extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object IntRemainder extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object IntShiftLeft extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object IntShiftRight extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object IntSubtract extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object IntUnsignedShiftRight extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
+  case object IntExclusiveOr extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 1
+  }
   
-  case object LongAdd extends Inst(4, 2)
-  case object LongAnd extends Inst(4, 2)
-  case object LongCompare extends Inst(4, 1)
-  case object LongDivide extends Inst(4, 2)
-  case object LongMultiply extends Inst(4, 2)
-  case object LongNegate extends Inst(2, 2)
-  case object LongOr extends Inst(4, 2)
-  case object LongRemainder extends Inst(4, 2)
-  case object LongShiftLeft extends Inst(3, 2)
-  case object LongShiftRight extends Inst(3, 2)
-  case object LongSubtract extends Inst(4, 2)
-  case object LongUnsignedShiftRight extends Inst(3, 2)
-  case object LongExclusiveOr extends Inst(4, 2)
+  case object LongAdd extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
+  case object LongAnd extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
+  case object LongCompare extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 1
+  }
+  case object LongDivide extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
+  case object LongMultiply extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
+  case object LongNegate extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 2
+  }
+  case object LongOr extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
+  case object LongRemainder extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
+  case object LongShiftLeft extends Instruction {
+    val consumes: Int = 3
+    val produces: Int = 2
+  }
+  case object LongShiftRight extends Instruction {
+    val consumes: Int = 3
+    val produces: Int = 2
+  }
+  case object LongSubtract extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
+  case object LongUnsignedShiftRight extends Instruction {
+    val consumes: Int = 3
+    val produces: Int = 2
+  }
+  case object LongExclusiveOr extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 2
+  }
   
-  case object MonitorEnter extends Inst(1, 0)
-  case object MonitorExit extends Inst(1, 0)
+  case object MonitorEnter extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
+  case object MonitorExit extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
   
   case class LookupSwitch() // TODO: 
   case class TableSwitch() // TODO: 
   
-  case object NoOp extends Inst(0, 0)
-  case object Pop extends Inst(1, 0)
-  case object Pop2 extends Inst(2, 0)
+  case object NoOp extends Instruction {
+    val consumes: Int = 0
+    val produces: Int = 0
+  }
+  case object Pop extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
+  case object Pop2 extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 0
+  }
   
-  case class IfEqual(val kind: Type, val label: LabelMarker) extends Inst(kind.stackSize * 2, 0)
-  case class IfNotEqual(val kind: Type, val label: LabelMarker) extends Inst(kind.stackSize * 2, 0)
-  case class IfGreaterEqual(val kind: Type, val label: LabelMarker) extends Inst(kind.stackSize * 2, 0)
-  case class IfGreater(val kind: Type, val label: LabelMarker) extends Inst(kind.stackSize * 2, 0)
-  case class IfLessEqual(val kind: Type, val label: LabelMarker) extends Inst(kind.stackSize * 2, 0)
-  case class IfLess(val kind: Type, val label: LabelMarker) extends Inst(kind.stackSize * 2, 0)
+  case class IfEqual(val kind: Type, val label: LabelMarker) extends Instruction {
+    val consumes: Int = kind.stackSize * 2
+    val produces: Int = 0
+  }
+  case class IfNotEqual(val kind: Type, val label: LabelMarker) extends Instruction {
+    val consumes: Int = kind.stackSize * 2
+    val produces: Int = 0
+  }
+  case class IfGreaterEqual(val kind: Type, val label: LabelMarker) extends Instruction {
+    val consumes: Int = kind.stackSize * 2
+    val produces: Int = 0
+  }
+  case class IfGreater(val kind: Type, val label: LabelMarker) extends Instruction {
+    val consumes: Int = kind.stackSize * 2
+    val produces: Int = 0
+  }
+  case class IfLessEqual(val kind: Type, val label: LabelMarker) extends Instruction {
+    val consumes: Int = kind.stackSize * 2
+    val produces: Int = 0
+  }
+  case class IfLess(val kind: Type, val label: LabelMarker) extends Instruction {
+    val consumes: Int = kind.stackSize * 2
+    val produces: Int = 0
+  }
   
-  case class IfEqualZero(val label: LabelMarker) extends Inst(1, 0)
-  case class IfGreaterEqualZero(val label: LabelMarker) extends Inst(1, 0)
-  case class IfGreaterZero(val label: LabelMarker) extends Inst(1, 0)
-  case class IfLessEqualZero(val label: LabelMarker) extends Inst(1, 0)
-  case class IfLessZero(val label: LabelMarker) extends Inst(1, 0)
-  case class IfNotEqualZero(val label: LabelMarker) extends Inst(1, 0)
+  case class IfEqualZero(val label: LabelMarker) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
+  case class IfGreaterEqualZero(val label: LabelMarker) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
+  case class IfGreaterZero(val label: LabelMarker) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
+  case class IfLessEqualZero(val label: LabelMarker) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
+  case class IfLessZero(val label: LabelMarker) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
+  case class IfNotEqualZero(val label: LabelMarker) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
   
-  case class IfNonNull(val label: LabelMarker) extends Inst(1, 0)
-  case class IfNull(val label: LabelMarker) extends Inst(1, 0)
+  case class IfNonNull(val label: LabelMarker) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
+  case class IfNull(val label: LabelMarker) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 0
+  }
   
-  case object Dup extends Inst(1, 2)
-  case object Dup2 extends Inst(2, 4)
-  case object DupX1 extends Inst(2, 3)
-  case object DupX2 extends Inst(3, 4)
-  case object Dup2X1 extends Inst(3, 5)
-  case object Dup2X2 extends Inst(4, 6)
+  case object Dup extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 2
+  }
+  case object Dup2 extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 4
+  }
+  case object DupX1 extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 3
+  }
+  case object DupX2 extends Instruction {
+    val consumes: Int = 3
+    val produces: Int = 4
+  }
+  case object Dup2X1 extends Instruction {
+    val consumes: Int = 3
+    val produces: Int = 5
+  }
+  case object Dup2X2 extends Instruction {
+    val consumes: Int = 4
+    val produces: Int = 6
+  }
   
-  case class GetField(val fieldType: Type, val owner: ClassType, val name: String) extends Inst(1, fieldType.stackSize)
-  case class PutField(val fieldType: Type, val owner: ClassType, val name: String) extends Inst(1 + fieldType.stackSize, 0)
+  case class GetField(val fieldType: Type, val owner: ClassType, val name: String) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = fieldType.stackSize
+  }
+  case class PutField(val fieldType: Type, val owner: ClassType, val name: String) extends Instruction {
+    val consumes: Int = 1 + fieldType.stackSize
+    val produces: Int = 0
+  }
   
-  case class GetStatic(val fieldType: Type, val owner: ClassType, val name: String) extends Inst(0, fieldType.stackSize)
-  case class PutStatic(val fieldType: Type, val owner: ClassType, val name: String) extends Inst(fieldType.stackSize, 0)
+  case class GetStatic(val fieldType: Type, val owner: ClassType, val name: String) extends Instruction {
+    val consumes: Int = 0
+    val produces: Int = fieldType.stackSize
+  }
+  case class PutStatic(val fieldType: Type, val owner: ClassType, val name: String) extends Instruction {
+    val consumes: Int = fieldType.stackSize
+    val produces: Int = 0
+  }
 
-  case object Swap extends Inst(2, 2)
+  case object Swap extends Instruction {
+    val consumes: Int = 2
+    val produces: Int = 2
+  }
 
-  case class Goto(val label: LabelMarker) extends Inst(0, 0)
+  case class Goto(val label: LabelMarker) extends Instruction {
+    val consumes: Int = 0
+    val produces: Int = 0
+  }
 
-  case class InstanceOf(val kind: ClassType) extends Inst(1, 1)
+  case class InstanceOf(val kind: ClassType) extends Instruction {
+    val consumes: Int = 1
+    val produces: Int = 1
+  }
   // case class InvokeDynamic // TODO: need to handle Method/Handle types first
-  case class InvokeInterface(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Inst(
-      consumes = 1 + methodSignature.argTypes.map(_.stackSize).sum,
-      produces = methodSignature.returnType.stackSize)
-  case class InvokeSpecial(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Inst(
-      consumes = 1 + methodSignature.argTypes.map(_.stackSize).sum,
-      produces = methodSignature.returnType.stackSize)
-  case class InvokeStatic(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Inst(
-      consumes = 1 + methodSignature.argTypes.map(_.stackSize).sum,
-      produces = methodSignature.returnType.stackSize)
-  case class InvokeVirtual(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Inst(
-      consumes = 1 + methodSignature.argTypes.map(_.stackSize).sum,
-      produces = methodSignature.returnType.stackSize)
+  case class InvokeInterface(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Instruction {
+      val consumes: Int = 1 + methodSignature.argTypes.map(_.stackSize).sum
+      val produces: Int = methodSignature.returnType.stackSize
+  }
+  case class InvokeSpecial(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Instruction {
+      val consumes: Int = 1 + methodSignature.argTypes.map(_.stackSize).sum
+      val produces: Int = methodSignature.returnType.stackSize
+  }
+  case class InvokeStatic(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Instruction {
+      val consumes: Int = 1 + methodSignature.argTypes.map(_.stackSize).sum
+      val produces: Int = methodSignature.returnType.stackSize
+  }
+  case class InvokeVirtual(val owner: ClassType, val methodName: String, val methodSignature: MethodSignature) extends Instruction {
+      val consumes: Int = 1 + methodSignature.argTypes.map(_.stackSize).sum
+      val produces: Int = methodSignature.returnType.stackSize
+  }
 
-  case class JumpSubRoutine(val label: LabelMarker) extends Inst(0, 1)
-  case class Ret(val returnLocationVar: LocalVariable) extends Inst(0, 0) with VariableAccessor {
+  case class JumpSubRoutine(val label: LabelMarker) extends Instruction {
+    val consumes: Int = 0
+    val produces: Int = 1
+  }
+  case class Ret(val returnLocationVar: LocalVariable) extends Instruction with VariableAccessor {
     override val variable: LocalVariable = returnLocationVar
+    override val consumes: Int = 0
+    override val produces: Int = 0
   }
 }
 
-case class Frame()
-case class BytecodeMetadata(val maxStack: Int, val maxVariables: Int, val frames: List[Frame])
 case class MethodArg(val name: String, val argType: Type)
 case class MethodCode(val name: String, val returnType: Type, args: List[MethodArg], body: MethodBody) {
   import Instructions.Instruction
   import Instructions.LabelledInstruction
   import Data._
-  
-  private case class CurrentState(
-      val instruction: Data.LabelMarker,
-      val currentStack: Int,
-      val maxStack: Int,
-      val maxVars: Int,
-      val variables: Set[Int])
   
   private lazy val instructionIndex: Map[LabelMarker,Int] = {
     var map = Map[Data.LabelMarker,Int]()
@@ -731,80 +1019,11 @@ case class MethodCode(val name: String, val returnType: Type, args: List[MethodA
     map
   }
   
-  private def instruction(label: Data.LabelMarker): Instructions.Instruction =
+  private def instruction(label: LabelMarker): Instruction =
     body.instructions(instructionIndex(label)).instruction
     
   private def instruction(index: Int): LabelledInstruction[_ <: Instruction] =
     body.instructions(index)
-    
-  private def partialInterpret(currentState: CurrentState, seenStates: scala.collection.mutable.Map[LabelMarker,CurrentState]): BytecodeMetadata = {
-    var ic = instructionIndex(currentState.instruction)
-    seenStates(currentState.instruction) = currentState
-    var currentStack = currentState.currentStack
-    var maxStack = currentState.maxStack
-    var maxVars = currentState.maxVars
-    var vars = currentState.variables
-    
-    val lInstr = instruction(ic)
-    val instr = lInstr.instruction
-    
-    if (instr.consumes > currentStack) {
-      throw new RuntimeException(s"Instruction ${instr} consumes ${instr.consumes} stack elements; The stack is only of size ${currentStack}")
-    }
-    
-    def updateVariables(instr: Instruction): Unit = {
-      instr match {
-        case va: Instructions.VariableAccessor => {
-          vars = vars + va.variable.index
-        }
-        case _ => ()
-      }
-      if (vars.size > maxVars) {
-        maxVars = vars.size
-      }
-    }
-    def updateStack(instr: Instruction): Unit = {
-      currentStack = (currentStack - instr.consumes) + instr.produces
-      if (currentStack > maxStack) {
-        maxStack = currentStack
-      }
-    }
-    
-    
-    
-    null
-  }
-  
-  lazy val metadata: BytecodeMetadata = {
-    var variables = Set[Int]()
-    var maxStack: Int = 0
-    var maxVariables: Int = 0
-    val frames: ListBuffer[Frame] = ListBuffer[Frame]()
-
-    var currentStack: Int = 0
-    
-    for (lInstr <- body.instructions) {
-      val instr = lInstr.instruction
-      if (instr.consumes > currentStack) {
-        throw new RuntimeException(s"Instruction ${instr} consumes ${instr.consumes} stack elements; The stack is only of size ${currentStack}")
-      }
-      currentStack = (currentStack - instr.consumes) + instr.produces
-      if (currentStack > maxStack) {
-        maxStack = currentStack
-      }
-      instr match {
-        case va: Instructions.VariableAccessor => {
-          variables = variables + va.variable.index
-        }
-        case _ => ()
-      }
-      if (variables.size > maxVariables) {
-        maxVariables = variables.size
-      }
-      println(s"instruction: ${lInstr.label.name} -> currentStack: ${currentStack}, maxStack: ${maxStack}, maxVariables: ${maxVariables}")
-    }
-    BytecodeMetadata(maxStack, maxVariables, frames.toList)
-  }
 }
 
 case class MethodBody(val instructions: List[Instructions.LabelledInstruction[_ <: Instructions.Instruction]], val tryCatches: List[Data.TryCatch])

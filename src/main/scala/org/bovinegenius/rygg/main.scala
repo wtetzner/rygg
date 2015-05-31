@@ -34,8 +34,6 @@ object Main {
       line += 1
     }
 
-    println(s"\nSizes: ${method.metadata}") 
-
     /*
     val classFiles = {
       val codeGenerator: CodeGenerator = CodeGenerator(classpath, List())

@@ -35,7 +35,7 @@ case class ClassGen() {
   }
 
   private def writeInstruction(mv: MethodVisitor, lInstr: LabelledInstruction[_ <: Instruction], labelMapper: LabelMapper): Unit = {
-    lInstr.instruction match {
+    lInstr.instruction.asInstanceOf[Instruction] match {
       case ALoad(containedType) =>
         containedType match {
           case IntType => mv.visitInsn(Opcodes.IASTORE)
