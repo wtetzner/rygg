@@ -3,7 +3,9 @@ Build
 
 To build, run
 
-    ./gradlew shadowJar
+    cargo build
 
-It will put a jar at build/libs/rygg-all.jar.
+To run,
+
+    cargo run
 
