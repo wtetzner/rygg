@@ -2,3 +2,6 @@
 name = "rygg"
 version = "0.1.0"
 authors = ["Walter Tetzner <walter@waltertetzner.net>"]
+
+[dependencies]
+peg = "0.3.0"
