@@ -1,0 +1,16 @@
+OASISFormat: 0.4
+Name: rygg
+Version: 0.1.0
+BuildTools: ocamlbuild
+Plugins: META (0.4), DevFiles (0.4)
+Synopsis: A compiler for the rygg programming language.
+Authors: Walter Tetzner <walter@waltertetzner.net>
+License: 3-clause BSD
+
+Description: A compiler for the rygg programming language.
+Homepage: http://bovinegenius.org
+
+Executable "rygg"
+  Path: src
+  MainIs: main.ml
+
