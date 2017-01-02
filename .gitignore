@@ -1,7 +1,6 @@
 *~
-*.jar
-*.class
-/target
-/.classpath
-/.project
-/.settings/
+/*.native
+/_build/
+/setup.data
+/setup.log
+

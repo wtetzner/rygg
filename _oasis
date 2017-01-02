@@ -7,13 +7,13 @@ Synopsis: A compiler for the wombat VMU programming language.
 Authors: Walter Tetzner <walter@waltertetzner.net>
 License: MIT
 
-PreBuildCommand: corebuild -use-menhir src/parser.mly
+#PreBuildCommand: corebuild -use-menhir src/parser.mly
 
 Description: A compiler for the wombat VMU programming language.
 Homepage: http://bovinegenius.org
 
 Executable "wombat"
   Path: src
-  MainIs: rygg.ml
+  MainIs: main.ml
   CompiledObject: best
   BuildDepends: bitstring,bitstring.syntax,num
