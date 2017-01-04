@@ -14,6 +14,8 @@ module Expression : sig
       | UpperByte of t
       | LowerByte of t
 
+    exception Not_found of string
+
     val eval : t -> Environment.t -> int
 
     val to_string : t -> string
@@ -72,6 +74,9 @@ module Instruction : sig
 
       | Rol
       | Rolc
+
+      | Ror
+      | Rorc
 
       | Ld_d9 of Expression.t
       | Ld_Ri of IndirectionMode.t

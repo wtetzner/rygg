@@ -127,6 +127,9 @@ module Instruction = struct
       | Rol
       | Rolc
 
+      | Ror
+      | Rorc
+
       | Ld_d9 of Expression.t
       | Ld_Ri of IndirectionMode.t
 
@@ -176,9 +179,12 @@ module Instruction = struct
 
       | Nop
 
+    exception Invalid_a12 of string
+
     let encode instr pos env =
       let eval expr = Expression.eval expr env in
       let idx ri = IndirectionMode.index ri in
+      let rel expr = (eval expr) - pos in
       match instr with
       | Add_i8 i8 -> BITSTRING { 0b10000001 : 8; eval i8 : 8 }
       | Add_d9 d9 -> BITSTRING { 0b1000001 : 7; eval d9 : 9 }
@@ -188,60 +194,85 @@ module Instruction = struct
       | Addc_d9 d9 -> BITSTRING { 0b1001001 : 7; eval d9 : 9 }
       | Addc_Ri ri -> BITSTRING { 0b100101 : 6; idx ri : 2 }
 
-      (* | Sub_i8 i8 ->  *)
-      (* | Sub_d9 d9 ->  *)
-      (* | Sub_Ri ri ->  *)
+      | Sub_i8 i8 -> BITSTRING { 0b10100001 : 8; eval i8 : 8 }
+      | Sub_d9 d9 -> BITSTRING { 0b1010001 : 7; eval d9 : 9 }
+      | Sub_Ri ri -> BITSTRING { 0b101001 : 6; idx ri : 2 }
 
-      (* | Subc_i8 i8 ->  *)
-      (* | Subc_d9 d0 ->  *)
-      (* | Subc_Ri ri ->  *)
+      | Subc_i8 i8 -> BITSTRING { 0b10110001 : 8; eval i8 : 8 }
+      | Subc_d9 d9 -> BITSTRING { 0b1011001 : 7; eval d9 : 9 }
+      | Subc_Ri ri -> BITSTRING { 0b101101 : 6; idx ri : 2 }
 
-      (* | Inc_d9 d9 ->  *)
-      (* | Inc_Ri ri ->  *)
+      | Inc_d9 d9 -> BITSTRING { 0b0110001 : 7; eval d9 : 9 }
+      | Inc_Ri ri -> BITSTRING { 0b011001 : 6; idx ri : 2 }
 
-      (* | Dec_d9 d9 ->  *)
-      (* | Dec_Ri ri ->  *)
+      | Dec_d9 d9 -> BITSTRING { 0b0111001 : 7; eval d9 : 9 }
+      | Dec_Ri ri -> BITSTRING { 0b011101 : 6; idx ri : 2 }
 
-      (* | Mul ->  *)
-      (* | Div ->  *)
+      | Mul -> BITSTRING { 0b00110000 : 8 }
+      | Div -> BITSTRING { 0b01000000 : 8 }
 
-      (* | And_i8 i8 ->  *)
-      (* | And_d9 d9 ->  *)
-      (* | And_Ri ri ->  *)
+      | And_i8 i8 -> BITSTRING { 0b11100001 : 8; eval i8 : 8 }
+      | And_d9 d9 -> BITSTRING { 0b1110001 : 7; eval d9 : 9 }
+      | And_Ri ri -> BITSTRING { 0b111001 : 6; idx ri : 2 }
 
-      (* | Or_i8 i8 ->  *)
-      (* | Or_d9 d9 ->  *)
-      (* | Or_Ri ri ->  *)
+      | Or_i8 i8 -> BITSTRING { 0b11010001 : 8; eval i8 : 8 }
+      | Or_d9 d9 -> BITSTRING { 0b1101001 : 7; eval d9 : 9 }
+      | Or_Ri ri -> BITSTRING { 0b110101 : 6; idx ri : 2 }
 
-      (* | Xor_i8 i8 ->  *)
-      (* | Xor_d9 d9 ->  *)
-      (* | Xor_Ri ri ->  *)
+      | Xor_i8 i8 -> BITSTRING { 0b11110001 : 8; eval i8 : 8 }
+      | Xor_d9 d9 -> BITSTRING { 0b1111001 : 7; eval d9 : 9 }
+      | Xor_Ri ri -> BITSTRING { 0b111101 : 6; idx ri : 2 }
 
-      (* | Rol ->  *)
-      (* | Rolc ->  *)
+      | Rol -> BITSTRING { 0b11100000 : 8 }
+      | Rolc -> BITSTRING { 0b11110000 : 8 }
 
-      (* | Ld_d9 d9 ->  *)
-      (* | Ld_Ri ri ->  *)
+      | Ror -> BITSTRING { 0b11000000 : 8 }
+      | Rorc -> BITSTRING { 0b11010000 : 8 }
 
-      (* | St_d9 d9 ->  *)
-      (* | St_Ri ri ->  *)
+      | Ld_d9 d9 -> BITSTRING { 0b0000001 : 7; eval d9 : 9 }
+      | Ld_Ri ri -> BITSTRING { 0b000001 : 6; idx ri : 2 }
 
-      (* | Mov_d9 (i8, d9) ->  *)
-      (* | Mov_Rj (i8, rj) ->  *)
+      | St_d9 d9 -> BITSTRING { 0b0001001 : 7; eval d9 : 9 }
+      | St_Ri ri -> BITSTRING { 0b000101 : 6; idx ri : 2 }
 
-      (* | Ldc ->  *)
+      | Mov_d9 (i8, d9) -> BITSTRING {
+                               0b0010001 : 7;
+                               eval d9 : 9;
+                               eval i8 : 8
+                           }
+      | Mov_Rj (i8, rj) -> BITSTRING {
+                               0b001001 : 6;
+                               idx rj : 2;
+                               eval i8 : 8
+                           }
 
-      (* | Push d9 ->  *)
-      (* | Pop d9 ->  *)
+      | Ldc -> BITSTRING { 0b11000001 : 8 }
 
-      (* | Xch_d9 d9 ->  *)
-      (* | Xch_Ri ri ->  *)
+      | Push d9 -> BITSTRING { 0b0110000 : 7; eval d9 : 9 }
+      | Pop d9 -> BITSTRING { 0b0111000 : 7; eval d9 : 9 }
 
-      (* | Jmp a12 ->  *)
-      (* | Jmpf a16 ->  *)
+      | Xch_d9 d9 -> BITSTRING { 0b1100001 : 7; eval d9 : 9 }
+      | Xch_Ri ri -> BITSTRING { 0b110001 : 6; idx ri : 2 }
 
-      (* | Br r8 ->  *)
-      (* | Brf r16 ->  *)
+      | Jmp a12 -> (
+         let value: int = eval a12 in
+         let value_top_bits = value land 0b1111000000000000 in
+         let pos_top_bits = pos land 0b1111000000000000 in
+         if value_top_bits != pos_top_bits then
+           raise (Invalid_a12 (Printf.sprintf "Invalid a12 value %d for pos %d" value pos))
+         else
+           (bitmatch (BITSTRING { value : 12}) with
+            | { a11 : 1; rest : 11 : bitstring } ->
+               BITSTRING {
+                   0b001 : 3;
+                   a11 : 1;
+                   true : 1;
+                   rest : 11 : bitstring
+               }))
+      | Jmpf a16 -> BITSTRING { eval a16 : 16 }
+
+      | Br r8 -> BITSTRING { 0b00000001 : 8; rel r8 : 8 }
+      | Brf r16 -> BITSTRING { 0b00010001 : 8; rel r16 : 16 : littleendian }
       (* | Bz r8 ->  *)
       (* | Bnz r8 ->  *)
       (* | Bp (d9, b3, r8) ->  *)
