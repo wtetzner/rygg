@@ -501,5 +501,145 @@ module Instruction = struct
       | Not1 (d9, b3) -> 2
 
       | Nop -> 1
+
+    let to_string instr =
+      let e = Expression.to_string in
+      let i = IndirectionMode.to_string in
+      match instr with
+      | Add_i8 i8 -> Printf.sprintf "add #%s" (e i8)
+      | Add_d9 d9 -> Printf.sprintf "add %s" (e d9)
+      | Add_Ri ri -> Printf.sprintf "add %s" (i ri)
+
+      | Addc_i8 i8 -> Printf.sprintf "addc #%s" (e i8)
+      | Addc_d9 d9 -> Printf.sprintf "addc %s" (e d9)
+      | Addc_Ri ri -> Printf.sprintf "addc %s" (i ri)
+
+      | Sub_i8 i8 -> Printf.sprintf "sub #%s" (e i8)
+      | Sub_d9 d9 -> Printf.sprintf "sub %s" (e d9)
+      | Sub_Ri ri -> Printf.sprintf "sub %s" (i ri)
+
+      | Subc_i8 i8 -> Printf.sprintf "subc #%s" (e i8)
+      | Subc_d9 d9 -> Printf.sprintf "subc %s" (e d9)
+      | Subc_Ri ri -> Printf.sprintf "subc %s" (i ri)
+
+      | Inc_d9 d9 -> Printf.sprintf "inc %s" (e d9)
+      | Inc_Ri ri -> Printf.sprintf "inc %s" (i ri)
+
+      | Dec_d9 d9 -> Printf.sprintf "dec %s" (e d9)
+      | Dec_Ri ri -> Printf.sprintf "dec %s" (i ri)
+
+      | Mul -> "mul"
+      | Div -> "div"
+
+      | And_i8 i8 -> Printf.sprintf "and #%s" (e i8)
+      | And_d9 d9 -> Printf.sprintf "and %s" (e d9)
+      | And_Ri ri -> Printf.sprintf "and %s" (i ri)
+
+      | Or_i8 i8 -> Printf.sprintf "or #%s" (e i8)
+      | Or_d9 d9 -> Printf.sprintf "or %s" (e d9)
+      | Or_Ri ri -> Printf.sprintf "or %s" (i ri)
+
+      | Xor_i8 i8 -> Printf.sprintf "xor #%s" (e i8)
+      | Xor_d9 d9 -> Printf.sprintf "xor %s" (e d9)
+      | Xor_Ri ri -> Printf.sprintf "xor %s" (i ri)
+
+      | Rol -> "rol"
+      | Rolc -> "rolc"
+
+      | Ror -> "ror"
+      | Rorc -> "rorc"
+
+      | Ld_d9 d9 -> Printf.sprintf "ld %s" (e d9)
+      | Ld_Ri ri -> Printf.sprintf "ld %s" (i ri)
+
+      | St_d9 d9 -> Printf.sprintf "st %s" (e d9)
+      | St_Ri ri -> Printf.sprintf "st %s" (i ri)
+
+      | Mov_d9 (i8, d9) -> Printf.sprintf "mov #%s, %s" (e i8) (e d9)
+      | Mov_Rj (i8, rj) -> Printf.sprintf "mov #%s, %s" (e i8) (i rj)
+
+      | Ldc -> "ldc"
+
+      | Push d9 -> Printf.sprintf "push %s" (e d9)
+      | Pop d9 -> Printf.sprintf "pop %s" (e d9)
+
+      | Xch_d9 d9 -> Printf.sprintf "xch %s" (e d9)
+      | Xch_Ri ri -> Printf.sprintf "xch %s" (i ri)
+
+      | Jmp a12 -> Printf.sprintf "jmp %s" (e a12)
+      | Jmpf a16 -> Printf.sprintf "jmpf %s" (e a16)
+
+      | Br r8 -> Printf.sprintf "br %s" (e r8)
+      | Brf r16 -> Printf.sprintf "brf %s" (e r16)
+      | Bz r8 -> Printf.sprintf "bz %s" (e r8)
+      | Bnz r8 -> Printf.sprintf "bnz %s" (e r8)
+      | Bp (d9, b3, r8) -> Printf.sprintf "bp %s, %s, %s" (e d9) (e b3) (e r8)
+      | Bpc (d9, b3, r8) -> Printf.sprintf "bpc %s, %s, %s" (e d9) (e b3) (e r8)
+      | Bn (d9, b3, r8) -> Printf.sprintf "bn %s, %s, %s" (e d9) (e b3) (e r8)
+      | Dbnz_d9 (d9, r8) -> Printf.sprintf "dbnz %s, %s" (e d9) (e r8)
+      | Dbnz_Ri (ri, r8) -> Printf.sprintf "dbnz %s, %s" (i ri) (e r8)
+      | Be_i8 (i8, r8) -> Printf.sprintf "be #%s, %s" (e i8) (e r8)
+      | Be_d9 (d9, r8) -> Printf.sprintf "be %s, %s" (e d9) (e r8)
+      | Be_Rj (rj, i8, r8) -> Printf.sprintf "be %s, #%s, %s" (i rj) (e i8) (e r8)
+      | Bne_i8 (i8, r8) -> Printf.sprintf "bne #%s, %s" (e i8) (e r8)
+      | Bne_d9 (d9, r8) -> Printf.sprintf "bne %s, %s" (e d9) (e r8)
+      | Bne_Rj (rj, i8, r8) -> Printf.sprintf "bne %s, #%s, %s" (i rj) (e i8) (e r8)
+
+      | Call a12 -> Printf.sprintf "call %s" (e a12)
+      | Callf a16 -> Printf.sprintf "callf %s" (e a16)
+      | Callr r16 -> Printf.sprintf "callr %s" (e r16)
+
+      | Ret -> "ret"
+      | Reti -> "reti"
+
+      | Clr1 (d9, b3) -> Printf.sprintf "clr1 %s, %s" (e d9) (e b3)
+      | Set1 (d9, b3) -> Printf.sprintf "set1 %s, %s" (e d9) (e b3)
+      | Not1 (d9, b3) -> Printf.sprintf "not1 %s, %s" (e d9) (e b3)
+
+      | Nop -> "nop"
 end
+
+module Directive = struct
+    type t =
+      | Byte of Expression.t list
+      | ByteString of Bitstring.t
+      | Org of int
+      | Word of Expression.t list
+      | Cnop of Expression.t * Expression.t
+
+    let to_string dir =
+      match dir with
+      | Byte exprs -> Printf.sprintf ".byte %s"
+                        (String.concat ", "
+                          (List.map (fun e -> Expression.to_string e) exprs))
+      | ByteString bits -> Printf.sprintf ".byte \"%s\""
+                             (Bitstring.string_of_bitstring bits)
+      | Org pos -> Printf.sprintf ".org %d" pos
+      | Word exprs -> Printf.sprintf ".word %s"
+                        (String.concat ", "
+                          (List.map (fun e -> Expression.to_string e) exprs))
+      | Cnop (expr1, expr2) -> Printf.sprintf ".cnop %s, %s"
+                                              (Expression.to_string expr1)
+                                              (Expression.to_string expr2)
+end
+
+module Statement = struct
+    type t =
+      | Directive of Directive.t
+      | Label of string
+      | Instruction of Instruction.t
+      | Variable of string * Expression.t
+      | Alias of string * Expression.t
+
+    let to_string stmt =
+      match stmt with
+      | Directive dir -> Directive.to_string dir
+      | Label label -> Printf.sprintf "%s:" label
+      | Instruction ins -> Printf.sprintf "  %s" (Instruction.to_string ins)
+      | Variable (name, value) -> Printf.sprintf "%s = %s"
+                                    name (Expression.to_string value)
+      | Alias (name, value) -> Printf.sprintf "%s EQU %s"
+                                 name (Expression.to_string value)
+end
+
 

@@ -130,20 +130,28 @@ module Instruction : sig
     val encode : t -> int -> Environment.t -> Bitstring.t
 
     val size : t -> int
+
+    val to_string : t -> string
 end
 
-(* type directive = *)
-(*   | Byte of expression list *)
-(*   | ByteString of BitString.t *)
-(*   | Org of int *)
-(*   | Word of expression list *)
-(*   | Include of string *)
-(*   | Cnop of expression * expression *)
+module Directive : sig
+    type t =
+      | Byte of Expression.t list
+      | ByteString of Bitstring.t
+      | Org of int
+      | Word of Expression.t list
+      | Cnop of Expression.t * Expression.t
 
-(* type statement = *)
-(*   | Directive of directive *)
-(*   | Label of string *)
-(*   | Instruction of instruction *)
-(*   | Variable of string * expression *)
-(*   | Alias of string * expression *)
+    val to_string : t -> string
+end
 
+module Statement : sig
+    type t =
+      | Directive of Directive.t
+      | Label of string
+      | Instruction of Instruction.t
+      | Variable of string * Expression.t
+      | Alias of string * Expression.t
+
+    val to_string : t -> string
+end
