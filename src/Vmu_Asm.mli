@@ -128,6 +128,8 @@ module Instruction : sig
       | Nop
 
     val encode : t -> int -> Environment.t -> Bitstring.t
+
+    val size : t -> int
 end
 
 (* type directive = *)

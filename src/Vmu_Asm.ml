@@ -259,7 +259,7 @@ module Instruction = struct
          let value_top_bits = value land 0b1111000000000000 in
          let pos_top_bits = pos land 0b1111000000000000 in
          if value_top_bits != pos_top_bits then
-           raise (Invalid_a12 (Printf.sprintf "Invalid a12 value %d for pos %d" value pos))
+           raise (Invalid_a12 (Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
          else
            (bitmatch (BITSTRING { value : 12}) with
             | { a11 : 1; rest : 11 : bitstring } ->
@@ -273,31 +273,233 @@ module Instruction = struct
 
       | Br r8 -> BITSTRING { 0b00000001 : 8; rel r8 : 8 }
       | Brf r16 -> BITSTRING { 0b00010001 : 8; rel r16 : 16 : littleendian }
-      (* | Bz r8 ->  *)
-      (* | Bnz r8 ->  *)
-      (* | Bp (d9, b3, r8) ->  *)
-      (* | Bpc (d9, b3, r8) ->  *)
-      (* | Bn (d9, b3, r8) ->  *)
-      (* | Dbnz_d9 (d9, r8) ->  *)
-      (* | Dbnz_Ri (ri, r8) ->  *)
-      (* | Be_i8 (i8, r8) ->  *)
-      (* | Be_d9 (d9, r8) ->  *)
-      (* | Be_Rj (rj, i8, r8) ->  *)
-      (* | Bne_i8 (i8, r8) ->  *)
-      (* | Bne_d9 (d9, r8) ->  *)
-      (* | Bne_Rj (rj, i8, r8) ->  *)
+      | Bz r8 -> BITSTRING { 0b10000000 : 8; rel r8 : 8 }
+      | Bnz r8 -> BITSTRING { 0b10010000 : 8; rel r8 : 8 }
+      | Bp (d9, b3, r8) ->
+         (bitmatch (BITSTRING { eval d9 : 9}) with
+          | { d8 : 1; d9rest : 8 : bitstring } ->
+             BITSTRING {
+                 0b011 : 3;
+                 d8 : 1;
+                 eval b3 : 3;
+                 d9rest : 8 : bitstring;
+                 rel r8 : 8
+               })
+      | Bpc (d9, b3, r8) ->
+         (bitmatch (BITSTRING { eval d9 : 9}) with
+          | { d8 : 1; d9rest : 8 : bitstring } ->
+             BITSTRING {
+                 0b010 : 3;
+                 d8 : 1;
+                 eval b3 : 3;
+                 d9rest : 8 : bitstring;
+                 rel r8 : 8
+               })
+      | Bn (d9, b3, r8) ->
+         (bitmatch (BITSTRING { eval d9 : 9}) with
+          | { d8 : 1; d9rest : 8 : bitstring } ->
+             BITSTRING {
+                 0b100 : 3;
+                 d8 : 1;
+                 eval b3 : 3;
+                 d9rest : 8 : bitstring;
+                 rel r8 : 8
+               })
+      | Dbnz_d9 (d9, r8) -> BITSTRING {
+                                0b0101001 : 7;
+                                eval d9 : 9;
+                                rel r8 : 8
+                            }
+      | Dbnz_Ri (ri, r8) -> BITSTRING {
+                                0b010101 : 6;
+                                idx ri : 2;
+                                rel r8 : 8
+                            }
+      | Be_i8 (i8, r8) -> BITSTRING {
+                              0b00110001 : 8;
+                              eval i8 : 8;
+                              rel r8 : 8
+                          }
+      | Be_d9 (d9, r8) -> BITSTRING {
+                              0b0011001 : 7;
+                              eval d9 : 9;
+                              rel r8 : 8
+                          }
+      | Be_Rj (rj, i8, r8) -> BITSTRING {
+                                  0b001101 : 6;
+                                  idx rj : 2;
+                                  eval i8 : 8;
+                                  rel r8 : 8
+                              }
+      | Bne_i8 (i8, r8) -> BITSTRING {
+                               0b01000001 : 8;
+                               eval i8 : 8;
+                               rel r8 : 8
+                           }
+      | Bne_d9 (d9, r8) -> BITSTRING {
+                               0b0100001 : 7;
+                               eval d9 : 9;
+                               rel r8 : 8
+                           }
+      | Bne_Rj (rj, i8, r8) -> BITSTRING {
+                                   0b010001 : 6;
+                                   idx rj : 2;
+                                   eval i8 : 8;
+                                   rel r8 : 8
+                               }
 
-      (* | Call a12 ->  *)
-      (* | Callf a16 ->  *)
-      (* | Callr r16 ->  *)
+      | Call a12 -> (
+        let value: int = eval a12 in
+        let value_top_bits = value land 0b1111000000000000 in
+        let pos_top_bits = pos land 0b1111000000000000 in
+        if value_top_bits != pos_top_bits then
+          raise (Invalid_a12 (Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
+        else
+          (bitmatch (BITSTRING { value : 12}) with
+           | { a11 : 1; rest : 11 : bitstring } ->
+              BITSTRING {
+                  0b000 : 3;
+                  a11 : 1;
+                  true : 1;
+                  rest : 11 : bitstring
+                }))
+      | Callf a16 -> BITSTRING {
+                         0b00100000 : 8;
+                         eval a16 : 16 : bigendian
+                     }
+      | Callr r16 -> BITSTRING {
+                         0b00010000 : 8;
+                         rel r16 : 16 : littleendian
+                     }
 
-      (* | Ret ->  *)
-      (* | Reti ->  *)
+      | Ret -> BITSTRING { 0b10100000 : 8 }
+      | Reti -> BITSTRING { 0b10110000 : 8 }
 
-      (* | Clr1 (d9, b3) ->  *)
-      (* | Set1 (d9, b3) ->  *)
-      (* | Not1 (d9, b3) ->  *)
+      | Clr1 (d9, b3) ->
+         (bitmatch (BITSTRING { eval d9 : 9}) with
+          | { d8 : 1; d9rest : 8 : bitstring } ->
+             BITSTRING {
+                 0b110 : 3;
+                 d8 : 1;
+                 true : 1;
+                 eval b3 : 3;
+                 d9rest : 8 : bitstring
+               })
+      | Set1 (d9, b3) ->
+         (bitmatch (BITSTRING { eval d9 : 9}) with
+          | { d8 : 1; d9rest : 8 : bitstring } ->
+             BITSTRING {
+                 0b111 : 3;
+                 d8 : 1;
+                 true : 1;
+                 eval b3 : 3;
+                 d9rest : 8 : bitstring
+               })
+      | Not1 (d9, b3) ->
+         (bitmatch (BITSTRING { eval d9 : 9}) with
+          | { d8 : 1; d9rest : 8 : bitstring } ->
+             BITSTRING {
+                 0b101 : 3;
+                 d8 : 1;
+                 true : 1;
+                 eval b3 : 3;
+                 d9rest : 8 : bitstring
+               })
 
-      (* | Nop ->  *)
+      | Nop -> BITSTRING { 0b00000000 : 8 }
+
+    let size instr =
+      match instr with
+      | Add_i8 i8 -> 2
+      | Add_d9 d9 -> 2
+      | Add_Ri ri -> 1
+
+      | Addc_i8 i8 -> 2
+      | Addc_d9 d9 -> 2
+      | Addc_Ri ri -> 1
+
+      | Sub_i8 i8 -> 2
+      | Sub_d9 d9 -> 2
+      | Sub_Ri ri -> 1
+
+      | Subc_i8 i8 -> 2
+      | Subc_d9 d9 -> 2
+      | Subc_Ri ri -> 1
+
+      | Inc_d9 d9 -> 2
+      | Inc_Ri ri -> 1
+
+      | Dec_d9 d9 -> 2
+      | Dec_Ri ri -> 1
+
+      | Mul -> 1
+      | Div -> 1
+
+      | And_i8 i8 -> 2
+      | And_d9 d9 -> 2
+      | And_Ri ri -> 1
+
+      | Or_i8 i8 -> 2
+      | Or_d9 d9 -> 2
+      | Or_Ri ri -> 1
+
+      | Xor_i8 i8 -> 2
+      | Xor_d9 d9 -> 2
+      | Xor_Ri ri -> 1
+
+      | Rol -> 1
+      | Rolc -> 1
+
+      | Ror -> 1
+      | Rorc -> 1
+
+      | Ld_d9 d9 -> 2
+      | Ld_Ri ri -> 1
+
+      | St_d9 d9 -> 2
+      | St_Ri ri -> 1
+
+      | Mov_d9 (i8, d9) -> 3
+      | Mov_Rj (i8, rj) -> 2
+
+      | Ldc -> 1
+
+      | Push d9 -> 2
+      | Pop d9 -> 2
+
+      | Xch_d9 d9 -> 2
+      | Xch_Ri ri -> 1
+
+      | Jmp a12 -> 2
+      | Jmpf a16 -> 3
+
+      | Br r8 -> 2
+      | Brf r16 -> 3
+      | Bz r8 -> 2
+      | Bnz r8 -> 2
+      | Bp (d9, b3, r8) -> 3
+      | Bpc (d9, b3, r8) -> 3
+      | Bn (d9, b3, r8) -> 3
+      | Dbnz_d9 (d9, r8) -> 3
+      | Dbnz_Ri (ri, r8) -> 2
+      | Be_i8 (i8, r8) -> 3
+      | Be_d9 (d9, r8) -> 3
+      | Be_Rj (rj, i8, r8) -> 3
+      | Bne_i8 (i8, r8) -> 3
+      | Bne_d9 (d9, r8) -> 3
+      | Bne_Rj (rj, i8, r8) -> 3
+
+      | Call a12 -> 2
+      | Callf a16 -> 3
+      | Callr r16 -> 3
+
+      | Ret -> 1
+      | Reti -> 1
+
+      | Clr1 (d9, b3) -> 2
+      | Set1 (d9, b3) -> 2
+      | Not1 (d9, b3) -> 2
+
+      | Nop -> 1
 end
 
