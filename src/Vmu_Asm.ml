@@ -1,4 +1,6 @@
 
+exception Asm_failure of Location.t * string
+
 module Name = struct
     type t = string
     let matches s1 s2 = String.equal s1 s2
@@ -46,14 +48,12 @@ module Expression = struct
       else
         to_string expr
 
-    exception Not_found of string
-
     (* Evaluate the expression into an int *)
     let rec eval expr env =
       match expr with
       | Name name -> (match Environment.lookup env name with
                       | Some(result) -> result
-                      | None -> raise (Not_found (Printf.sprintf "Name '%s' not found" name)))
+                      | None -> raise (Asm_failure (Location.empty, Printf.sprintf "Name '%s' not found" name)))
       | Plus (e1, e2) -> (eval e1 env) + (eval e2 env)
       | Minus (e1, e2) -> (eval e1 env) - (eval e2 env)
       | Times (e1, e2) -> (eval e1 env) * (eval e2 env)
@@ -179,8 +179,6 @@ module Instruction = struct
 
       | Nop
 
-    exception Invalid_a12 of string
-
     let encode instr pos env =
       let eval expr = Expression.eval expr env in
       let idx ri = IndirectionMode.index ri in
@@ -259,7 +257,7 @@ module Instruction = struct
          let value_top_bits = value land 0b1111000000000000 in
          let pos_top_bits = pos land 0b1111000000000000 in
          if value_top_bits != pos_top_bits then
-           raise (Invalid_a12 (Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
+           raise (Asm_failure (Location.empty, Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
          else
            (bitmatch (BITSTRING { value : 12}) with
             | { a11 : 1; rest : 11 : bitstring } ->
@@ -353,7 +351,7 @@ module Instruction = struct
         let value_top_bits = value land 0b1111000000000000 in
         let pos_top_bits = pos land 0b1111000000000000 in
         if value_top_bits != pos_top_bits then
-          raise (Invalid_a12 (Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
+          raise (Asm_failure (Location.empty, Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
         else
           (bitmatch (BITSTRING { value : 12}) with
            | { a11 : 1; rest : 11 : bitstring } ->
@@ -630,6 +628,9 @@ module Statement = struct
       | Instruction of Instruction.t
       | Variable of string * Expression.t
       | Alias of string * Expression.t
+      | Comment of string
+
+    let empty_str str = Str.string_match (Str.regexp "^[ \t]*$") str 0
 
     let to_string stmt =
       match stmt with
@@ -640,6 +641,120 @@ module Statement = struct
                                     name (Expression.to_string value)
       | Alias (name, value) -> Printf.sprintf "%s EQU %s"
                                  name (Expression.to_string value)
+      | Comment str -> String.concat "\n"
+                         (List.map (fun l -> if empty_str l then
+                                               ""
+                                             else
+                                               Printf.sprintf "; %s" l)
+                                   (Str.split_delim (Str.regexp "\n") str))
 end
 
+let add_name env name value =
+  if Environment.contains !env name then
+    raise (Asm_failure (Location.empty, Printf.sprintf "Name '%s' already exists" name))
+  else
+    env := Environment.with_name !env name value
+
+let compute_names statements =
+  let names = ref Environment.empty in
+  let max_pos = ref 0 in
+  let pos = ref 0 in
+  List.iter (fun statement ->
+             let module S = Statement in
+             let module D = Directive in
+             (match statement with
+              | S.Directive dir ->
+                 (match dir with
+                  | D.Byte bytes -> pos := !pos + (List.length bytes)
+                  | D.ByteString str -> pos := !pos + (String.length (Bitstring.string_of_bitstring str))
+                  | D.Org loc -> pos := loc
+                  | D.Word words -> pos := !pos + (2 * (List.length words))
+                  | D.Cnop (add, multiple) ->
+                     let add = ref (Expression.eval add !names) in
+                     let multiple = ref (Expression.eval multiple !names) in
+                     let mult = ref 0 in
+                     let quit_loop = ref false in
+                     while not !quit_loop do
+                       if !pos < !mult then
+                         quit_loop := true
+                       else
+                         mult := !mult + !multiple
+                     done;
+                     pos := !mult + !add
+                 )
+              | S.Label name -> add_name names name !pos
+              | S.Instruction ins -> pos := !pos + (Instruction.size ins)
+              | S.Variable (name, expr) ->
+                 let value = Expression.eval expr !names in
+                 add_name names name value
+              | S.Alias (name, expr) ->
+                 let value = Expression.eval expr !names in
+                 add_name names name value
+              | S.Comment _ -> ());
+             if !max_pos < !pos then
+               max_pos := !pos
+             else
+               ()
+            ) statements;
+  (!max_pos, !names)
+
+let generate_bytes statements names output =
+  let pos = ref 0 in
+  let module S = Statement in
+  let module D = Directive in
+  let module E = Expression in
+  let module I = Instruction in
+  List.iter (fun statement ->
+             match statement with
+             | S.Directive dir ->
+                (match dir with
+                 | D.Byte bytes ->
+                    List.iter (fun b ->
+                               Bytes.set output !pos (char_of_int (E.eval b names));
+                               pos := !pos + 1) bytes
+                 | D.ByteString str ->
+                    let bytes = Bitstring.string_of_bitstring str in
+                    String.iter (fun b ->
+                                 Bytes.set output !pos b;
+                                 pos := !pos + 1) bytes
+                 | D.Org loc -> pos := loc
+                 | D.Word words ->
+                    List.iter (fun w ->
+                               let value = E.eval w names in
+                               Bytes.set output !pos (char_of_int (value land 0xFF));
+                               pos := !pos + 1;
+                               Bytes.set output !pos (char_of_int ((value lsr 8) land 0xFF));
+                               pos := !pos + 1) words
+                 | D.Cnop (add, multiple) -> (
+                   let add = E.eval add names in
+                   let multiple = E.eval multiple names in
+                   let mult = ref 0 in
+                   let loop = ref true in
+                   while !loop do
+                     if !pos < !mult then
+                       loop := false
+                     else
+                       mult := !mult + multiple
+                   done;
+                   pos := !mult + add
+                 )
+                )
+             | S.Label _ -> ()
+             | S.Instruction instr ->
+                let next_pos = !pos + (I.size instr) in
+                let bytes = I.encode instr next_pos names in
+                let str = Bitstring.string_of_bitstring bytes in
+                String.iter (fun b ->
+                             Bytes.set output !pos  b;
+                             pos := !pos + 1) str
+             | S.Variable (_,_) -> ()
+             | S.Alias (_,_) -> ()
+             | S.Comment _ -> ()
+            ) statements
+
+let assemble statements =
+  let (max_pos, names) = compute_names statements in
+  let output = Bytes.make max_pos '\x00' in
+  generate_bytes statements names output;
+  output
 

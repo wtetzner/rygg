@@ -1,4 +1,6 @@
 
+exception Asm_failure of Location.t * string
+
 module Environment : Env.Environment
        with type name = string
        with type value = int
@@ -13,8 +15,6 @@ module Expression : sig
       | Number of int
       | UpperByte of t
       | LowerByte of t
-
-    exception Not_found of string
 
     val eval : t -> Environment.t -> int
 
@@ -152,6 +152,9 @@ module Statement : sig
       | Instruction of Instruction.t
       | Variable of string * Expression.t
       | Alias of string * Expression.t
+      | Comment of string
 
     val to_string : t -> string
 end
+
+val assemble : Statement.t list -> Bytes.t

@@ -16,4 +16,4 @@ Executable "wombat"
   Path: src
   MainIs: main.ml
   CompiledObject: best
-  BuildDepends: bitstring,bitstring.syntax,num
+  BuildDepends: bitstring,bitstring.syntax,num,str,core,threads

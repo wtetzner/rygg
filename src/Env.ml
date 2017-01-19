@@ -11,6 +11,7 @@ module type Environment = sig
 
  val with_name : t -> name -> value -> t
  val lookup : t -> name -> value option
+ val contains : t -> name -> bool
  val empty : t
 end
 
@@ -42,5 +43,10 @@ struct
             Some value
           else
             lookup parent name
+
+  let contains env name =
+    match lookup env name with
+    | Some _ -> true
+    | None -> false
 end
 
