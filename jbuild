@@ -1,7 +1,0 @@
-(jbuild_version 1)
-
-(executable
- ((name wombat)
-  (libraries (core bitstring))
-  (preprocess (pps (ppx_bitstring)))
-  ))
