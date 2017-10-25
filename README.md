@@ -1,15 +1,14 @@
 Build
 =====
 
-If _oasis changes, run
+Create local switch:
 
-    oasis setup -setup-update dynamic
+    opam switch create ./ 4.04.1
 
-To build, run
+Ensure environment is up-to-date:
 
-    make
+     eval `opam env --switch=$PWD`
 
-To disassemble with ndisasm, run
+Install dependencies and build:
 
-    ndisasm -a -b 64 -e 120 local/elf
-
+    opam build
