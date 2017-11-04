@@ -10,7 +10,8 @@ depends: [
   "ppx_bitstring" {build}
   "core"
   "jbuilder" {build}
+  "ppx_deriving" {build}
   "ocaml-migrate-parsetree" {build}
-  "ocaml" {>= "4.05.0"}
+  "ocaml" {build >= "4.05.0"}
 ]
 #available: ocaml-version >= "4.04.1"

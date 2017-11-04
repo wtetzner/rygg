@@ -1,4 +1,7 @@
-exception Asm_failure of Location.t * string
+
+module Location = Span.Location
+
+exception Asm_failure of (Location.t option) * string
 
 module Name = struct
     type t = string
@@ -52,7 +55,7 @@ module Expression = struct
       match expr with
       | Name name -> (match Environment.lookup env name with
                       | Some(result) -> result
-                      | None -> raise (Asm_failure (Location.empty, Printf.sprintf "Name '%s' not found" name)))
+                      | None -> raise (Asm_failure (None, Printf.sprintf "Name '%s' not found" name)))
       | Plus (e1, e2) -> (eval e1 env) + (eval e2 env)
       | Minus (e1, e2) -> (eval e1 env) - (eval e2 env)
       | Times (e1, e2) -> (eval e1 env) * (eval e2 env)
@@ -256,7 +259,7 @@ module Instruction = struct
          let value_top_bits = value land 0b1111000000000000 in
          let pos_top_bits = pos land 0b1111000000000000 in
          if value_top_bits != pos_top_bits then
-           raise (Asm_failure (Location.empty, Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
+           raise (Asm_failure (None, Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
          else
            (match%bitstring ([%bitstring {| value : 12 |}]) with
             | {| a11 : 1; rest : 11 : bitstring |} ->
@@ -350,7 +353,7 @@ module Instruction = struct
         let value_top_bits = value land 0b1111000000000000 in
         let pos_top_bits = pos land 0b1111000000000000 in
         if value_top_bits != pos_top_bits then
-          raise (Asm_failure (Location.empty, Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
+          raise (Asm_failure (None, Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
         else
           (match%bitstring ([%bitstring {| value : 12|}]) with
            | {| a11 : 1; rest : 11 : bitstring |} ->
@@ -650,7 +653,7 @@ end
 
 let add_name env name value =
   if Environment.contains !env name then
-    raise (Asm_failure (Location.empty, Printf.sprintf "Name '%s' already exists" name))
+    raise (Asm_failure (None, Printf.sprintf "Name '%s' already exists" name))
   else
     env := Environment.with_name !env name value
 

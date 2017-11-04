@@ -1,5 +1,7 @@
 
-exception Asm_failure of Location.t * string
+module Location = Span.Location
+
+exception Asm_failure of (Location.t option) * string
 
 module Environment : Env.Environment
        with type name = string
