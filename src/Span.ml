@@ -44,6 +44,8 @@ module Location = struct
       | _ -> (column := !column + 1; pos := !pos + 1)
     done;
     create (source loc) !line !column !pos
+
+  let merge left right = left
 end
 
 type t = { start_pos: Location.t; end_pos: Location.t }
@@ -53,3 +55,15 @@ let make start_pos end_pos = {
     end_pos = end_pos
   }
 
+let merge left right =
+  make left.start_pos right.end_pos
+
+let to_string span =
+  let start = span.start_pos in
+  let endp = span.end_pos in
+  Printf.sprintf "%s:%d:%d-%d:%d"
+    start.source
+    start.line
+    start.column
+    endp.line
+    endp.column

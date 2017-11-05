@@ -1,68 +1,119 @@
 
 module Location = Span.Location
 
-exception Asm_failure of (Location.t option) * string
+module Position = struct
+  type t =
+    | Location of Location.t
+    | Span of Span.t
+    | No_position
+
+  let merge left right =
+    match left, right with
+    | Location l1, Location l2 -> Location l1
+    | Span s1, Span s2 -> Span (Span.merge s1 s2)
+    | Location l, Span s -> Location (Location.merge l s.start_pos)
+    | Span s, Location l -> Location (Location.merge s.start_pos l)
+    | No_position, other -> other
+    | other, No_position -> other
+end
+
+exception Asm_failure of Position.t * string
+
+let () =
+  Printexc.register_printer (function
+      | Asm_failure (pos, msg) -> begin
+          match pos with
+          | Position.Location loc -> Some (Printf.sprintf "%s %s" (Location.to_string loc) msg)
+          | Position.Span span -> Some (Printf.sprintf "%s %s" (Span.to_string span) msg)
+          | Position.No_position -> Some msg
+        end
+      | _ -> None
+    )
+
+let fail loc msg = raise (Asm_failure (loc, msg))
 
 module Name = struct
     type t = string
-    let matches s1 s2 = String.equal s1 s2
+    let matches s1 s2 = String.equal (String.lowercase_ascii s1) (String.lowercase_ascii s2)
 end
 
 module Environment = Env.Make (Name) (struct type t = int end)
 
 module Expression = struct
-    type t =
-      | Name of string
-      | Plus of t * t
-      | Minus of t * t
-      | Times of t * t
-      | Divide of t * t
-      | Number of int
-      | UpperByte of t
-      | LowerByte of t
+  type t = { pos: Position.t; expr: expr_type }
+  and expr_type =
+    | Name of string
+    | Plus of t * t
+    | Minus of t * t
+    | Times of t * t
+    | Divide of t * t
+    | Number of int
+    | UpperByte of t
+    | LowerByte of t
 
-    (*
-     * Check to see if the expression is complex,
-     * which just means it should be wrapped in parens
-     * when printed
-     *)
-    let complex expr =
-      match expr with
-      | Name _ -> false
-      | Plus (_,_) | Minus (_,_) | Times (_,_) | Divide (_,_)  -> true
-      | Number _ -> false
-      | UpperByte _ -> true
-      | LowerByte _ -> true
+  (*
+   * Check to see if the expression is complex,
+   * which just means it should be wrapped in parens
+   * when printed
+   *)
+  let complex expr =
+    match expr.expr with
+    | Name _ -> false
+    | Plus (_,_) | Minus (_,_) | Times (_,_) | Divide (_,_)  -> true
+    | Number _ -> false
+    | UpperByte _ -> true
+    | LowerByte _ -> true
 
-    let rec to_string expr =
-      match expr with
-      | Name name -> name
-      | Plus (e1, e2) -> Printf.sprintf "%s + %s" (wrap e1) (wrap e2)
-      | Minus (e1, e2) -> Printf.sprintf "%s - %s" (wrap e1) (wrap e2)
-      | Times (e1, e2) -> Printf.sprintf "%s * %s" (wrap e1) (wrap e2)
-      | Divide (e1, e2) -> Printf.sprintf "%s / %s" (wrap e1) (wrap e2)
-      | Number e -> string_of_int e
-      | UpperByte e -> Printf.sprintf ">%s" (wrap e)
-      | LowerByte e -> Printf.sprintf "<%s" (wrap e)
-    and wrap expr =
-      if complex expr then
-        Printf.sprintf "(%s)" (to_string expr)
-      else
-        to_string expr
+  let rec to_string expr =
+    match expr.expr with
+    | Name name -> name
+    | Plus (e1, e2) -> Printf.sprintf "%s + %s" (wrap e1) (wrap e2)
+    | Minus (e1, e2) -> Printf.sprintf "%s - %s" (wrap e1) (wrap e2)
+    | Times (e1, e2) -> Printf.sprintf "%s * %s" (wrap e1) (wrap e2)
+    | Divide (e1, e2) -> Printf.sprintf "%s / %s" (wrap e1) (wrap e2)
+    | Number e -> Printf.sprintf "$%02X" e
+    | UpperByte e -> Printf.sprintf ">%s" (wrap e)
+    | LowerByte e -> Printf.sprintf "<%s" (wrap e)
+  and wrap expr =
+    if complex expr then
+      Printf.sprintf "(%s)" (to_string expr)
+    else
+      to_string expr
 
-    (* Evaluate the expression into an int *)
-    let rec eval expr env =
-      match expr with
-      | Name name -> (match Environment.lookup env name with
-                      | Some(result) -> result
-                      | None -> raise (Asm_failure (None, Printf.sprintf "Name '%s' not found" name)))
-      | Plus (e1, e2) -> (eval e1 env) + (eval e2 env)
-      | Minus (e1, e2) -> (eval e1 env) - (eval e2 env)
-      | Times (e1, e2) -> (eval e1 env) * (eval e2 env)
-      | Divide (e1, e2) -> (eval e1 env) / (eval e2 env)
-      | Number n -> n
-      | UpperByte e -> let n = eval e env in (n lsr 8) land 0xFF
-      | LowerByte e -> let n = eval e env in n land 0xFF
+  (* Evaluate the expression into an int *)
+  let rec eval expr env =
+    match expr.expr with
+    | Name name -> (match Environment.lookup env name with
+                    | Some(result) -> result
+                    | None -> fail expr.pos (Printf.sprintf "Name '%s' not found" name))
+    | Plus (e1, e2) -> (eval e1 env) + (eval e2 env)
+    | Minus (e1, e2) -> (eval e1 env) - (eval e2 env)
+    | Times (e1, e2) -> (eval e1 env) * (eval e2 env)
+    | Divide (e1, e2) -> (eval e1 env) / (eval e2 env)
+    | Number n -> n
+    | UpperByte e -> let n = eval e env in (n lsr 8) land 0xFF
+    | LowerByte e -> let n = eval e env in n land 0xFF
+
+  let (+) left right = {
+      pos = Position.merge left.pos right.pos;
+      expr = Plus (left, right)
+    }
+  let (-) left right = {
+      pos = Position.merge left.pos right.pos;
+      expr = Minus (left, right)
+    }
+  let ( * ) left right = {
+      pos = Position.merge left.pos right.pos;
+      expr = Times (left, right)
+    }
+  let (/) left right = {
+      pos = Position.merge left.pos right.pos;
+      expr = Divide (left, right)
+    }
+  let num value = { pos = Position.No_position; expr = Number value }
+  let var name = { pos = Position.No_position; expr = Name name }
+  let upper expr = { pos = Position.No_position; expr = UpperByte expr }
+  let lower expr = { pos = Position.No_position; expr = LowerByte expr }
 end
 
 module IndirectionMode = struct
@@ -259,7 +310,7 @@ module Instruction = struct
          let value_top_bits = value land 0b1111000000000000 in
          let pos_top_bits = pos land 0b1111000000000000 in
          if value_top_bits != pos_top_bits then
-           raise (Asm_failure (None, Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
+           fail a12.pos (Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos)
          else
            (match%bitstring ([%bitstring {| value : 12 |}]) with
             | {| a11 : 1; rest : 11 : bitstring |} ->
@@ -353,7 +404,7 @@ module Instruction = struct
         let value_top_bits = value land 0b1111000000000000 in
         let pos_top_bits = pos land 0b1111000000000000 in
         if value_top_bits != pos_top_bits then
-          raise (Asm_failure (None, Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos))
+          fail a12.pos (Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos)
         else
           (match%bitstring ([%bitstring {| value : 12|}]) with
            | {| a11 : 1; rest : 11 : bitstring |} ->
@@ -614,7 +665,7 @@ module Directive = struct
                           (List.map (fun e -> Expression.to_string e) exprs))
       | ByteString bits -> Printf.sprintf ".byte \"%s\""
                              (Bitstring.string_of_bitstring bits)
-      | Org pos -> Printf.sprintf ".org %d" pos
+      | Org pos -> Printf.sprintf ".org $%X" pos
       | Word exprs -> Printf.sprintf ".word %s"
                         (String.concat ", "
                           (List.map (fun e -> Expression.to_string e) exprs))
@@ -653,7 +704,7 @@ end
 
 let add_name env name value =
   if Environment.contains !env name then
-    raise (Asm_failure (None, Printf.sprintf "Name '%s' already exists" name))
+    fail No_position (Printf.sprintf "Name '%s' already exists" name)
   else
     env := Environment.with_name !env name value
 
