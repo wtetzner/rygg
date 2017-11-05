@@ -45,6 +45,8 @@ module Location = struct
     done;
     create (source loc) !line !column !pos
 
+  let inc_line loc = { loc with line = loc.line + 1 }
+
   let merge left right = left
 end
 

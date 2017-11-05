@@ -12,6 +12,7 @@ module Location: sig
 
   val update : t -> string -> int -> t
   val create : string -> int -> int -> int -> t
+  val inc_line : t -> t
 
   val merge : t -> t -> t
 end

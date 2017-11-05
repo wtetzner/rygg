@@ -9,6 +9,8 @@ let write_bytes_to_file file bytes =
   ()
 
 let () =
+  let toks = Vmu_Asm_Parser.Lexer.read_tokens "    fr1 @R0 \"fred is cool and stuff \\\" you know\"  bob " Span.Location.empty in
+  print_endline (Vmu_Asm_Parser.Token.list_to_string toks);
   (* let env: Vmu_Asm.Environment.t = Vmu_Asm.Environment.with_name Vmu_Asm.Environment.empty "name" 12 in *)
   (* let expr = (Times (Number 7, (Plus (Name "name", Number 5)))) in
    * Printf.printf "%s = %d\n" (to_string expr) (eval expr env); *)
