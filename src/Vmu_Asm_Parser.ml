@@ -93,7 +93,7 @@ module Lexer = struct
     let str_len = (String.length str) in
     let start = (Location.offset loc) in
     if str_len - start < 3 then
-      fail_lex loc (Printf.sprintf "1Invalid indirection mode: %s" (String.sub str start str_len))
+      fail_lex loc (Printf.sprintf "Invalid indirection mode: %s" (String.sub str start str_len))
     else
       let endp = Location.update loc str (start + 3) in
       let r = String.get str (start + 1) in
@@ -103,9 +103,9 @@ module Lexer = struct
         | '1' -> Token.make Token.R1 loc endp
         | '2' -> Token.make Token.R2 loc endp
         | '3' -> Token.make Token.R3 loc endp
-        | _ -> fail_parse loc endp (Printf.sprintf "2Invalid indirection mode: %s" (String.sub str start (Location.offset endp)))
+        | _ -> fail_parse loc endp (Printf.sprintf "Invalid indirection mode: %s" (String.sub str start (Location.offset endp)))
       else
-        fail_parse loc endp (Printf.sprintf "3Invalid indirection mode: %s" (String.sub str start (Location.offset endp)))
+        fail_parse loc endp (Printf.sprintf "Invalid indirection mode: %s" (String.sub str start (Location.offset endp)))
 
   let read_name str loc =
     let start = (Location.offset loc) in
@@ -115,7 +115,11 @@ module Lexer = struct
       pos := !pos + 1
     done;
     let text = String.sub str start (!pos - start) in
-    Token.make (Token.Name text) loc (Location.update loc str !pos)
+    let start_chr = String.get str start in
+    if start_chr = '.' then
+      Token.make (Token.Directive text) loc (Location.update loc str !pos)
+    else
+      Token.make (Token.Name text) loc (Location.update loc str !pos)
 
   let read_string str loc =
     let start = (Location.offset loc) in
@@ -148,8 +152,11 @@ module Lexer = struct
     let start = (Location.offset loc) in
     if start < (String.length str) - 1 then
       match String.get str start with
+      | ',' -> Some (Token.make Token.Comma loc (Location.inc_column loc))
+      | ':' -> Some (Token.make Token.Colon loc (Location.inc_column loc))
       | '"' -> Some (read_string str loc)
       | '@' -> Some (read_indirection_mode str loc)
+      | '.' -> Some (read_name str loc)
       | chr when is_name_start chr -> Some (read_name str loc)
       | chr -> fail_lex loc (Printf.sprintf "Unexpected character: '%c'" chr)
     else

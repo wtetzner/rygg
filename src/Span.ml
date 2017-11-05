@@ -47,6 +47,8 @@ module Location = struct
 
   let inc_line loc = { loc with line = loc.line + 1; column = 0 }
 
+  let inc_column loc = { loc with column = loc.column + 1 }
+
   let merge left right = left
 end
 
