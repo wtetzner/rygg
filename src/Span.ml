@@ -29,6 +29,23 @@ module Location = struct
       offset = 0;
     }
 
+  let update_line loc str end_pos =
+    let line = ref (line loc) in
+    let pos = ref (column loc) in
+    let column = ref (column loc) in
+    let str_len = (String.length str) in
+    while !pos < end_pos && !pos < str_len do
+      let chr = String.get str !pos in
+      match chr with
+      | '\n' -> (line := !line + 1; column := 0; pos := !pos + 1)
+      | '\r' -> if !pos < end_pos - 1 && String.get str (!pos + 1) = '\n' then
+                  (line := !line + 1; column := 0; pos := !pos + 2)
+                else
+                  (column := !column + 1; pos := !pos + 1)
+      | _ -> (column := !column + 1; pos := !pos + 1)
+    done;
+    create (source loc) !line !column !pos
+
   let update loc str end_pos =
     let line = ref (line loc) in
     let column = ref (column loc) in
@@ -46,10 +63,9 @@ module Location = struct
     done;
     create (source loc) !line !column !pos
 
-  let inc_line loc = { loc with line = loc.line + 1; column = 0 }
-
-  let inc_column loc = { loc with column = loc.column + 1; offset = loc.offset + 1 }
-
+  let inc loc str =
+    update loc str (loc.offset + 1)
+    
   let with_source loc source = { loc with source = source }
 
   let merge left right = left

@@ -15,6 +15,8 @@ let fail_parse start endp msg =
 module Token = struct
   type t = { span: Span.t; tok: token_type }
   and token_type =
+    | LeftParen
+    | RightParen
     | Hash
     | Comma
     | Colon
@@ -39,6 +41,9 @@ module Token = struct
 
   let string_of_token_type tok =
     match tok with
+    | LeftParen -> "LeftParen[(]"
+    | RightParen -> "RightParen[)]"
+    | Hash -> "Hash[#]"
     | Comma -> "Comma[,]"
     | Colon -> "Colon[:]"
     | Name name -> Printf.sprintf "Name[%s]" name
@@ -108,11 +113,11 @@ module Lexer = struct
 
   let read_indirection_mode str loc =
     let str_len = (String.length str) in
-    let start = (Location.offset loc) in
+    let start = (Location.column loc) in
     if str_len - start < 3 then
       fail_lex loc (Printf.sprintf "Invalid indirection mode: %s" (String.sub str start str_len))
     else
-      let endp = Location.update loc str (start + 3) in
+      let endp = Location.update_line loc str (start + 3) in
       let r = String.get str (start + 1) in
       if r = 'r' || r = 'R' then
         match String.get str (start + 2) with
@@ -120,30 +125,30 @@ module Lexer = struct
         | '1' -> Token.make Token.R1 loc endp
         | '2' -> Token.make Token.R2 loc endp
         | '3' -> Token.make Token.R3 loc endp
-        | _ -> fail_parse loc endp (Printf.sprintf "Invalid indirection mode: %s" (String.sub str start (Location.offset endp)))
+        | _ -> fail_parse loc endp (Printf.sprintf "Invalid indirection mode: %s" (String.sub str start (Location.column endp)))
       else
-        fail_parse loc endp (Printf.sprintf "Invalid indirection mode: %s" (String.sub str start (Location.offset endp)))
+        fail_parse loc endp (Printf.sprintf "Invalid indirection mode: %s" (String.sub str start (Location.column endp)))
 
   let read_decimal str loc =
-    let start = (Location.offset loc) in
-    let pos = ref (Location.offset loc) in
+    let start = (Location.column loc) in
+    let pos = ref (Location.column loc) in
     pos := !pos + 1;
     while !pos < String.length str && is_digit (String.get str !pos) do
       pos := !pos + 1
     done;
     let num_str = String.sub str start (!pos - start) in
     let num = Scanf.sscanf num_str "%d" (fun x -> x) in
-    let endp = (Location.update loc str !pos) in
+    let endp = (Location.update_line loc str !pos) in
     Token.make (Token.Number num) loc endp
 
   let read_hex str loc =
-    let start = (Location.offset loc) in
-    let pos = ref (Location.offset loc) in
+    let start = (Location.column loc) in
+    let pos = ref (Location.column loc) in
     pos := !pos + 1;
     while !pos < String.length str && is_hex_digit (String.get str !pos) do
       pos := !pos + 1
     done;
-    let endp = (Location.update loc str !pos) in
+    let endp = (Location.update_line loc str !pos) in
     if !pos > start + 1 then
       let num_str = String.sub str (start + 1) (!pos - (start + 1)) in
       let num = Scanf.sscanf num_str "%x" (fun x -> x) in
@@ -152,13 +157,13 @@ module Lexer = struct
       fail_parse loc endp (Printf.sprintf "Invalid hexadecimal: %s" ((String.sub str start (!pos - start))))
 
   let read_binary str loc =
-    let start = (Location.offset loc) in
-    let pos = ref (Location.offset loc) in
+    let start = (Location.column loc) in
+    let pos = ref (Location.column loc) in
     pos := !pos + 1;
     while !pos < String.length str && is_hex_digit (String.get str !pos) do
       pos := !pos + 1
     done;
-    let endp = (Location.update loc str !pos) in
+    let endp = (Location.update_line loc str !pos) in
     if !pos > start + 1 then
       let num_str = String.sub str (start + 1) (!pos - (start + 1)) in
       let num = Scanf.sscanf ("0b" ^ num_str) "%i" (fun x -> x) in
@@ -167,8 +172,8 @@ module Lexer = struct
       fail_parse loc endp (Printf.sprintf "Invalid binary: %s" ((String.sub str start (!pos - start))))
 
   let read_name str loc =
-    let start = (Location.offset loc) in
-    let pos = ref (Location.offset loc) in
+    let start = (Location.column loc) in
+    let pos = ref (Location.column loc) in
     pos := !pos + 1;
     while !pos < String.length str && is_name_char (String.get str !pos) do
       pos := !pos + 1
@@ -176,13 +181,13 @@ module Lexer = struct
     let text = String.sub str start (!pos - start) in
     let start_chr = String.get str start in
     if start_chr = '.' then
-      Token.make (Token.Directive text) loc (Location.update loc str !pos)
+      Token.make (Token.Directive (String.lowercase_ascii text)) loc (Location.update_line loc str !pos)
     else
-      Token.make (Token.Name text) loc (Location.update loc str !pos)
+      Token.make (Token.Name (String.lowercase_ascii text)) loc (Location.update_line loc str !pos)
 
   let read_string str loc =
-    let start = (Location.offset loc) in
-    let pos = ref (Location.offset loc) in
+    let start = (Location.column loc) in
+    let pos = ref (Location.column loc) in
     pos := !pos + 1;
     while !pos < String.length str
           && (matches str !pos "\\\"" || (String.get str !pos != '"')) do
@@ -194,24 +199,24 @@ module Lexer = struct
     (if !pos <= (String.length str) && (String.get str !pos) = '"' then
        pos := !pos + 1
      else
-       fail_parse loc (Location.update loc str !pos) (Printf.sprintf "Invalid string: %s" (String.sub str start (!pos - start))));
+       fail_parse loc (Location.update_line loc str !pos) (Printf.sprintf "Invalid string: %s" (String.sub str start (!pos - start))));
     let text = String.sub str start (!pos - start) in
-    Token.make (Token.String text) loc (Location.update loc str !pos)
+    Token.make (Token.String text) loc (Location.update_line loc str !pos)
 
   let skip_comment str loc =
-    Location.update loc str ((String.length str) + 1)
+    Location.update_line loc str ((String.length str) + 1)
 
   let skip_whitespace str loc =
-    let start = (Location.offset loc) in
-    let pos = ref (Location.offset loc) in
+    let start = (Location.column loc) in
+    let pos = ref (Location.column loc) in
     while !pos < String.length str && is_whitespace (String.get str !pos) do
       pos := !pos + 1
     done;
-    (Location.update loc str !pos)    
+    (Location.update_line loc str !pos)    
 
   let skip_all_whitespace str loc =
     let loc = skip_whitespace str loc in
-    let offset = Location.offset loc in
+    let offset = Location.column loc in
     let len = String.length str in
     if offset < len && (String.get str offset) = ';' then
       skip_comment str loc
@@ -220,23 +225,25 @@ module Lexer = struct
 
   let read_token str loc =
     let loc = skip_all_whitespace str loc in
-    let start = (Location.offset loc) in
+    let start = (Location.column loc) in
     if start < (String.length str) - 1 then
       match String.get str start with
+      | '(' -> Some (Token.make Token.LeftParen loc (Location.inc loc str))
+      | ')' -> Some (Token.make Token.RightParen loc (Location.inc loc str))
       | '$' -> Some (read_hex str loc)
-      | '#' -> Some (Token.make Token.Hash loc (Location.inc_column loc))
-      | ',' -> Some (Token.make Token.Comma loc (Location.inc_column loc))
-      | ':' -> Some (Token.make Token.Colon loc (Location.inc_column loc))
+      | '#' -> Some (Token.make Token.Hash loc (Location.inc loc str))
+      | ',' -> Some (Token.make Token.Comma loc (Location.inc loc str))
+      | ':' -> Some (Token.make Token.Colon loc (Location.inc loc str))
       | '"' -> Some (read_string str loc)
       | '@' -> Some (read_indirection_mode str loc)
       | '.' -> Some (read_name str loc)
-      | '=' -> Some (Token.make Token.Equals loc (Location.inc_column loc))
-      | '+' -> Some (Token.make Token.Plus loc (Location.inc_column loc))
-      | '-' -> Some (Token.make Token.Minus loc (Location.inc_column loc))
-      | '*' -> Some (Token.make Token.Times loc (Location.inc_column loc))
-      | '/' -> Some (Token.make Token.Divide loc (Location.inc_column loc))
-      | '>' -> Some (Token.make Token.UpperByte loc (Location.inc_column loc))
-      | '<' -> Some (Token.make Token.LowerByte loc (Location.inc_column loc))
+      | '=' -> Some (Token.make Token.Equals loc (Location.inc loc str))
+      | '+' -> Some (Token.make Token.Plus loc (Location.inc loc str))
+      | '-' -> Some (Token.make Token.Minus loc (Location.inc loc str))
+      | '*' -> Some (Token.make Token.Times loc (Location.inc loc str))
+      | '/' -> Some (Token.make Token.Divide loc (Location.inc loc str))
+      | '>' -> Some (Token.make Token.UpperByte loc (Location.inc loc str))
+      | '<' -> Some (Token.make Token.LowerByte loc (Location.inc loc str))
       | '%' -> Some (read_binary str loc)
       | chr when is_digit chr -> Some (read_decimal str loc)
       | chr when is_name_start chr -> Some (read_name str loc)
@@ -254,33 +261,78 @@ module Lexer = struct
     | Some x -> x
     | None -> raise Not_found
 
-  let read_tokens str loc results =
-    let tok = ref (read_token str loc) in
-    while is_some !tok do
-      let token = get_opt !tok in
-      results := token :: !results;
-      tok := read_token str token.span.end_pos
-    done
-
   let reverse_list list =
     let results = ref [] in
     List.iter (fun item -> results := item :: !results) list;
     !results
 
+  let read_tokens str loc =
+    let results = ref [] in
+    let tok = ref (read_token str loc) in
+    while is_some !tok do
+      let token = get_opt !tok in
+      results := token :: !results;
+      tok := read_token str token.span.end_pos
+    done;
+    reverse_list !results
+
+  let split_lines str start_loc =
+    let lines = ref [] in
+    let len = (String.length str) in
+    let loc = ref start_loc in
+    let start = ref start_loc in
+    while (Location.offset !loc) < len do
+      let pos = (Location.offset !loc) in
+      let p2 = pos + 1 in
+      let chr = String.get str pos in
+      let startp = Location.offset !start in
+      match chr with
+      | '\n' | '\r' when pos < len - 1 && (String.get str p2) = '\n' -> begin
+          lines := (!start, (String.sub str startp (pos - startp))) :: !lines;
+          loc := Location.inc (Location.inc !loc str) str;
+          start := !loc
+        end
+      | '\n' -> begin
+          lines := (!start, (String.sub str startp (pos - startp))) :: !lines;
+          loc := Location.inc !loc str;
+          start := !loc
+        end
+      | _ -> loc := Location.inc !loc str
+    done;
+    if (Location.offset !loc) > (Location.offset !start) then
+      let pos = (Location.offset !loc) in
+      let startp = Location.offset !start in
+      lines := (!start, (String.sub str startp (pos - startp))) :: !lines;
+    else
+      ();
+    reverse_list !lines
+
+  let is_empty = function
+    | [] -> true
+    | _ -> false
+
   let lex str filename =
-    let loc = ref (Location.with_source Location.empty filename) in
-    let lines = Str.split_delim (Str.regexp "\r\n\\|\n") str in
+    let start_loc = Location.with_source Location.empty filename in
+    let lines: (Location.t * string) list = split_lines str start_loc in
     let results = ref [] in
     List.iter
-      (fun line ->
-        Printf.printf "**line: \"%s\"\n  loc: %s\n" line (Location.to_string !loc);
+      (function
+       | loc, line ->
         let trimmed = String.trim line in
         if (String.length trimmed) > 0 && (String.get trimmed 0) != '*' then
-          read_tokens line !loc results
+          let tokens = read_tokens line loc in
+          (if not (is_empty tokens) then
+             results := (read_tokens line loc) :: !results
+           else
+             ())
         else
-          ();
-        loc := Location.inc_line !loc
+          ()
       )
       lines;
     reverse_list !results
 end
+
+module Parser = struct
+  
+end
+

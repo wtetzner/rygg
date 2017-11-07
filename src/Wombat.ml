@@ -16,14 +16,13 @@ let load_string filename =
 let assemble input_file output_file =
   try
     ANSITerminal.(print_string [red] "cool\n");
-    (* let toks = Vmu_Asm_Parser.Lexer.read_tokens "    fr1 @R0 \"fred is cool and stuff \\\" you know\"  bob .byte .word" Span.Location.empty in *)
-    let toks = Vmu_Asm_Parser.Lexer.lex "    fr1 @R0 \"fred is cool and stuff \\\" you know\"\n  bob .byte .word" "input" in
-    print_endline (Vmu_Asm_Parser.Token.list_to_string toks);
-    let input_text = (load_string input_file) in
+    (* let toks = Vmu_Asm_Parser.Lexer.lex "    fr1 @R0 \"fred is cool and stuff \\\" you know\"\n  bob .byte .word" "input" in *)
+    (* List.iter (fun ts -> print_endline (Vmu_Asm_Parser.Token.list_to_string ts)) toks; *)
+    let input_text = load_string input_file in
     let other_toks = Vmu_Asm_Parser.Lexer.lex input_text input_file in
+    List.iter (fun ts -> print_endline (Vmu_Asm_Parser.Token.list_to_string ts)) other_toks;
     print_endline "Done reversing";
-    (* print_endline (Vmu_Asm_Parser.Token.list_to_string other_toks); *)
-    (* Out_channel.with_file *) 
+
     (* let env: Vmu_Asm.Environment.t = Vmu_Asm.Environment.with_name Vmu_Asm.Environment.empty "name" 12 in *)
     (* let expr = (Times (Number 7, (Plus (Name "name", Number 5)))) in
      * Printf.printf "%s = %d\n" (to_string expr) (eval expr env); *)
@@ -721,7 +720,7 @@ let assemble input_file output_file =
         S.Instruction (I.Ld_d9 (E.num 0x1C));
         S.Instruction (I.Mov_d9 (E.num 0xFF, { pos = Vmu_Asm.Position.Span (Span.make Location.empty Location.empty); expr = E.Name "BooBob" }));
       ] in
-    List.iter (fun s -> print_endline (Statement.to_string s)) statements;
+    (* List.iter (fun s -> print_endline (Statement.to_string s)) statements; *)
     let bytes = Vmu_Asm.assemble statements in
     print_endline "hmm";
     ()
