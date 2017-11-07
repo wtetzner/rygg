@@ -33,7 +33,8 @@ module Location = struct
     let line = ref (line loc) in
     let column = ref (column loc) in
     let pos = ref (offset loc) in
-    while !pos < end_pos do
+    let str_len = (String.length str) in
+    while !pos < end_pos && !pos < str_len do
       let chr = String.get str !pos in
       match chr with
       | '\n' -> (line := !line + 1; column := 0; pos := !pos + 1)
@@ -47,7 +48,7 @@ module Location = struct
 
   let inc_line loc = { loc with line = loc.line + 1; column = 0 }
 
-  let inc_column loc = { loc with column = loc.column + 1 }
+  let inc_column loc = { loc with column = loc.column + 1; offset = loc.offset + 1 }
 
   let with_source loc source = { loc with source = source }
 
