@@ -49,6 +49,8 @@ module Location = struct
 
   let inc_column loc = { loc with column = loc.column + 1 }
 
+  let with_source loc source = { loc with source = source }
+
   let merge left right = left
 end
 
@@ -65,9 +67,33 @@ let merge left right =
 let to_string span =
   let start = span.start_pos in
   let endp = span.end_pos in
-  Printf.sprintf "%s:%d:%d-%d:%d"
-    start.source
-    start.line
-    start.column
-    endp.line
-    endp.column
+  if start.line = endp.line then
+    Printf.sprintf "%s:%d:%d-%d"
+      start.source
+      start.line
+      start.column
+      endp.column
+  else
+    Printf.sprintf "%s:%d:%d-%d:%d"
+      start.source
+      start.line
+      start.column
+      endp.line
+      endp.column
+
+let to_colored_string span =
+  let start = span.start_pos in
+  let endp = span.end_pos in
+  if start.line = endp.line then
+    ANSITerminal.(sprintf [yellow] "%s" start.source) ^ ":" ^
+      ANSITerminal.(sprintf [magenta] "%d:%d-%d"
+                      start.line
+                      start.column
+                      endp.column)
+  else
+    ANSITerminal.(sprintf [yellow] "%s" start.source) ^ ":" ^
+      ANSITerminal.(sprintf [Bold] "%d:%d-%d:%d"
+                      start.line
+                      start.column
+                      endp.line
+                      endp.column)

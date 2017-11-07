@@ -9,6 +9,7 @@ depends: [
   "bitstring"
   "ppx_bitstring" {build}
   "core"
+  "ANSITerminal"
   "jbuilder" {build}
   "ppx_deriving" {build}
   "ocaml-migrate-parsetree" {build}

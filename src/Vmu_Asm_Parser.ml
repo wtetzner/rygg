@@ -132,7 +132,7 @@ module Lexer = struct
       else
         pos := !pos + 1
     done;
-    (if !pos < (String.length str) - 1 && (String.get str !pos) = '"' then
+    (if !pos <= (String.length str) && (String.get str !pos) = '"' then
        pos := !pos + 1
      else
        fail_parse loc (Location.update loc str !pos) (Printf.sprintf "Invalid string: %s" (String.sub str start (!pos - start))));
@@ -172,13 +172,20 @@ module Lexer = struct
     | Some x -> x
     | None -> raise Not_found
 
-  let read_tokens str loc =
-    let results = ref [] in
+  let read_tokens str loc results =
     let tok = ref (read_token str loc) in
     while is_some !tok do
       let token = get_opt !tok in
       results := token :: !results;
       tok := read_token str token.span.end_pos
-    done;
+    done
+
+  let lex str filename =
+    let loc = ref (Location.with_source Location.empty filename) in
+    let lines = Str.split (Str.regexp "\r\n\\|\n") str in
+    let results = ref [] in
+    List.iter
+      (fun line -> read_tokens line !loc results; loc := Location.inc_line !loc)
+      lines;
     List.rev !results
 end

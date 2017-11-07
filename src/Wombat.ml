@@ -3,14 +3,19 @@ open Vmu_Asm
 open Vmu_Asm.Expression
 module Vmu_Asm_Parser = Vmu_Asm_Parser
 module Out_channel = Core.Out_channel
+module In_channel = Core.In_channel
+module Command = Core.Command
 
 let write_bytes_to_file file bytes =
   Out_channel.with_file file ~f:(fun f -> Out_channel.output_string f bytes);
   ()
 
-let () =
-  let toks = Vmu_Asm_Parser.Lexer.read_tokens "    fr1 @R0 \"fred is cool and stuff \\\" you know\"  bob .byte .word" Span.Location.empty in
+let assemble input_file output_file =
+  ANSITerminal.(print_string [red] "cool");
+  (* let toks = Vmu_Asm_Parser.Lexer.read_tokens "    fr1 @R0 \"fred is cool and stuff \\\" you know\"  bob .byte .word" Span.Location.empty in *)
+  let toks = Vmu_Asm_Parser.Lexer.lex "    fr1 @R0 \"fred is cool and stuff \\\" you know\"\n  bob .byte .word" "input" in
   print_endline (Vmu_Asm_Parser.Token.list_to_string toks);
+  (* Out_channel.with_file *) 
   (* let env: Vmu_Asm.Environment.t = Vmu_Asm.Environment.with_name Vmu_Asm.Environment.empty "name" 12 in *)
   (* let expr = (Times (Number 7, (Plus (Name "name", Number 5)))) in
    * Printf.printf "%s = %d\n" (to_string expr) (eval expr env); *)
@@ -713,7 +718,39 @@ let () =
     let bytes = Vmu_Asm.assemble statements in
     ()
   with
-  | Vmu_Asm.Asm_failure (_,_) as e -> print_endline ("[Error] " ^ (Printexc.to_string e))
+  | Vmu_Asm.Asm_failure (_,_) as e -> print_endline ("[" ^ ANSITerminal.(sprintf [red] "Error") ^ "] " ^ (Printexc.to_string e))
                                                (* write_bytes_to_file "/Users/walter/temp/test-output.vms" bytes *)
 
+
+let vmu_cmd =
+  let assemble_cmd =
+    Command.basic
+      ~summary:"Assembler for Dreamcast VMU"
+      Command.Spec.(
+      empty
+      +> flag ~aliases:["-o"] "-output" (required string) ~doc:"output-file"
+      +> anon ("input-file" %: file)
+    )
+      (fun output filename () ->
+        assemble filename output
+      ) in
+  let compile_cmd =
+    Command.basic
+      ~summary:"Compiler for the Wombat programming language"
+      Command.Spec.(
+      empty
+      +> flag ~aliases:["-o"] "-output" (required string) ~doc:"output-file"
+      +> anon ("input-file" %: file)
+    )
+      (fun output filename () ->
+        raise (Failure "compile is not yet implemented")
+      ) in
+  Command.group ~summary:"Operations for Dreamcast VMU"
+    [ "assemble", assemble_cmd; "compile", compile_cmd ]
+
+let command =
+  Command.group ~summary:"Manipulate dates"
+    [ "vmu", vmu_cmd ]
+
+let () = Command.run command
 

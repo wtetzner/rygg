@@ -2,7 +2,7 @@
 
 (executable
  ((name wombat)
-  (libraries (core bitstring str))
+  (libraries (core bitstring str ANSITerminal))
   (preprocess (pps (ppx_bitstring)))))
 
 (install
