@@ -1,5 +1,7 @@
 
+module Span = Compiler.Span
 module Location = Span.Location
+module Env = Compiler.Env
 
 module Position: sig
   type t =

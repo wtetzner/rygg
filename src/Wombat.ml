@@ -1,7 +1,6 @@
 
-open Vmu_Asm
-open Vmu_Asm.Expression
-module Vmu_Asm_Parser = Vmu_Asm_Parser
+module Span = Compiler.Span
+module Location = Span.Location
 module Out_channel = Core.Out_channel
 module In_channel = Core.In_channel
 module Command = Core.Command
@@ -19,17 +18,16 @@ let assemble input_file output_file =
     (* let toks = Vmu_Asm_Parser.Lexer.lex "    fr1 @R0 \"fred is cool and stuff \\\" you know\"\n  bob .byte .word" "input" in *)
     (* List.iter (fun ts -> print_endline (Vmu_Asm_Parser.Token.list_to_string ts)) toks; *)
     let input_text = load_string input_file in
-    let other_toks = Vmu_Asm_Parser.Lexer.lex input_text input_file in
-    List.iter (fun ts -> print_endline (Vmu_Asm_Parser.Token.list_to_string ts)) other_toks;
-    print_endline "Done reversing";
+    let other_toks = Vmu.Asm.Parser.Lexer.lex input_text input_file in
+    List.iter (fun ts -> print_endline (Vmu.Asm.Parser.Token.list_to_string ts)) other_toks;
 
     (* let env: Vmu_Asm.Environment.t = Vmu_Asm.Environment.with_name Vmu_Asm.Environment.empty "name" 12 in *)
     (* let expr = (Times (Number 7, (Plus (Name "name", Number 5)))) in
      * Printf.printf "%s = %d\n" (to_string expr) (eval expr env); *)
-    let module S = Vmu_Asm.Statement in
-    let module D = Vmu_Asm.Directive in
-    let module I = Vmu_Asm.Instruction in
-    let module E = Vmu_Asm.Expression in
+    let module S = Vmu.Asm.Statement in
+    let module D = Vmu.Asm.Directive in
+    let module I = Vmu.Asm.Instruction in
+    let module E = Vmu.Asm.Expression in
     let statements = [
         S.Comment "Special Function Register addresses";
         S.Alias ("ACC", E.num 0x100);
@@ -718,16 +716,16 @@ let assemble input_file output_file =
 
         S.Instruction (I.Clr1 (E.var "psw", E.num 1));
         S.Instruction (I.Ld_d9 (E.num 0x1C));
-        S.Instruction (I.Mov_d9 (E.num 0xFF, { pos = Vmu_Asm.Position.Span (Span.make Location.empty Location.empty); expr = E.Name "BooBob" }));
+        S.Instruction (I.Mov_d9 (E.num 0xFF, { pos = Vmu.Asm.Position.Span (Span.make Location.empty Location.empty); expr = E.Name "BooBob" }));
       ] in
     (* List.iter (fun s -> print_endline (Statement.to_string s)) statements; *)
-    let bytes = Vmu_Asm.assemble statements in
+    let bytes = Vmu.Asm.assemble statements in
     print_endline "hmm";
     ()
   with
-  | Vmu_Asm.Asm_failure (_,_) as e -> print_endline ("[" ^ ANSITerminal.(sprintf [red] "Error") ^ "] " ^ (Printexc.to_string e))
-  | Vmu_Asm_Parser.Lexer_failure (loc, msg) -> Printf.printf "[Error] %s %s\n" (Location.to_string loc) msg
-  | Vmu_Asm_Parser.Parse_failure (span, msg) -> Printf.printf "[Error] %s %s\n" (Span.to_string span) msg
+  | Vmu.Asm.Asm_failure (_,_) as e -> print_endline ("[" ^ ANSITerminal.(sprintf [red] "Error") ^ "] " ^ (Printexc.to_string e))
+  | Vmu.Asm.Parser.Lexer_failure (loc, msg) -> Printf.printf "[Error] %s %s\n" (Location.to_string loc) msg
+  | Vmu.Asm.Parser.Parse_failure (span, msg) -> Printf.printf "[Error] %s %s\n" (Span.to_string span) msg
                                                (* write_bytes_to_file "/Users/walter/temp/test-output.vms" bytes *)
 
 

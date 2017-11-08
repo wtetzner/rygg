@@ -1,5 +1,5 @@
 
-open Vmu_Asm
+open Asm
 
 module Location = Span.Location
 

@@ -2,9 +2,17 @@
 
 (executable
  ((name wombat)
-  (libraries (core bitstring str ANSITerminal))
-  (preprocess (pps (ppx_bitstring)))))
+  (libraries (Vmu core ANSITerminal))
+  (modules Wombat)))
+
+(executable
+ ((name       mytoplevel)
+  (libraries  (Vmu core ANSITerminal compiler-libs.toplevel))
+  (link_flags (-linkall))
+  (modules mytoplevel)
+  (modes      (byte))))
 
 (install
  ((section bin)
-  (files ((wombat.exe as wombat)))))
+  (files ((wombat.exe as wombat)
+          (mytoplevel.exe as mytoplevel)))))
