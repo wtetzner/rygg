@@ -677,31 +677,45 @@ module Directive = struct
 end
 
 module Statement = struct
-    type t =
-      | Directive of Directive.t
-      | Label of string
-      | Instruction of Instruction.t
-      | Variable of string * Expression.t
-      | Alias of string * Expression.t
-      | Comment of string
+  type t = { pos: Position.t; stmt: statement_type }
+  and statement_type =
+    | Directive of Directive.t
+    | Label of string
+    | Instruction of Instruction.t
+    | Variable of string * Expression.t
+    | Alias of string * Expression.t
+    | Comment of string
 
-    let empty_str str = Str.string_match (Str.regexp "^[ \t]*$") str 0
+  let empty_str str = Str.string_match (Str.regexp "^[ \t]*$") str 0
 
-    let to_string stmt =
-      match stmt with
-      | Directive dir -> Directive.to_string dir
-      | Label label -> Printf.sprintf "%s:" label
-      | Instruction ins -> Printf.sprintf "  %s" (Instruction.to_string ins)
-      | Variable (name, value) -> Printf.sprintf "%s = %s"
-                                    name (Expression.to_string value)
-      | Alias (name, value) -> Printf.sprintf "%s EQU %s"
-                                 name (Expression.to_string value)
-      | Comment str -> String.concat "\n"
-                         (List.map (fun l -> if empty_str l then
-                                               ""
-                                             else
-                                               Printf.sprintf "; %s" l)
-                                   (Str.split_delim (Str.regexp "\n") str))
+  let to_string stmt =
+    match stmt.stmt with
+    | Directive dir -> Directive.to_string dir
+    | Label label -> Printf.sprintf "%s:" label
+    | Instruction ins -> Printf.sprintf "  %s" (Instruction.to_string ins)
+    | Variable (name, value) -> Printf.sprintf "%s = %s"
+                                  name (Expression.to_string value)
+    | Alias (name, value) -> Printf.sprintf "%s EQU %s"
+                               name (Expression.to_string value)
+    | Comment str -> String.concat "\n"
+                       (List.map (fun l -> if empty_str l then
+                                             ""
+                                           else
+                                             Printf.sprintf "; %s" l)
+                          (Str.split_delim (Str.regexp "\n") str))
+
+  let make span stmt = { pos = Position.Span span; stmt = stmt }
+
+  let directive dir = { pos = Position.No_position; stmt = Directive dir }
+  let label name = { pos = Position.No_position; stmt = Label name }
+  let instruction instr = { pos = Position.No_position; stmt = Instruction instr }
+  let variable name_expr =
+    let name, expr = name_expr in
+    { pos = Position.No_position; stmt = Variable (name, expr) }
+  let alias name_expr =
+    let name, expr = name_expr in
+    { pos = Position.No_position; stmt = Alias (name, expr) }
+  let comment str = { pos = Position.No_position; stmt = Comment str }
 end
 
 let add_name env name value =
@@ -717,7 +731,7 @@ let compute_names statements =
   List.iter (fun statement ->
              let module S = Statement in
              let module D = Directive in
-             (match statement with
+             (match statement.S.stmt with
               | S.Directive dir ->
                  (match dir with
                   | D.Byte bytes -> pos := !pos + (List.length bytes)
@@ -760,7 +774,7 @@ let generate_bytes statements names output =
   let module E = Expression in
   let module I = Instruction in
   List.iter (fun statement ->
-             match statement with
+             match statement.S.stmt with
              | S.Directive dir ->
                 (match dir with
                  | D.Byte bytes ->

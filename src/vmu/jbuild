@@ -2,7 +2,7 @@
 
 (library
  ((name Vmu)
-  (libraries (bitstring str Compiler))
+  (libraries (bitstring str core Compiler))
   (preprocess (pps (ppx_bitstring)))
   (wrapped true)))
 

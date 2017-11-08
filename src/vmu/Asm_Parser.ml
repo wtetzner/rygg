@@ -1,5 +1,9 @@
 
 open Asm
+module S = Statement
+module D = Directive
+module E = Expression
+module I = Instruction
 
 module Location = Span.Location
 
@@ -12,8 +16,11 @@ let fail_lex loc msg =
 let fail_parse start endp msg =
   raise (Parse_failure (Span.make start endp, msg))
 
+let span = function | span, tok -> span
+let token = function | span, tok -> tok
+
 module Token = struct
-  type t = { span: Span.t; tok: token_type }
+  type t = Span.t * token_type
   and token_type =
     | LeftParen
     | RightParen
@@ -37,7 +44,7 @@ module Token = struct
     | R3
 
   let make typ start_pos end_pos =
-    { span = Span.make start_pos end_pos; tok = typ }
+    (Span.make start_pos end_pos, typ)
 
   let string_of_token_type tok =
     match tok with
@@ -64,13 +71,22 @@ module Token = struct
 
   let to_string tok =
     Printf.sprintf "%s:%s"
-      (Span.to_string tok.span)
-      (string_of_token_type tok.tok)
+      (Span.to_string (span tok))
+      (string_of_token_type (token tok))
 
   let list_to_string toks =
     let joined = String.concat ", " (List.map to_string toks) in
     Printf.sprintf "[%s]" joined
 end
+
+let is_empty = function
+  | [] -> true
+  | _ -> false
+
+let reverse_list list =
+  let results = ref [] in
+  List.iter (fun item -> results := item :: !results) list;
+  !results
 
 module Lexer = struct
   let matches str pos compare =
@@ -261,18 +277,13 @@ module Lexer = struct
     | Some x -> x
     | None -> raise Not_found
 
-  let reverse_list list =
-    let results = ref [] in
-    List.iter (fun item -> results := item :: !results) list;
-    !results
-
   let read_tokens str loc =
     let results = ref [] in
     let tok = ref (read_token str loc) in
     while is_some !tok do
       let token = get_opt !tok in
       results := token :: !results;
-      tok := read_token str token.span.end_pos
+      tok := read_token str (span token).end_pos
     done;
     reverse_list !results
 
@@ -307,10 +318,6 @@ module Lexer = struct
       ();
     reverse_list !lines
 
-  let is_empty = function
-    | [] -> true
-    | _ -> false
-
   let lex str filename =
     let start_loc = Location.with_source Location.empty filename in
     let lines: (Location.t * string) list = split_lines str start_loc in
@@ -330,9 +337,36 @@ module Lexer = struct
       )
       lines;
     reverse_list !results
+
+  let load_string filename =
+    let module In = Core.In_channel in
+    In.with_file filename ~f:(fun f -> In.input_all f)
+
+  let lex_file filename =
+    let str = load_string filename in
+    lex str filename
 end
 
 module Parser = struct
-  
+  let stmt span1 span2 s =
+    { S.pos = Position.Span (Span.merge span1 span2); stmt = s }
+
+  let rec parse_line inc_dir tokens =
+    let statements = ref [] in
+    let tokens = ref tokens in
+    while not (is_empty !tokens) do
+      let statement, tail = parse_statement !tokens in
+      statements := statement :: !statements;
+      tokens := tail
+    done;
+    reverse_list !statements
+  and parse_statement tokens =
+    let open Token in
+    match tokens with
+    | (s1, (Name name)) :: (s2, Colon) :: tail -> stmt s1 s2 (S.Label name), tail
+    (* | (Name name) :: Equals :: (Number num) :: tail ->
+     *    S.Variable (name, E.({ pos:  })) *)
+  and parse_expr tokens = []
+  and parse_expr1 tokens lhs min_prec = []
 end
 

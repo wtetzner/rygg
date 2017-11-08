@@ -169,7 +169,8 @@ module Directive : sig
 end
 
 module Statement : sig
-  type t =
+  type t = { pos: Position.t; stmt: statement_type }
+  and statement_type =
     | Directive of Directive.t
     | Label of string
     | Instruction of Instruction.t
@@ -178,6 +179,15 @@ module Statement : sig
     | Comment of string
 
   val to_string : t -> string
+
+  val make : Span.t -> statement_type -> t
+
+  val directive : Directive.t -> t
+  val label : string -> t
+  val instruction : Instruction.t -> t
+  val variable : (string * Expression.t) -> t
+  val alias : (string * Expression.t) -> t
+  val comment : string -> t
 end
 
 val assemble : Statement.t list -> Bytes.t
