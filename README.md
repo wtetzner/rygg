@@ -14,3 +14,7 @@ Ensure environment is up-to-date:
 Install dependencies and build:
 
     opam build
+
+To build directly with jbuilder (after dependencies are installed)
+
+    jbuilder build -p wombat -j 3
