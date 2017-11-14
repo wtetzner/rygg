@@ -719,6 +719,7 @@ let assemble input_file output_file =
         S.instruction (I.Mov_d9 (E.num 0xFF, { pos = Vmu.Asm.Position.Span (Span.make Location.empty Location.empty); expr = E.Name "BooBob" }));
       ] in
     (* List.iter (fun s -> print_endline (Statement.to_string s)) statements; *)
+    ANSITerminal.(print_string [red] "cool\n");
     let bytes = Vmu.Asm.assemble statements in
     print_endline "hmm";
     ()

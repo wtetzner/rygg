@@ -2,5 +2,5 @@
 
 (library
  ((name Compiler)
-  (libraries (ANSITerminal))
+  (libraries (ANSITerminal TermString))
   (wrapped true)))
