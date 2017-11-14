@@ -2,26 +2,12 @@
 module Span = Compiler.Span
 module Location = Span.Location
 module Env = Compiler.Env
-
-module Position = struct
-  type t =
-    | Location of Location.t
-    | Span of Span.t
-    | No_position
-
-  let merge left right =
-    match left, right with
-    | Location l1, Location l2 -> Location l1
-    | Span s1, Span s2 -> Span (Span.merge s1 s2)
-    | Location l, Span s -> Location (Location.merge l s.start_pos)
-    | Span s, Location l -> Location (Location.merge s.start_pos l)
-    | No_position, other -> other
-    | other, No_position -> other
-end
+module Position = Compiler.Position
 
 exception Asm_failure of Position.t * string
 
 let () =
+  let open Compiler in
   Printexc.register_printer (function
       | Asm_failure (pos, msg) -> begin
           match pos with

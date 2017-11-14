@@ -2,7 +2,7 @@
 
 (executable
  ((name wombat)
-  (libraries (Vmu core ANSITerminal))
+  (libraries (Vmu Compiler core ANSITerminal))
   (modules Wombat)))
 
 (executable

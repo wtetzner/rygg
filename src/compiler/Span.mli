@@ -23,4 +23,3 @@ type t = { start_pos: Location.t; end_pos: Location.t }
 val make : Location.t -> Location.t -> t
 val merge : t -> t -> t
 val to_string : t -> string
-val to_colored_string : t -> TermString.t

@@ -716,7 +716,7 @@ let assemble input_file output_file =
 
         S.instruction (I.Clr1 (E.var "psw", E.num 1));
         S.instruction (I.Ld_d9 (E.num 0x1C));
-        S.instruction (I.Mov_d9 (E.num 0xFF, { pos = Vmu.Asm.Position.Span (Span.make Location.empty Location.empty); expr = E.Name "BooBob" }));
+        S.instruction (I.Mov_d9 (E.num 0xFF, E.var "BooBob"));
       ] in
     (* List.iter (fun s -> print_endline (Statement.to_string s)) statements; *)
     ANSITerminal.(print_string [red] "cool\n");
@@ -724,11 +724,10 @@ let assemble input_file output_file =
     print_endline "hmm";
     ()
   with
-  | Vmu.Asm.Asm_failure (_,_) as e -> print_endline ("[" ^ ANSITerminal.(sprintf [red] "Error") ^ "] " ^ (Printexc.to_string e))
-  | Vmu.Asm.Parser.Lexer_failure (loc, msg) -> Printf.printf "[Error] %s %s\n" (Location.to_string loc) msg
-  | Vmu.Asm.Parser.Parse_failure (span, msg) -> Printf.printf "[Error] %s %s\n" (Span.to_string span) msg
+  | Vmu.Asm.Asm_failure (pos,msg) as e -> Compiler.Message.(print_msgln Error pos msg)
+  | Vmu.Asm.Parser.Lexer_failure (loc, msg) -> Compiler.Message.(print_msgln Error (Compiler.Position.Location loc) msg)
+  | Vmu.Asm.Parser.Parse_failure (span, msg) -> Compiler.Message.(print_msgln Error (Compiler.Position.Span span) msg)
                                                (* write_bytes_to_file "/Users/walter/temp/test-output.vms" bytes *)
-
 
 let vmu_cmd =
   let assemble_cmd =

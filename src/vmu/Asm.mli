@@ -2,15 +2,7 @@
 module Span = Compiler.Span
 module Location = Span.Location
 module Env = Compiler.Env
-
-module Position: sig
-  type t =
-    | Location of Location.t
-    | Span of Span.t
-    | No_position
-
-  val merge : t -> t -> t
-end
+module Position = Compiler.Position
 
 exception Asm_failure of Position.t * string
 

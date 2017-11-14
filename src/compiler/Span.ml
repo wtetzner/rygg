@@ -81,26 +81,21 @@ let make start_pos end_pos = {
 let merge left right =
   make left.start_pos right.end_pos
 
-let to_colored_string span =
+let to_string span =
   let start = span.start_pos in
   let endp = span.end_pos in
   if start.line = endp.line then
-    ANSITerminal.(
-    TermString.(
-      (styled [yellow] start.source) ^
-        (of_string ":") ^ (styled [Bold] (Printf.sprintf "%d:%d-%d"
-                                start.line
-                                start.column
-                                endp.column))))
+    Printf.sprintf "%s:%d:%d-%d"
+      (Location.source start)
+      (Location.line start)
+      (Location.column start)
+      (Location.column endp)
   else
-    ANSITerminal.(
-    TermString.(
-      (styled [yellow] start.source) ^
-        (of_string ":") ^ (styled [Bold] (Printf.sprintf "%d:%d-%d:%d"
-                                start.line
-                                start.column
-                                endp.line
-                                endp.column))))
+    Printf.sprintf "%s:%d:%d-%d:%d"
+      (Location.source start)
+      (Location.line start)
+      (Location.column start)
+      (Location.column endp)
+      (Location.column endp)
 
-let to_string span = TermString.to_string (to_colored_string span)
 
