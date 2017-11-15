@@ -43,6 +43,14 @@ module Token = struct
     | R2
     | R3
 
+  let precedence tok =
+    match token tok in
+    | Plus -> Some 1
+    | Times -> Some 2
+    | Minus -> Some 1
+    | Divide -> Some 2
+    | _ -> None
+
   let make typ start_pos end_pos =
     (Span.make start_pos end_pos, typ)
 
@@ -348,8 +356,84 @@ module Lexer = struct
 end
 
 module Parser = struct
+  type 'a t = (Token.t list) -> ((Token.t list) * 'a)
+
   let stmt span1 span2 s =
     { S.pos = Position.Span (Span.merge span1 span2); stmt = s }
+
+  let next_token tokens =
+    match tokens with
+    | first :: second :: tail -> Some second
+    | _ -> None
+
+  module TokenStream : sig
+    type t
+
+    val of_list : (Token.t list) -> t
+    val peek : t -> (Token.t option)
+    val next : t -> (Token.t option)
+    val read_close_paren : t -> Token.t
+  end = struct
+    type t = ref (Token.t list)
+
+    let of_list toks = ref toks
+
+    let peek tokens =
+      let toks = !tokens in
+      if is_empty toks then
+        None
+      else
+        Some (List.hd !toks)
+
+    let next tokens =
+      let toks = !tokens in
+      if is_empty toks then
+        None
+      else
+        let head = List.hd toks in
+        tokens := List.tl toks;
+        Some head
+
+    let read_close_paren tokens =
+      let tok = peek tokens in
+      match tok with
+      | Some t -> begin
+          match t with
+          | RightParen -> t
+          | _ -> raise (Parse_failure (Token.span t, "Expected ')'"))
+        end
+      | None -> raise (Failure "Unexpected end of line")
+  end
+
+  let get_some opt =
+    match opt with
+    | Some x -> x
+    | None -> raise Not_found
+
+  let greater_equal_prec token prec =
+    match token with
+    | Some tok -> begin
+        match Token.precedence with
+        | Some p -> p >= prec
+        | None -> false
+      end
+    | None -> false
+
+  let prec_higher lookahead op =
+    match lookahead with
+    | Some prec -> begin
+        match Token.precedence with
+        | Some p -> p > (Token.precedence (get_some op))
+        | None -> false
+      end
+    | None -> false
+
+  let make_expr op lhs rhs =
+    match op with
+    | Plus -> E.(lhs + rhs)
+    | Minus -> E.(lhs - rhs)
+    | Times -> E.(lhs * rhs)
+    | Divide -> E.(lhs / rhs)
 
   let rec parse_line inc_dir tokens =
     let statements = ref [] in
@@ -366,7 +450,33 @@ module Parser = struct
     | (s1, (Name name)) :: (s2, Colon) :: tail -> stmt s1 s2 (S.Label name), tail
     (* | (Name name) :: Equals :: (Number num) :: tail ->
      *    S.Variable (name, E.({ pos:  })) *)
-  and parse_expr tokens = []
-  and parse_expr1 tokens lhs min_prec = []
+  and parse_primary tokens = []
+  and parse_expr tokens =
+    let lookahead = TokenStream.peek tokens in
+    if not (is_some lookahead) then
+      raise (Failure "Unexpected end of line")
+    else
+      match (Token.token (get_some lookahead)) with
+      | LeftParen -> begin
+          TokenStream.next tokens;
+          let expr = parse_expr tokens in
+          TokenStream.read_close_paren tokens;
+          expr
+        end
+  and parse_expr1 tokens lhs min_prec =
+    let lhs = ref lhs in
+    let lookahead = ref (TokenStream.peek tokens) in
+    while greater_equal_prec !lookahead min_prec do
+      let op = ref !lookahead in
+      TokenStream.next tokens;
+      let rhs = ref parse_primary tokens in
+      lookahead := TokenStream.peek tokens in
+      while prec_higher !lookahead !op do
+        rhs := parse_expr1 tokens !rhs (Token.precedence (get_some !lookahead));
+        lookahead := TokenStream.peek tokens;
+      done;
+      lhs := make_expr (get_some !op) !lhs !rhs
+    done;
+    !lhs
 end
 
