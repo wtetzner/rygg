@@ -19,9 +19,9 @@ let assemble input_file output_file =
     ANSITerminal.(print_string [red] "cool\n");
 
     let input_text = load_string input_file in
-    let tokens = Vmu.Asm.Parser.Lexer2.tokens input_text in
+    let tokens = Vmu.Asm.Parser.Lexer.tokens input_text in
     let count = ref 0 in
-    Stream.iter (fun t -> Printf.printf "%s\n" (Vmu.Asm.Parser.Token2.to_string t)) tokens;
+    Stream.iter (fun t -> Printf.printf "%s\n" (Vmu.Asm.Parser.Token.to_string t)) tokens;
     (* let other_toks = Vmu.Asm.Parser.Lexer.lex input_text input_file in
      * List.iter (fun ts -> print_endline (Vmu.Asm.Parser.Token.list_to_string ts)) other_toks; *)
 
