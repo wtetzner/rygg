@@ -14,16 +14,18 @@ let load_string filename =
 
 let assemble input_file output_file =
   try
+    (* let tokens = Vmu.Asm.Parser.Lexer2.tokens " \"Fred \\\\\" ;^is cool \n and stuff\" %101 45 $FF _bob  @r0 fred sam" in
+     * Stream.iter (fun t -> print_endline (Vmu.Asm.Parser.Token2.to_string t)) tokens; *)
     ANSITerminal.(print_string [red] "cool\n");
-    (* let toks = Vmu_Asm_Parser.Lexer.lex "    fr1 @R0 \"fred is cool and stuff \\\" you know\"\n  bob .byte .word" "input" in *)
-    (* List.iter (fun ts -> print_endline (Vmu_Asm_Parser.Token.list_to_string ts)) toks; *)
-    let input_text = load_string input_file in
-    let other_toks = Vmu.Asm.Parser.Lexer.lex input_text input_file in
-    List.iter (fun ts -> print_endline (Vmu.Asm.Parser.Token.list_to_string ts)) other_toks;
 
-    (* let env: Vmu_Asm.Environment.t = Vmu_Asm.Environment.with_name Vmu_Asm.Environment.empty "name" 12 in *)
-    (* let expr = (Times (Number 7, (Plus (Name "name", Number 5)))) in
-     * Printf.printf "%s = %d\n" (to_string expr) (eval expr env); *)
+    let input_text = load_string input_file in
+    let tokens = Vmu.Asm.Parser.Lexer2.tokens input_text in
+    let count = ref 0 in
+    Stream.iter (fun t -> Printf.printf "%s\n" (Vmu.Asm.Parser.Token2.to_string t)) tokens;
+    (* let other_toks = Vmu.Asm.Parser.Lexer.lex input_text input_file in
+     * List.iter (fun ts -> print_endline (Vmu.Asm.Parser.Token.list_to_string ts)) other_toks; *)
+
+
     let module S = Vmu.Asm.Statement in
     let module D = Vmu.Asm.Directive in
     let module I = Vmu.Asm.Instruction in

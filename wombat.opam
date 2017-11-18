@@ -6,6 +6,7 @@ build: [
   ["jbuilder" "build" "-p" name "-j" jobs]
 ]
 depends: [
+  "sedlex"
   "bitstring"
   "ppx_bitstring" {build}
   "core"

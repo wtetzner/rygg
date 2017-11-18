@@ -19,7 +19,7 @@ let fail_parse start endp msg =
 let span = function | span, tok -> span
 let token = function | span, tok -> tok
 
-module Token = struct
+module Token2 = struct
   type t = Span.t * token_type
   and token_type =
     | LeftParen
@@ -43,13 +43,164 @@ module Token = struct
     | R2
     | R3
 
-  let precedence tok =
-    match token tok in
-    | Plus -> Some 1
-    | Times -> Some 2
-    | Minus -> Some 1
-    | Divide -> Some 2
-    | _ -> None
+  let starts_with str prefix =
+    if (String.length str) >= (String.length prefix) then
+      let capture = String.sub str 0 (String.length prefix) in
+      String.equal capture prefix
+    else
+      false
+
+  let str str = String str
+  let name str = Name str
+  let directive str = Directive str
+  let number str =
+    let sub s = String.sub s 1 ((String.length s) - 1) in
+    match str with
+    | s when starts_with str "$" ->
+       Number (Scanf.sscanf (sub s) "%x" (fun x -> x))
+    | s when starts_with str "%" ->
+       Number (Scanf.sscanf ("0b" ^ (sub s)) "%i" (fun x -> x))
+    | _ -> Number (int_of_string str)
+
+  let indirection_mode str =
+    let num = String.sub str 2 1 in
+    match num with
+    | "0" -> R0
+    | "1" -> R1
+    | "2" -> R2
+    | "3" -> R3
+    
+  let simple str =
+    match str with
+    | "(" -> LeftParen
+    | ")" -> RightParen
+    | "#" -> Hash
+    | "," -> Comma
+    | ":" -> Colon
+    | "=" -> Equals
+    | "+" -> Plus
+    | "*" -> Times
+    | "-" -> Minus
+    | "/" -> Divide
+    | ">" -> UpperByte
+    | "<" -> LowerByte
+
+  let string_of_token_type tok =
+    match tok with
+    | LeftParen -> "LeftParen[(]"
+    | RightParen -> "RightParen[)]"
+    | Hash -> "Hash[#]"
+    | Comma -> "Comma[,]"
+    | Colon -> "Colon[:]"
+    | Name name -> Printf.sprintf "Name[%s]" name
+    | Number num -> Printf.sprintf "Number[%d]" num
+    | Directive dir -> Printf.sprintf "Directive[%s]" dir
+    | Equals -> "Equals[=]"
+    | Plus -> "Plus[+]"
+    | Times -> "Times[*]"
+    | Minus -> "Minus[-]"
+    | Divide -> "Divide[/]"
+    | UpperByte -> "UpperByte[>]"
+    | LowerByte -> "LowerByte[<]"
+    | String str -> Printf.sprintf "String[%s]" str
+    | R0 -> "@R0"
+    | R1 -> "@R1"
+    | R2 -> "@R2"
+    | R3 -> "@R3"
+
+  let to_string tok =
+    Printf.sprintf "%s:%s"
+      (Span.to_string (span tok))
+      (string_of_token_type (token tok))
+
+  let list_to_string toks =
+    let joined = String.concat ", " (List.map to_string toks) in
+    Printf.sprintf "[%s]" joined
+end
+
+module Lexer2 : sig
+  val tokens : string -> Token2.t Stream.t
+end = struct
+  type t = {
+      str: string;
+      lexbuf: Sedlexing.lexbuf;
+      mutable loc: Location.t
+    }
+
+  let from_string str = {
+      str = str;
+      lexbuf = Sedlexing.Utf8.from_string str;
+      loc = Location.empty
+    }
+
+  let read_lexeme lexer =
+    let buf = lexer.lexbuf in
+    let lexeme = Sedlexing.Utf8.lexeme buf in
+    let len = String.length lexeme in
+    let loc = lexer.loc in
+    let new_loc =  Location.update loc lexer.str ((Location.offset loc) + len) in
+    lexer.loc <- new_loc;
+    (Span.make loc new_loc, lexeme)
+
+  let indirection_mode = [%sedlex.regexp? "@", (Chars "rR"), (Chars "0123")]
+  let ident_start = [%sedlex.regexp? 'a'..'z'|'A'..'Z'|'_' ]
+  let ident_char = [%sedlex.regexp? 'a'..'z'|'A'..'Z'|'_'|'0'..'9' ]
+  let identifier = [%sedlex.regexp? ident_start, Star ident_char ]
+  let hex_num = [%sedlex.regexp? "$", Plus ascii_hex_digit ]
+  let bin_num = [%sedlex.regexp? "%", Plus ('0' | '1') ]
+  let dec_num = [%sedlex.regexp? Plus ('0'..'9') ]
+  let string_re = [%sedlex.regexp? "\"", Star ("\\\\" | "\\\"" | Compl ('"' | '\\')), "\"" ]
+  let comment = [%sedlex.regexp? ";", Star (('\r' | Compl '\n') | (Compl (eof | '\n' | "\r"))) ]
+
+  let token lexer =
+    let buf = lexer.lexbuf in
+    (match%sedlex buf with
+     | Star (white_space | comment) ->
+        let lexeme = Sedlexing.Utf8.lexeme buf in
+        let len = String.length lexeme in
+        let loc = lexer.loc in
+        let new_loc = Location.update loc lexer.str ((Location.offset loc) + len) in
+        lexer.loc <- new_loc
+     | _ -> ());
+    let read func = let span, lexeme = read_lexeme lexer in (span, (func lexeme)) in
+    match%sedlex buf with
+    | string_re -> Some (read Token2.str)
+    | Chars "()#,:=+*-/><" -> Some (read Token2.simple)
+    | indirection_mode -> Some (read Token2.indirection_mode)
+    | identifier -> Some (read Token2.name)
+    | hex_num | bin_num | dec_num -> Some (read Token2.number)
+    | '.', identifier -> Some (read Token2.directive)
+    | eof -> None
+    | _ -> fail_lex lexer.loc "Unexpected character"
+
+  let tokens str =
+    let lexer = from_string str in
+    Stream.from (fun _ -> token lexer)
+end
+
+module Token = struct
+  type t = Span.t * token_type
+  and token_type =
+    | LeftParen
+    | RightParen
+    | Hash
+    | Comma
+    | Colon
+    | Name of string
+    | Number of int
+    | Directive of string
+    | Equals
+    | Plus
+    | Times
+    | Minus
+    | Divide
+    | UpperByte
+    | LowerByte
+    | String of string
+    | R0
+    | R1
+    | R2
+    | R3
 
   let make typ start_pos end_pos =
     (Span.make start_pos end_pos, typ)
@@ -361,20 +512,14 @@ module Parser = struct
   let stmt span1 span2 s =
     { S.pos = Position.Span (Span.merge span1 span2); stmt = s }
 
-  let next_token tokens =
-    match tokens with
-    | first :: second :: tail -> Some second
-    | _ -> None
-
   module TokenStream : sig
     type t
 
     val of_list : (Token.t list) -> t
     val peek : t -> (Token.t option)
     val next : t -> (Token.t option)
-    val read_close_paren : t -> Token.t
   end = struct
-    type t = ref (Token.t list)
+    type t = (Token.t list) ref
 
     let of_list toks = ref toks
 
@@ -383,7 +528,7 @@ module Parser = struct
       if is_empty toks then
         None
       else
-        Some (List.hd !toks)
+        Some (List.hd toks)
 
     let next tokens =
       let toks = !tokens in
@@ -393,90 +538,7 @@ module Parser = struct
         let head = List.hd toks in
         tokens := List.tl toks;
         Some head
-
-    let read_close_paren tokens =
-      let tok = peek tokens in
-      match tok with
-      | Some t -> begin
-          match t with
-          | RightParen -> t
-          | _ -> raise (Parse_failure (Token.span t, "Expected ')'"))
-        end
-      | None -> raise (Failure "Unexpected end of line")
   end
 
-  let get_some opt =
-    match opt with
-    | Some x -> x
-    | None -> raise Not_found
-
-  let greater_equal_prec token prec =
-    match token with
-    | Some tok -> begin
-        match Token.precedence with
-        | Some p -> p >= prec
-        | None -> false
-      end
-    | None -> false
-
-  let prec_higher lookahead op =
-    match lookahead with
-    | Some prec -> begin
-        match Token.precedence with
-        | Some p -> p > (Token.precedence (get_some op))
-        | None -> false
-      end
-    | None -> false
-
-  let make_expr op lhs rhs =
-    match op with
-    | Plus -> E.(lhs + rhs)
-    | Minus -> E.(lhs - rhs)
-    | Times -> E.(lhs * rhs)
-    | Divide -> E.(lhs / rhs)
-
-  let rec parse_line inc_dir tokens =
-    let statements = ref [] in
-    let tokens = ref tokens in
-    while not (is_empty !tokens) do
-      let statement, tail = parse_statement !tokens in
-      statements := statement :: !statements;
-      tokens := tail
-    done;
-    reverse_list !statements
-  and parse_statement tokens =
-    let open Token in
-    match tokens with
-    | (s1, (Name name)) :: (s2, Colon) :: tail -> stmt s1 s2 (S.Label name), tail
-    (* | (Name name) :: Equals :: (Number num) :: tail ->
-     *    S.Variable (name, E.({ pos:  })) *)
-  and parse_primary tokens = []
-  and parse_expr tokens =
-    let lookahead = TokenStream.peek tokens in
-    if not (is_some lookahead) then
-      raise (Failure "Unexpected end of line")
-    else
-      match (Token.token (get_some lookahead)) with
-      | LeftParen -> begin
-          TokenStream.next tokens;
-          let expr = parse_expr tokens in
-          TokenStream.read_close_paren tokens;
-          expr
-        end
-  and parse_expr1 tokens lhs min_prec =
-    let lhs = ref lhs in
-    let lookahead = ref (TokenStream.peek tokens) in
-    while greater_equal_prec !lookahead min_prec do
-      let op = ref !lookahead in
-      TokenStream.next tokens;
-      let rhs = ref parse_primary tokens in
-      lookahead := TokenStream.peek tokens in
-      while prec_higher !lookahead !op do
-        rhs := parse_expr1 tokens !rhs (Token.precedence (get_some !lookahead));
-        lookahead := TokenStream.peek tokens;
-      done;
-      lhs := make_expr (get_some !op) !lhs !rhs
-    done;
-    !lhs
 end
 

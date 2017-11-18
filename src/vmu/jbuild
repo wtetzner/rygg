@@ -2,7 +2,7 @@
 
 (library
  ((name Vmu)
-  (libraries (bitstring str core Compiler))
-  (preprocess (pps (ppx_bitstring)))
+  (libraries (bitstring str core Compiler sedlex))
+  (preprocess (pps (ppx_bitstring sedlex.ppx)))
   (wrapped true)))
 
