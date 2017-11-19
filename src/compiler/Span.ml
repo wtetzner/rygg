@@ -5,7 +5,7 @@ module Location = struct
       line   : int;
       column : int;
       offset : int
-    }
+    } [@@deriving show {with_path=false}, ord, eq]
 
   let source loc = loc.source
   let line loc = loc.line
@@ -71,7 +71,7 @@ module Location = struct
   let merge left right = left
 end
 
-type t = { start_pos: Location.t; end_pos: Location.t }
+type t = { start_pos: Location.t; end_pos: Location.t } [@@deriving show {with_path=false}, ord, eq]
 
 let make start_pos end_pos = {
     start_pos = start_pos;

@@ -20,7 +20,7 @@ let span = function | span, tok -> span
 let token = function | span, tok -> tok
 
 module Token = struct
-  type t = Span.t * token_type
+  type t = Span.t * token_type [@@deriving show {with_path=false}, ord, eq]
   and token_type =
     | LeftParen
     | RightParen
@@ -41,7 +41,9 @@ module Token = struct
     | R0
     | R1
     | R2
-    | R3
+    | R3 [@@deriving show {with_path=false}, ord, eq]
+
+  let () = print_endline (show (Span.make Location.empty Location.empty, Comma))
 
   let starts_with str prefix =
     if (String.length str) >= (String.length prefix) then
@@ -112,10 +114,6 @@ module Token = struct
     Printf.sprintf "%s:%s"
       (Span.to_string (span tok))
       (string_of_token_type (token tok))
-
-  let list_to_string toks =
-    let joined = String.concat ", " (List.map to_string toks) in
-    Printf.sprintf "[%s]" joined
 end
 
 module Lexer : sig

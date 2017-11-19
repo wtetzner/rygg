@@ -20,6 +20,12 @@ module Location: sig
 end
 
 type t = { start_pos: Location.t; end_pos: Location.t }
+
+val pp : Format.formatter -> t -> unit
+val show : t -> string
+val compare : t -> t -> int
+val equal : t -> t -> bool
+
 val make : Location.t -> Location.t -> t
 val merge : t -> t -> t
 val to_string : t -> string
