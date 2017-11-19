@@ -43,8 +43,6 @@ module Token = struct
     | R2
     | R3 [@@deriving show {with_path=false}, ord, eq]
 
-  let () = print_endline (show (Span.make Location.empty Location.empty, Comma))
-
   let starts_with str prefix =
     if (String.length str) >= (String.length prefix) then
       let capture = String.sub str 0 (String.length prefix) in
@@ -71,6 +69,7 @@ module Token = struct
     | "1" -> R1
     | "2" -> R2
     | "3" -> R3
+    | _ -> raise (Failure (Printf.sprintf "Unknown indirection_mode: %s" str))
     
   let simple str =
     match str with
@@ -86,6 +85,7 @@ module Token = struct
     | "/" -> Divide
     | ">" -> UpperByte
     | "<" -> LowerByte
+    | _ -> raise (Failure (Printf.sprintf "Unknown simple token: %s" str))
 
   let string_of_token_type tok =
     match tok with

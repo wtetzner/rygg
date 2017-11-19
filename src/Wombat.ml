@@ -14,17 +14,11 @@ let load_string filename =
 
 let assemble input_file output_file =
   try
-    (* let tokens = Vmu.Asm.Parser.Lexer2.tokens " \"Fred \\\\\" ;^is cool \n and stuff\" %101 45 $FF _bob  @r0 fred sam" in
-     * Stream.iter (fun t -> print_endline (Vmu.Asm.Parser.Token2.to_string t)) tokens; *)
     ANSITerminal.(print_string [red] "cool\n");
 
     let input_text = load_string input_file in
     let tokens = Vmu.Asm.Parser.Lexer.tokens input_text in
-    let count = ref 0 in
     Stream.iter (fun t -> Printf.printf "%s\n" (Vmu.Asm.Parser.Token.to_string t)) tokens;
-    (* let other_toks = Vmu.Asm.Parser.Lexer.lex input_text input_file in
-     * List.iter (fun ts -> print_endline (Vmu.Asm.Parser.Token.list_to_string ts)) other_toks; *)
-
 
     let module S = Vmu.Asm.Statement in
     let module D = Vmu.Asm.Directive in
@@ -723,13 +717,13 @@ let assemble input_file output_file =
     (* List.iter (fun s -> print_endline (Statement.to_string s)) statements; *)
     ANSITerminal.(print_string [red] "cool\n");
     let bytes = Vmu.Asm.assemble statements in
+    write_bytes_to_file "/Users/walter/temp/test-output.vms" bytes;
     print_endline "hmm";
     ()
   with
-  | Vmu.Asm.Asm_failure (pos,msg) as e -> Compiler.Message.(print_msgln Error pos msg)
+  | Vmu.Asm.Asm_failure (pos,msg) -> Compiler.Message.(print_msgln Error pos msg)
   | Vmu.Asm.Parser.Lexer_failure (loc, msg) -> Compiler.Message.(print_msgln Error (Compiler.Position.Location loc) msg)
   | Vmu.Asm.Parser.Parse_failure (span, msg) -> Compiler.Message.(print_msgln Error (Compiler.Position.Span span) msg)
-                                               (* write_bytes_to_file "/Users/walter/temp/test-output.vms" bytes *)
 
 let vmu_cmd =
   let assemble_cmd =
