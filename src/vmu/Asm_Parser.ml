@@ -13,11 +13,14 @@ exception Parse_failure of Span.t * string
 let fail_lex loc msg =
   raise (Lexer_failure (loc, msg))
 
-let fail_parse start endp msg =
-  raise (Parse_failure (Span.make start endp, msg))
+let fail_parse span msg = raise (Parse_failure (span, msg))
 
-let span = function | span, tok -> span
-let token = function | span, tok -> tok
+let get_span = function | span, tok -> span
+let get_token = function | span, tok -> tok
+let get_some opt =
+  match opt with
+  | Some x -> x
+  | None -> raise (Failure "Called get_some on None")
 
 module Token = struct
   type t = Span.t * token_type [@@deriving show {with_path=false}, ord, eq]
@@ -41,7 +44,14 @@ module Token = struct
     | R0
     | R1
     | R2
-    | R3 [@@deriving show {with_path=false}, ord, eq]
+    | R3
+    | EOF [@@deriving show {with_path=false}, ord, eq]
+
+  let precedence token =
+    match get_token token with
+    | Plus | Minus -> 1
+    | Times | Divide -> 2
+    | _ -> raise (Failure "Not an operator")
 
   let starts_with str prefix =
     if (String.length str) >= (String.length prefix) then
@@ -61,6 +71,7 @@ module Token = struct
     | s when starts_with str "%" ->
        Number (Scanf.sscanf ("0b" ^ (sub s)) "%i" (fun x -> x))
     | _ -> Number (int_of_string str)
+  let eof str = EOF
 
   let indirection_mode str =
     let num = String.sub str 2 1 in
@@ -109,11 +120,12 @@ module Token = struct
     | R1 -> "@R1"
     | R2 -> "@R2"
     | R3 -> "@R3"
+    | EOF -> "<EOF>"
 
   let to_string tok =
     Printf.sprintf "%s:%s"
-      (Span.to_string (span tok))
-      (string_of_token_type (token tok))
+      (Span.to_string (get_span tok))
+      (string_of_token_type (get_token tok))
 end
 
 module Lexer : sig
@@ -168,16 +180,150 @@ end = struct
     | identifier -> Some (read Token.name)
     | hex_num | bin_num | dec_num -> Some (read Token.number)
     | '.', identifier -> Some (read Token.directive)
-    | eof -> None
+    | eof -> Some (read Token.eof)
     | _ -> fail_lex lexer.loc "Unexpected character"
 
   let tokens str =
     let lexer = from_string str in
-    Stream.from (fun _ -> token lexer)
+    let seen_eof = ref false in
+    let next _ =
+      let result = token lexer in
+      match result with
+      | Some tok ->
+         if Token.equal_token_type (get_token tok) Token.EOF then
+           (if !seen_eof then
+              None
+            else
+              (seen_eof := true;
+               result))
+         else
+           result
+      | None -> None in
+    Stream.from next
 end
 
 module Parser = struct
   let stmt span1 span2 s =
     { S.pos = Position.Span (Span.merge span1 span2); stmt = s }
+
+  let drop1 tokens = ignore (Stream.next tokens)
+  let dropn n tokens =
+    let current = ref 0 in
+    while !current < n do
+      ignore (Stream.next tokens);
+      current := !current + 1
+    done
+
+  let do_match token_type tokens =
+    let tok: Token.t option = Stream.peek tokens in
+    match tok with
+    | Some t when Token.equal_token_type token_type (get_token t) -> ()
+    | Some t when Token.equal_token_type Token.EOF (get_token t) ->
+       fail_parse (get_span t) "Unexpected EOF"
+    | Some t -> fail_parse (get_span t) "Unexpected token"
+    | None -> raise (Failure "Unexpected EOF")
+
+  let is_binary tok =
+    let tok_type = match tok with
+      | Some t -> Some (get_token t)
+      | _ -> None in
+    match tok_type with
+    | Some Token.Plus
+      | Some Token.Times
+      | Some Token.Minus
+      | Some Token.Divide -> true
+    | _ -> false
+
+  module ExprParser = struct
+    let rec expression tokens =
+    and term tokens =
+    and product tokens =
+      let tok = Stream.peek tokens in
+      match tok with
+      | Some tok ->
+         (match get_token tok with
+          | Token.LeftParen ->
+             (let result = expression tokens in
+              do_match Token.RightParen tokens;
+              dropn 3 tokens;
+              result)
+          | Token.Number n ->
+             (drop1 tokens;
+              Some (E.(from (get_span tok) (Number n))))
+          | Token.Name n ->
+             (drop1 tokens;
+              Some (E.(from (get_span tok) (Name n)))))
+      | None -> raise (Failure "Unexpected EOF")
+  end
+
+  let rec parse_expr tokens precedence =
+    let expr = parse_basic tokens in
+    match expr with
+    | Some exp ->
+       let tok = Stream.peek tokens in
+       if is_binary tok then
+         parse_binary exp tokens precedence
+       else
+         expr
+    | None -> None
+  and parse_basic tokens =
+    match Stream.peek tokens with
+    | Some tok ->
+       (match get_token tok with
+        | Token.LeftParen ->
+           (let result = parse_expr tokens 3 in
+            do_match Token.RightParen tokens;
+            dropn 3 tokens;
+            result)
+        | Token.Number n ->
+           (drop1 tokens;
+            Some (E.(from (get_span tok) (Number n))))
+        | Token.Name n ->
+           (drop1 tokens;
+            Some (E.(from (get_span tok) (Name n)))))
+    | None -> None
+  and parse_binary left tokens precedence =
+    Printf.printf "parse_binary [%s] _ %d" (Expression.to_string left) precedence;
+    print_newline ();
+    let tok = get_some (Stream.peek tokens) in
+    let new_prec = (Token.precedence tok) in
+    if new_prec <= precedence then
+      (drop1 tokens;
+       let right = get_some (parse_basic tokens) in
+       let nspan = Span.merge
+                     (Expression.span left)
+                     (Expression.span right) in
+       let expr = match get_token tok with
+         | Token.Plus ->
+            (Some E.(from nspan (Plus (left, right))))
+         | Token.Minus ->
+            (Some E.(from nspan (Minus (left, right))))
+         | Token.Times ->
+            (Some E.(from nspan (Times (left, right))))
+         | Token.Divide ->
+            (Some E.(from nspan (Divide (left, right)))) in
+       match expr with
+       | Some exp ->
+          let tok = Stream.peek tokens in
+          if is_binary tok then
+            parse_binary exp tokens new_prec
+          else
+            expr
+       | None -> None)
+    else
+      (drop1 tokens;
+       let right = get_some (parse_expr tokens new_prec) in
+       let nspan = Span.merge
+                     (Expression.span left)
+                     (Expression.span right) in
+       match get_token tok with
+       | Token.Plus ->
+          (Some E.(from nspan (Plus (left, right))))
+       | Token.Minus ->
+          (Some E.(from nspan (Minus (left, right))))
+       | Token.Times ->
+          (Some E.(from nspan (Times (left, right))))
+       | Token.Divide ->
+          (Some E.(from nspan (Divide (left, right)))))
 end
 

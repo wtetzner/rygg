@@ -102,6 +102,13 @@ module Expression = struct
   let var name = { pos = Position.No_position; expr = Name name }
   let upper expr = { pos = Position.No_position; expr = UpperByte expr }
   let lower expr = { pos = Position.No_position; expr = LowerByte expr }
+
+  let from span expr_type = { pos = Position.Span span; expr = expr_type }
+
+  let span expr =
+    match expr.pos with
+    | Position.Span span -> span
+    | _ -> raise (Failure "Position doesn't contain span")
 end
 
 module IndirectionMode = struct

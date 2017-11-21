@@ -12,9 +12,24 @@ let write_bytes_to_file file bytes =
 let load_string filename =
   In_channel.with_file filename ~f:(fun f -> In_channel.input_all f)
 
+let parse_expr str =
+  Printf.printf "parsing \"%s\"" str;
+  print_newline ();
+    let parsed = Vmu.Asm.Parser.Parser.parse_expr (Vmu.Asm.Parser.Lexer.tokens str) 3 in
+    match parsed with
+    | Some expr -> Printf.printf "expression \"%s\" parsed to: %s\n" str (Vmu.Asm.Expression.to_string expr)
+    | None -> Printf.printf "Failed to parse expression: %s\n" str
+
 let assemble input_file output_file =
   try
     ANSITerminal.(print_string [red] "cool\n");
+
+    parse_expr "name ((4))";
+    parse_expr "2 + 3";
+    parse_expr "2 + 3 * 7";
+    parse_expr "2 + 3 - 7 + 5";
+    parse_expr "2 + 3 * 7 + 4";
+    parse_expr "2 + 3 + (4 - 5)";
 
     let input_text = load_string input_file in
     let tokens = Vmu.Asm.Parser.Lexer.tokens input_text in

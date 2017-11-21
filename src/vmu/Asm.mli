@@ -22,6 +22,8 @@ module Expression : sig
     | UpperByte of t
     | LowerByte of t
 
+  val span : t -> Span.t
+
   val (+): t -> t -> t
   val (-): t -> t -> t
   val ( * ): t -> t -> t
@@ -32,6 +34,8 @@ module Expression : sig
   val lower: t -> t
 
   val eval : t -> Environment.t -> int
+
+  val from : Span.t -> expr_type -> t
 
   val to_string : t -> string
 end
