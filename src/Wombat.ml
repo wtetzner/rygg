@@ -15,21 +15,33 @@ let load_string filename =
 let parse_expr str =
   Printf.printf "parsing \"%s\"" str;
   print_newline ();
-    let parsed = Vmu.Asm.Parser.Parser.parse_expr (Vmu.Asm.Parser.Lexer.tokens str) 3 in
-    match parsed with
-    | Some expr -> Printf.printf "expression \"%s\" parsed to: %s\n" str (Vmu.Asm.Expression.to_string expr)
-    | None -> Printf.printf "Failed to parse expression: %s\n" str
+    let parsed = Vmu.Asm.Parser.Parser.expression (Vmu.Asm.Parser.Lexer.tokens str) in
+    Printf.printf "expression \"%s\" parsed to: %s\n" str (Vmu.Asm.Expression.to_string parsed)
+
+let parse_statement str =
+  Printf.printf "parsing statement \"%s\"" str;
+  print_newline ();
+  let parsed = Vmu.Asm.Parser.Parser.instruction (Vmu.Asm.Parser.Lexer.tokens str) in
+  Printf.printf "statement \"%s\" parsed to: %s\n" str (Vmu.Asm.Statement.to_string parsed)
+
 
 let assemble input_file output_file =
   try
     ANSITerminal.(print_string [red] "cool\n");
 
-    parse_expr "name ((4))";
+    parse_expr ">>2 + name * ((4)) + 4";
     parse_expr "2 + 3";
     parse_expr "2 + 3 * 7";
     parse_expr "2 + 3 - 7 + 5";
     parse_expr "2 + 3 * 7 + 4";
     parse_expr "2 + 3 + (4 - 5)";
+
+    parse_statement "add #45 * 3";
+    parse_statement "add 7 * 6 + 4";
+    parse_statement "bp 34, 45, >32";
+    parse_statement "mov #34, $75";
+    parse_statement "mOv #34, @r2";
+    parse_statement "add @r3";
 
     let input_text = load_string input_file in
     let tokens = Vmu.Asm.Parser.Lexer.tokens input_text in
