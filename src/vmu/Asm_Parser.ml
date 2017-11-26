@@ -10,6 +10,8 @@ module I = Instruction
 
 module Location = Span.Location
 
+module Files = Compiler.Files
+
 exception Lexer_failure of Location.t * string
 exception Parse_failure of Span.t * string
 
@@ -652,15 +654,12 @@ module Parser = struct
   let statements tokens = Stream.from (fun _ -> statement tokens)
 end
 
-let print_error pos msg text =
-  Compiler.Message.(print_msgln Error pos msg text)
+let print_error pos msg files =
+  Compiler.Message.(print_msgln Error pos msg files)
 
 let parse filename text =
     let tokens = Lexer.tokens filename text in
     Parser.statements tokens
-
-let load_string filename =
-  In_channel.with_file filename ~f:(fun f -> In_channel.input_all f)
 
 let write_bytes_to_file file bytes =
   Out_channel.with_file file ~f:(fun f -> Out_channel.output_string f bytes);
@@ -672,16 +671,17 @@ let list_of_stream stream =
   List.rev !result
 
 let assemble filename output =
-  let text = load_string filename in
+  let files = Files.empty in
+  let text = Files.get files filename in
   try
     let statements = list_of_stream (parse filename text) in
     let bytes = Asm.assemble statements in
     write_bytes_to_file output bytes
   with
-  | Asm.Asm_failure (pos,msg) -> print_error pos msg text
+  | Asm.Asm_failure (pos,msg) -> print_error pos msg files
   | Lexer_failure (loc, msg) ->
      let pos = Compiler.Position.Location loc in
-     print_error pos msg text
+     print_error pos msg files
   | Parse_failure (span, msg) ->
      let pos = Compiler.Position.Span span in
-     print_error pos msg text
+     print_error pos msg files

@@ -1,5 +1,4 @@
 
-
 module Env = Env
 module Span = Span
 module Location = Span.Location
@@ -34,6 +33,29 @@ end = struct
     | other, No_position -> other
 end
 
+module FileMap = Map.Make(String)
+
+module Files : sig
+  type t = (string FileMap.t) ref
+  val empty : t
+  val get : t -> string -> string
+end = struct
+  type t = (string FileMap.t) ref
+  let empty = ref FileMap.empty
+
+  let load_string filename =
+    Core.In_channel.with_file
+      filename ~f:(fun f -> Core.In_channel.input_all f)
+
+  let get files name =
+    if FileMap.mem name !files then
+      FileMap.find name !files
+    else
+      let text = load_string name in
+      files := FileMap.add name text !files;
+      text
+end
+
 module Message : sig
   type tag =
     | None
@@ -44,9 +66,9 @@ module Message : sig
 
   val print_pos : Position.t -> unit
 
-  val print_msg : tag -> Position.t -> string -> string -> unit
+  val print_msg : tag -> Position.t -> string -> Files.t -> unit
 
-  val print_msgln : tag -> Position.t -> string -> string -> unit
+  val print_msgln : tag -> Position.t -> string -> Files.t -> unit
 end = struct
   type tag =
     | None
@@ -168,7 +190,7 @@ end = struct
       current := !current + 1
     done
 
-  let print_msg tag pos msg text =
+  let print_msg tag pos msg files =
     if tag_exists tag then
       (print_tag tag;
        print_string " ")
@@ -183,17 +205,19 @@ end = struct
     (match pos with
      | Position.Location loc ->
         let line = Location.line loc in
+        let text = Files.get files (Location.source loc) in
         Printf.printf "\n  %s\n" (get_some (lookup_line text line));
         print_caret ((Location.column loc) + 2)
      | Position.Span span ->
         let line = Location.line span.Span.start_pos in
+        let text = Files.get files (Location.source span.Span.start_pos) in
         Printf.printf "\n  %s\n" (get_some (lookup_line text line));
         let start = Location.column span.Span.start_pos in
         let endp = Location.column span.Span.end_pos in
         print_span (start + 2) (endp - start)
      | _ -> ())
 
-  let print_msgln tag pos msg text =
-    print_msg tag pos msg text;
+  let print_msgln tag pos msg files =
+    print_msg tag pos msg files;
     print_newline ()
 end
