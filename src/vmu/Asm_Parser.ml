@@ -39,6 +39,12 @@ let starts_with str prefix =
   else
     false
 
+let maybe_get str pos =
+  if pos >= 0 && pos < (String.length str) then
+    Some (String.get str pos)
+  else
+    None
+
 module Token = struct
   type t = Span.t * token_type [@@deriving show {with_path=false}, ord, eq]
   and token_type =
@@ -49,7 +55,6 @@ module Token = struct
     | Colon
     | Name of string
     | Number of int
-    | Directive of string
     | Equals
     | Plus
     | Times
@@ -64,9 +69,37 @@ module Token = struct
     | R3
     | EOF [@@deriving show {with_path=false}, ord, eq]
 
-  let str str = String str
+  let clean_str str =
+    let inner = String.sub str 1 ((String.length str) - 2) in
+    let len = String.length inner in
+    let result = Buffer.create 16 in
+    let pos = ref 0 in
+    while !pos < len do
+      let chr = String.get inner !pos in
+      let next = maybe_get inner (!pos + 1) in
+      if chr = '\\' then
+        match next with
+        | Some next ->
+           let append = (match next with
+                         | 'r' -> '\r'
+                         | 'n' -> '\n'
+                         | 't' -> '\t'
+                         | 'b' -> '\b'
+                         | c -> c) in
+           (Buffer.add_char result append;
+            pos := !pos + 2)
+        | None ->
+           (Buffer.add_char result chr;
+            pos := !pos + 1)
+      else
+        (Buffer.add_char result chr;
+         pos := !pos + 1)
+    done;
+    Buffer.contents result
+
+  let str str = String (clean_str str)
   let name str = Name (String.lowercase_ascii str)
-  let directive str = Directive (String.lowercase_ascii str)
+  let directive str = Name (String.lowercase_ascii str)
   let number str =
     let sub s = String.sub s 1 ((String.length s) - 1) in
     match str with
@@ -111,7 +144,6 @@ module Token = struct
     | Colon -> "Colon[:]"
     | Name name -> Printf.sprintf "Name[%s]" name
     | Number num -> Printf.sprintf "Number[%d]" num
-    | Directive dir -> Printf.sprintf "Directive[%s]" dir
     | Equals -> "Equals[=]"
     | Plus -> "Plus[+]"
     | Times -> "Times[*]"
@@ -187,7 +219,25 @@ end = struct
     | eof -> Some (read Token.eof)
     | _ -> fail_lex lexer.loc "Unexpected character"
 
+  let replace_asterisks str =
+    let pos = ref 0 in
+    let len = String.length str in
+    let buffer = Buffer.create len in
+    while !pos < len do
+      let chr = String.get str !pos in
+      let next = maybe_get str (!pos + 1) in
+      match chr, next with
+      | '\n', Some '*' ->
+         (Buffer.add_string buffer "\n;";
+          pos := !pos + 2)
+      | _, _ ->
+         (Buffer.add_char buffer chr;
+          pos := !pos + 1)
+    done;
+    Buffer.contents buffer
+
   let tokens name str =
+    let str = replace_asterisks str in
     let lexer = from_string name str in
     let eof = ref None in
     let next _ =
@@ -297,6 +347,7 @@ module Parser = struct
 
   let indirection_mode tokens =
     let tok = peek tokens in
+    drop1 tokens;
     match get_token tok with
     | Token.R0 -> IndirectionMode.R0
     | Token.R1 -> IndirectionMode.R1
@@ -456,6 +507,12 @@ module Parser = struct
         let instr = S.Instruction (constr_i8 expr1 expr2) in
         stmt (get_span name) (E.span expr2) instr)
 
+  let match_single tokens value =
+    let tok = peek tokens in
+    let span = (get_span tok) in
+    drop1 tokens;
+    stmt span span value
+
   let instruction tokens =
       let tok = peek tokens in
       let make expr instr =
@@ -485,8 +542,8 @@ module Parser = struct
           | "dec" -> match_single_2 tokens
                        (fun e -> I.Inc_d9 e)
                        (fun e -> I.Inc_Ri e)
-          | "mul" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Mul)
-          | "div" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Div)
+          | "mul" -> match_single tokens (S.Instruction I.Mul)
+          | "div" -> match_single tokens (S.Instruction I.Div)
           | "and" -> match_single_3 tokens
                        (fun e -> I.And_i8 e)
                        (fun e -> I.And_d9 e)
@@ -499,10 +556,10 @@ module Parser = struct
                        (fun e -> I.Xor_i8 e)
                        (fun e -> I.Xor_d9 e)
                        (fun e -> I.Xor_Ri e)
-          | "rol" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Rol)
-          | "rolc" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Rolc)
-          | "ror" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Ror)
-          | "rorc" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Rorc)
+          | "rol" -> match_single tokens (S.Instruction I.Rol)
+          | "rolc" -> match_single tokens (S.Instruction I.Rolc)
+          | "ror" -> match_single tokens (S.Instruction I.Ror)
+          | "rorc" -> match_single tokens (S.Instruction I.Rorc)
           | "ld" -> match_single_2 tokens
                       (fun e -> I.Ld_d9 e)
                       (fun e -> I.Ld_Ri e)
@@ -512,7 +569,7 @@ module Parser = struct
           | "mov" -> match_move tokens
                        (fun e1 e2 -> I.Mov_d9 (e1, e2))
                        (fun e1 e2 -> I.Mov_Rj (e1, e2))
-          | "ldc" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Ldc)
+          | "ldc" -> match_single tokens (S.Instruction I.Ldc)
           | "push" -> match_single_expr tokens (fun e -> I.Push e)
           | "pop" -> match_single_expr tokens (fun e -> I.Pop e)
           | "xch" -> match_single_2 tokens
@@ -541,13 +598,13 @@ module Parser = struct
           | "call" -> match_single_expr tokens (fun e -> I.Call e)
           | "callf" -> match_single_expr tokens (fun e -> I.Callf e)
           | "callr"-> match_single_expr tokens (fun e -> I.Callr e)
-          | "ret" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Ret)
-          | "reti" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Reti)
+          | "ret" -> match_single tokens (S.Instruction I.Ret)
+          | "reti" -> match_single tokens (S.Instruction I.Reti)
           | "clr1" -> match_double_expr tokens (fun e1 e2 -> I.Clr1 (e1, e2))
           | "set1" -> match_double_expr tokens (fun e1 e2 -> I.Set1 (e1, e2))
           | "not1" -> match_double_expr tokens (fun e1 e2 -> I.Not1 (e1, e2))
-          | "nop" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Nop)
-
+          | "nop" -> match_single tokens (S.Instruction I.Nop)
+          | _ -> fail_parse (get_span tok) "Unknown Instruction"
         end
       | Token.EOF -> fail_parse (get_span tok) "Unexpected EOF"
       | _ -> fail_parse (get_span tok) "Expected Instruction"
@@ -571,7 +628,7 @@ module Parser = struct
 
   let directive tokens =
     let name_tok = peek tokens in
-    let Token.Directive name = get_token name_tok in
+    let Token.Name name = get_token name_tok in
     drop1 tokens;
     match name with
     | ".byte" ->
@@ -601,8 +658,8 @@ module Parser = struct
         stmt (get_span name_tok) (get_span name_tok) word)
     | ".cnop" ->
        (let expr1 = expression tokens in
-        let expr2 = expression tokens in
         do_match Token.Comma tokens;
+        let expr2 = expression tokens in
         let cnop = S.Directive (D.Cnop (expr1, expr2)) in
         stmt (get_span name_tok) (E.span expr2) cnop)
     | _ -> fail_parse (get_span name_tok) "Unknown Directive"
@@ -640,26 +697,50 @@ module Parser = struct
         stmt (get_span tok) (E.span expr) var)
     | _ -> fail_parse (get_span tok) "Expected Alias"
 
-  let statement tokens =
+  let stream_concat streams =
+    let current_stream = ref None in
+    let rec next i =
+      try
+        let stream =
+          match !current_stream with
+          | Some stream -> stream
+          | None ->
+             let stream = Stream.next streams in
+             current_stream := Some stream;
+             stream in
+        try Some (Stream.next stream)
+        with Stream.Failure -> (current_stream := None; next i)
+      with Stream.Failure -> None in
+    Stream.from next
+
+  let single_stream item =
+    Stream.from (fun idx -> if idx = 0 then Some item else None)
+
+  let rec statement files inc_dir tokens =
     let tok1 :: tok2 :: rest = npeek 2 tokens in
     match (get_token tok1), (get_token tok2) with
-    | Token.Directive name, _ -> Some (directive tokens)
-    | Token.Name _, Token.Equals -> Some (variable tokens)
-    | Token.Name _, Token.Name "equ" -> Some (alias tokens)
-    | Token.Name _, Token.Colon -> Some (label tokens)
-    | Token.Name _, _ -> Some (instruction tokens)
+    | Token.Name ".include", Token.String file ->
+       (dropn 2 tokens;
+        let path = inc_dir ^ "/" ^ file in
+        let text = Files.get files path in
+        Some (parse files inc_dir path text))
+    | Token.Name _, Token.Colon -> Some (single_stream (label tokens))
+    | Token.Name name, _ when starts_with name "." ->
+       Some (single_stream (directive tokens))
+    | Token.Name _, Token.Equals -> Some (single_stream (variable tokens))
+    | Token.Name _, Token.Name "equ" -> Some (single_stream (alias tokens))
+    | Token.Name _, _ -> Some (single_stream (instruction tokens))
     | Token.EOF, _ -> None
     | _ -> fail_parse (get_span tok1) "Unexpected Token"
-
-  let statements tokens = Stream.from (fun _ -> statement tokens)
+  and parse files inc_dir filename text =
+    let tokens = Lexer.tokens filename text in
+    statements files inc_dir tokens
+  and statements files inc_dir tokens =
+    stream_concat (Stream.from (fun _ -> statement files inc_dir tokens))
 end
 
 let print_error pos msg files =
   Compiler.Message.(print_msgln Error pos msg files)
-
-let parse filename text =
-    let tokens = Lexer.tokens filename text in
-    Parser.statements tokens
 
 let write_bytes_to_file file bytes =
   Out_channel.with_file file ~f:(fun f -> Out_channel.output_string f bytes);
@@ -670,11 +751,12 @@ let list_of_stream stream =
   Stream.iter (fun value -> result := value :: !result) stream;
   List.rev !result
 
-let assemble filename output =
+let assemble filename inc_dir output =
   let files = Files.empty in
   let text = Files.get files filename in
   try
-    let statements = list_of_stream (parse filename text) in
+    let statements = list_of_stream (Parser.parse files inc_dir filename text) in
+    List.iter (fun s -> print_endline (S.to_string s)) statements;
     let bytes = Asm.assemble statements in
     write_bytes_to_file output bytes
   with

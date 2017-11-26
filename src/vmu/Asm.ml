@@ -711,9 +711,9 @@ module Statement = struct
   let comment str = { pos = Position.No_position; stmt = Comment str }
 end
 
-let add_name env name value =
+let add_name env name value pos =
   if Environment.contains !env name then
-    fail No_position (Printf.sprintf "Name '%s' already exists" name)
+    fail pos (Printf.sprintf "Name '%s' already exists" name)
   else
     env := Environment.with_name !env name value
 
@@ -744,14 +744,14 @@ let compute_names statements =
                      done;
                      pos := !mult + !add
                  )
-              | S.Label name -> add_name names name !pos
+              | S.Label name -> add_name names name !pos statement.S.pos
               | S.Instruction ins -> pos := !pos + (Instruction.size ins)
               | S.Variable (name, expr) ->
                  let value = Expression.eval expr !names in
-                 add_name names name value
+                 add_name names name value statement.S.pos
               | S.Alias (name, expr) ->
                  let value = Expression.eval expr !names in
-                 add_name names name value
+                 add_name names name value statement.S.pos
               | S.Comment _ -> ());
              if !max_pos < !pos then
                max_pos := !pos
