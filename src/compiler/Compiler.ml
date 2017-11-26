@@ -152,6 +152,14 @@ end = struct
     | Some x -> x
     | None -> raise (Failure "Called get_some on None")
 
+  let print_caret pos =
+    let current = ref 0 in
+    while !current < pos do
+      Printf.printf "%s" " ";
+      current := !current + 1
+    done;
+    ANSITerminal.(printf [magenta] "%s" "^")
+
   let print_msg tag pos msg text =
     if tag_exists tag then
       (print_tag tag;
@@ -167,10 +175,12 @@ end = struct
     (match pos with
      | Position.Location loc ->
         let line = Location.line loc in
-        Printf.printf "\n  %s\n" (get_some (lookup_line text line))
+        Printf.printf "\n  %s\n" (get_some (lookup_line text line));
+        print_caret ((Location.column loc) + 2)
      | Position.Span span ->
         let line = Location.line span.Span.start_pos in
-        Printf.printf "\n  %s\n" (get_some (lookup_line text line))
+        Printf.printf "\n  %s\n" (get_some (lookup_line text line));
+        print_caret ((Location.column span.Span.start_pos) + 2)
      | _ -> ())
 
   let print_msgln tag pos msg text =
