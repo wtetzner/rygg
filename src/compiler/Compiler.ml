@@ -160,6 +160,14 @@ end = struct
     done;
     ANSITerminal.(printf [magenta] "%s" "^")
 
+  let print_span pos len =
+    print_caret pos;
+    let current = ref 0 in
+    while !current < len - 1 do
+      ANSITerminal.(printf [magenta] "%s" "^");
+      current := !current + 1
+    done
+
   let print_msg tag pos msg text =
     if tag_exists tag then
       (print_tag tag;
@@ -180,7 +188,9 @@ end = struct
      | Position.Span span ->
         let line = Location.line span.Span.start_pos in
         Printf.printf "\n  %s\n" (get_some (lookup_line text line));
-        print_caret ((Location.column span.Span.start_pos) + 2)
+        let start = Location.column span.Span.start_pos in
+        let endp = Location.column span.Span.end_pos in
+        print_span (start + 2) (endp - start)
      | _ -> ())
 
   let print_msgln tag pos msg text =
