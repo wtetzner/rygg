@@ -1,4 +1,7 @@
 
+module Out_channel = Core.Out_channel
+module In_channel = Core.In_channel
+
 open Asm
 module S = Statement
 module D = Directive
@@ -21,6 +24,18 @@ let get_some opt =
   match opt with
   | Some x -> x
   | None -> raise (Failure "Called get_some on None")
+
+let is_some opt =
+  match opt with
+  | Some _ -> true
+  | None -> false
+
+let starts_with str prefix =
+  if (String.length str) >= (String.length prefix) then
+    let capture = String.sub str 0 (String.length prefix) in
+    String.equal capture prefix
+  else
+    false
 
 module Token = struct
   type t = Span.t * token_type [@@deriving show {with_path=false}, ord, eq]
@@ -46,19 +61,6 @@ module Token = struct
     | R2
     | R3
     | EOF [@@deriving show {with_path=false}, ord, eq]
-
-  let precedence token =
-    match get_token token with
-    | Plus | Minus -> 1
-    | Times | Divide -> 2
-    | _ -> raise (Failure "Not an operator")
-
-  let starts_with str prefix =
-    if (String.length str) >= (String.length prefix) then
-      let capture = String.sub str 0 (String.length prefix) in
-      String.equal capture prefix
-    else
-      false
 
   let str str = String str
   let name str = Name (String.lowercase_ascii str)
@@ -129,7 +131,7 @@ module Token = struct
 end
 
 module Lexer : sig
-  val tokens : string -> Token.t Stream.t
+  val tokens : string -> string -> Token.t Stream.t
 end = struct
   type t = {
       str: string;
@@ -137,10 +139,10 @@ end = struct
       mutable loc: Location.t
     }
 
-  let from_string str = {
+  let from_string name str = {
       str = str;
       lexbuf = Sedlexing.Utf8.from_string str;
-      loc = Location.empty
+      loc = Location.with_source Location.empty name
     }
 
   let read_lexeme lexer =
@@ -183,8 +185,8 @@ end = struct
     | eof -> Some (read Token.eof)
     | _ -> fail_lex lexer.loc "Unexpected character"
 
-  let tokens str =
-    let lexer = from_string str in
+  let tokens name str =
+    let lexer = from_string name str in
     let eof = ref None in
     let next _ =
       let result = token lexer in
@@ -384,7 +386,8 @@ module Parser = struct
     let expr1 = expression tokens in
     do_match Token.Comma tokens;
     let expr2 = expression tokens in
-    
+    let instr = S.Instruction (constr expr1 expr2) in
+    stmt (get_span name) (E.span expr2) instr
 
   let match_dbnz tokens constr_d9 constr_ri =
     let name = peek tokens in
@@ -424,92 +427,261 @@ module Parser = struct
        let instr = S.Instruction (constr_exp expr1 expr2) in
        stmt (get_span name) (E.span expr2) instr
 
-  let instruction tokens =
+  let match_be_bne tokens constr_i8 constr_d9 constr_im =
+    let name = peek tokens in
+    drop1 tokens;
     let tok = peek tokens in
-    let make expr instr =
-      stmt (get_span tok) (E.span expr) (S.Instruction instr) in
     match get_token tok with
-    | Token.Name name -> begin
-        match name with
-        | "add" -> match_single_3 tokens
-                     (fun e -> I.Add_i8 e)
-                     (fun e -> I.Add_d9 e)
-                     (fun e -> I.Add_Ri e)
-        | "addc" -> match_single_3 tokens
-                      (fun e -> I.Addc_i8 e)
-                      (fun e -> I.Addc_d9 e)
-                      (fun e -> I.Addc_Ri e)
-        | "sub" -> match_single_3 tokens
-                     (fun e -> I.Sub_i8 e)
-                     (fun e -> I.Sub_d9 e)
-                     (fun e -> I.Sub_Ri e)
-        | "subc" -> match_single_3 tokens
-                      (fun e -> I.Subc_i8 e)
-                      (fun e -> I.Subc_d9 e)
-                      (fun e -> I.Subc_Ri e)
-        | "inc" -> match_single_2 tokens
-                     (fun e -> I.Inc_d9 e)
-                     (fun e -> I.Inc_Ri e)
-        | "dec" -> match_single_2 tokens
-                     (fun e -> I.Inc_d9 e)
-                     (fun e -> I.Inc_Ri e)
-        | "mul" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Mul)
-        | "div" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Div)
-        | "and" -> match_single_3 tokens
-                     (fun e -> I.And_i8 e)
-                     (fun e -> I.And_d9 e)
-                     (fun e -> I.And_Ri e)
-        | "or" -> match_single_3 tokens
-                    (fun e -> I.Or_i8 e)
-                    (fun e -> I.Or_d9 e)
-                    (fun e -> I.Or_Ri e)
-        | "xor" -> match_single_3 tokens
-                     (fun e -> I.Xor_i8 e)
-                     (fun e -> I.Xor_d9 e)
-                     (fun e -> I.Xor_Ri e)
-        | "rol" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Rol)
-        | "rolc" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Rolc)
-        | "ror" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Ror)
-        | "rorc" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Rorc)
-        | "ld" -> match_single_2 tokens
-                    (fun e -> I.Ld_d9 e)
-                    (fun e -> I.Ld_Ri e)
-        | "st" -> match_single_2 tokens
-                    (fun e -> I.St_d9 e)
-                    (fun e -> I.St_Ri e)
-        | "mov" -> match_move tokens
-                     (fun e1 e2 -> I.Mov_d9 (e1, e2))
-                     (fun e1 e2 -> I.Mov_Rj (e1, e2))
-        | "ldc" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Ldc)
-        | "push" -> match_single_expr tokens (fun e -> I.Push e)
-        | "pop" -> match_single_expr tokens (fun e -> I.Pop e)
-        | "xch" -> match_single_2 tokens
-                     (fun e -> I.Xch_d9 e)
-                     (fun e -> I.Xch_Ri e)
-        | "jmp" -> match_single_expr tokens (fun e -> I.Jmp e)
-        | "jmpf" -> match_single_expr tokens (fun e -> I.Jmpf e)
-        | "br" -> match_single_expr tokens (fun e -> I.Br e)
-        | "brf" -> match_single_expr tokens (fun e -> I.Jmpf e)
-        | "bz" -> match_single_expr tokens (fun e -> I.Jmpf e)
-        | "bnz" -> match_single_expr tokens (fun e -> I.Jmpf e)
-        | "bp" -> match_triple_expr tokens (fun e1 e2 e3 -> I.Bp (e1, e2, e3))
-        | "bpc" -> match_triple_expr tokens (fun e1 e2 e3 -> I.Bpc (e1, e2, e3))
-        | "bn" -> match_triple_expr tokens (fun e1 e2 e3 -> I.Bn (e1, e2, e3))
-        | "dbnz" -> match_dbnz tokens
-                      (fun e1 e2 -> I.Dbnz_d9 (e1, e2))
-                      (fun e1 e2 -> I.Dbnz_ri (e1, e2))
-        (* TODO !!! Be and Bne *)
-        | "call" -> match_single_expr tokens (fun e -> E.Call e)
-        | "callf" -> match_single_expr tokens (fun e -> E.Callf e)
-        | "callr"-> match_single_expr tokens (fun e -> E.Callr e)
-        | "ret" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Ret)
-        | "reti" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Reti)
-
-      end
+    | Token.Hash ->
+       (let expr1 = i8 tokens in
+        do_match Token.Comma tokens;
+        let expr2 = expression tokens in
+        let instr = S.Instruction (constr_i8 expr1 expr2) in
+        stmt (get_span name) (E.span expr2) instr)
+    | Token.R0 | Token.R1 | Token.R2 | Token.R3 ->
+       (let indir = indirection_mode tokens in
+        do_match Token.Comma tokens;
+        let expr1 = i8 tokens in
+        do_match Token.Comma tokens;
+        let expr2 = expression tokens in
+        let instr = S.Instruction (constr_im indir expr1 expr2) in
+        stmt (get_span name) (E.span expr2) instr)
     | Token.EOF -> fail_parse (get_span tok) "Unexpected EOF"
-    | _ -> fail_parse (get_span tok) "Expected Instruction"
+    | _ ->
+       (let expr1 = expression tokens in
+        do_match Token.Comma tokens;
+        let expr2 = expression tokens in
+        let instr = S.Instruction (constr_i8 expr1 expr2) in
+        stmt (get_span name) (E.span expr2) instr)
+
+  let instruction tokens =
+      let tok = peek tokens in
+      let make expr instr =
+        stmt (get_span tok) (E.span expr) (S.Instruction instr) in
+      match get_token tok with
+      | Token.Name name -> begin
+          match name with
+          | "add" -> match_single_3 tokens
+                       (fun e -> I.Add_i8 e)
+                       (fun e -> I.Add_d9 e)
+                       (fun e -> I.Add_Ri e)
+          | "addc" -> match_single_3 tokens
+                        (fun e -> I.Addc_i8 e)
+                        (fun e -> I.Addc_d9 e)
+                        (fun e -> I.Addc_Ri e)
+          | "sub" -> match_single_3 tokens
+                       (fun e -> I.Sub_i8 e)
+                       (fun e -> I.Sub_d9 e)
+                       (fun e -> I.Sub_Ri e)
+          | "subc" -> match_single_3 tokens
+                        (fun e -> I.Subc_i8 e)
+                        (fun e -> I.Subc_d9 e)
+                        (fun e -> I.Subc_Ri e)
+          | "inc" -> match_single_2 tokens
+                       (fun e -> I.Inc_d9 e)
+                       (fun e -> I.Inc_Ri e)
+          | "dec" -> match_single_2 tokens
+                       (fun e -> I.Inc_d9 e)
+                       (fun e -> I.Inc_Ri e)
+          | "mul" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Mul)
+          | "div" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Div)
+          | "and" -> match_single_3 tokens
+                       (fun e -> I.And_i8 e)
+                       (fun e -> I.And_d9 e)
+                       (fun e -> I.And_Ri e)
+          | "or" -> match_single_3 tokens
+                      (fun e -> I.Or_i8 e)
+                      (fun e -> I.Or_d9 e)
+                      (fun e -> I.Or_Ri e)
+          | "xor" -> match_single_3 tokens
+                       (fun e -> I.Xor_i8 e)
+                       (fun e -> I.Xor_d9 e)
+                       (fun e -> I.Xor_Ri e)
+          | "rol" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Rol)
+          | "rolc" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Rolc)
+          | "ror" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Ror)
+          | "rorc" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Rorc)
+          | "ld" -> match_single_2 tokens
+                      (fun e -> I.Ld_d9 e)
+                      (fun e -> I.Ld_Ri e)
+          | "st" -> match_single_2 tokens
+                      (fun e -> I.St_d9 e)
+                      (fun e -> I.St_Ri e)
+          | "mov" -> match_move tokens
+                       (fun e1 e2 -> I.Mov_d9 (e1, e2))
+                       (fun e1 e2 -> I.Mov_Rj (e1, e2))
+          | "ldc" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Ldc)
+          | "push" -> match_single_expr tokens (fun e -> I.Push e)
+          | "pop" -> match_single_expr tokens (fun e -> I.Pop e)
+          | "xch" -> match_single_2 tokens
+                       (fun e -> I.Xch_d9 e)
+                       (fun e -> I.Xch_Ri e)
+          | "jmp" -> match_single_expr tokens (fun e -> I.Jmp e)
+          | "jmpf" -> match_single_expr tokens (fun e -> I.Jmpf e)
+          | "br" -> match_single_expr tokens (fun e -> I.Br e)
+          | "brf" -> match_single_expr tokens (fun e -> I.Jmpf e)
+          | "bz" -> match_single_expr tokens (fun e -> I.Jmpf e)
+          | "bnz" -> match_single_expr tokens (fun e -> I.Jmpf e)
+          | "bp" -> match_triple_expr tokens (fun e1 e2 e3 -> I.Bp (e1, e2, e3))
+          | "bpc" -> match_triple_expr tokens (fun e1 e2 e3 -> I.Bpc (e1, e2, e3))
+          | "bn" -> match_triple_expr tokens (fun e1 e2 e3 -> I.Bn (e1, e2, e3))
+          | "dbnz" -> match_dbnz tokens
+                        (fun e1 e2 -> I.Dbnz_d9 (e1, e2))
+                        (fun e1 e2 -> I.Dbnz_Ri (e1, e2))
+          | "be" -> match_be_bne tokens
+                      (fun e1 e2 -> I.Be_i8 (e1, e2))
+                      (fun e1 e2 -> I.Be_d9 (e1, e2))
+                      (fun e1 e2 e3 -> I.Be_Rj (e1, e2, e3))
+          | "bne" -> match_be_bne tokens
+                       (fun e1 e2 -> I.Bne_i8 (e1, e2))
+                       (fun e1 e2 -> I.Bne_d9 (e1, e2))
+                       (fun e1 e2 e3 -> I.Bne_Rj (e1, e2, e3))
+          | "call" -> match_single_expr tokens (fun e -> I.Call e)
+          | "callf" -> match_single_expr tokens (fun e -> I.Callf e)
+          | "callr"-> match_single_expr tokens (fun e -> I.Callr e)
+          | "ret" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Ret)
+          | "reti" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Reti)
+          | "clr1" -> match_double_expr tokens (fun e1 e2 -> I.Clr1 (e1, e2))
+          | "set1" -> match_double_expr tokens (fun e1 e2 -> I.Set1 (e1, e2))
+          | "not1" -> match_double_expr tokens (fun e1 e2 -> I.Not1 (e1, e2))
+          | "nop" -> stmt (get_span tok) (get_span tok) (S.Instruction I.Nop)
+
+        end
+      | Token.EOF -> fail_parse (get_span tok) "Unexpected EOF"
+      | _ -> fail_parse (get_span tok) "Expected Instruction"
+
+  let next_comma tokens =
+    let tok = peek tokens in
+    match get_token tok with
+    | Token.Comma -> (drop1 tokens; true)
+    | _ -> false
+
+  let expr_list tokens =
+    let expr1 = expression tokens in
+    let list = ref [expr1] in
+    let comma = ref (next_comma tokens) in
+    while !comma do
+      let expr = expression tokens in
+      list := expr :: !list;
+      comma := next_comma tokens
+    done;
+    List.rev !list
+
+  let directive tokens =
+    let name_tok = peek tokens in
+    let Token.Directive name = get_token name_tok in
+    drop1 tokens;
+    match name with
+    | ".byte" ->
+       (let tok = peek tokens in
+        match get_token tok with
+        | Token.String string ->
+           (drop1 tokens;
+            let bitstring = Bitstring.bitstring_of_string string in
+            let dir = S.Directive (D.ByteString bitstring) in
+            stmt (get_span name_tok) (get_span tok) dir)
+        | Token.EOF -> fail_parse (get_span tok) "Unexpected EOF"
+        | _ ->
+           (let exprs = expr_list tokens in
+            let dir = S.Directive (D.Byte exprs) in
+            stmt (get_span name_tok) (get_span tok) dir))
+    | ".org" ->
+       (let tok = peek tokens in
+        match get_token tok with
+        | Number num ->
+           drop1 tokens;
+           let org = S.Directive (D.Org num) in
+           stmt (get_span name_tok) (get_span tok) org
+        | _ -> fail_parse (get_span tok) "Expected Integer")
+    | ".word" ->
+       (let exprs = expr_list tokens in
+        let word = S.Directive (D.Word exprs) in
+        stmt (get_span name_tok) (get_span name_tok) word)
+    | ".cnop" ->
+       (let expr1 = expression tokens in
+        let expr2 = expression tokens in
+        do_match Token.Comma tokens;
+        let cnop = S.Directive (D.Cnop (expr1, expr2)) in
+        stmt (get_span name_tok) (E.span expr2) cnop)
+    | _ -> fail_parse (get_span name_tok) "Unknown Directive"
+
+  let label tokens =
+    let tok = peek tokens in
+    drop1 tokens;
+    match get_token tok with
+    | Token.Name name ->
+       (let colon = peek tokens in
+        do_match Token.Colon tokens;
+        let label = S.Label name in
+        stmt (get_span tok) (get_span colon) label)
+    | _ -> fail_parse (get_span tok) "Expected Label"
+
+  let variable tokens =
+    let tok = peek tokens in
+    drop1 tokens;
+    match get_token tok with
+    | Token.Name name ->
+       (do_match Token.Equals tokens;
+        let expr = expression tokens in
+        let var = S.Variable (name, expr) in
+        stmt (get_span tok) (E.span expr) var)
+    | _ -> fail_parse (get_span tok) "Expected Variable"
+
+  let alias tokens =
+    let tok = peek tokens in
+    drop1 tokens;
+    match get_token tok with
+    | Token.Name name ->
+       (do_match (Token.Name "equ") tokens;
+        let expr = expression tokens in
+        let var = S.Variable (name, expr) in
+        stmt (get_span tok) (E.span expr) var)
+    | _ -> fail_parse (get_span tok) "Expected Alias"
 
   let statement tokens =
-    ()
+    let tok1 :: tok2 :: rest = npeek 2 tokens in
+    match (get_token tok1), (get_token tok2) with
+    | Token.Directive name, _ -> Some (directive tokens)
+    | Token.Name _, Token.Equals -> Some (variable tokens)
+    | Token.Name _, Token.Name "equ" -> Some (alias tokens)
+    | Token.Name _, Token.Colon -> Some (label tokens)
+    | Token.Name _, _ -> Some (instruction tokens)
+    | Token.EOF, _ -> None
+    | _ -> fail_parse (get_span tok1) "Unexpected Token"
+
+  let statements tokens = Stream.from (fun _ -> statement tokens)
 end
 
+let print_error pos msg text =
+  Compiler.Message.(print_msgln Error pos msg text)
+
+let parse filename text =
+    let tokens = Lexer.tokens filename text in
+    Parser.statements tokens
+
+let load_string filename =
+  In_channel.with_file filename ~f:(fun f -> In_channel.input_all f)
+
+let write_bytes_to_file file bytes =
+  Out_channel.with_file file ~f:(fun f -> Out_channel.output_string f bytes);
+  ()
+
+let list_of_stream stream =
+  let result = ref [] in
+  Stream.iter (fun value -> result := value :: !result) stream;
+  List.rev !result
+
+let assemble filename output =
+  let text = load_string filename in
+  try
+    let statements = list_of_stream (parse filename text) in
+    let bytes = Asm.assemble statements in
+    write_bytes_to_file output bytes
+  with
+  | Asm.Asm_failure (pos,msg) -> print_error pos msg text
+  | Lexer_failure (loc, msg) ->
+     let pos = Compiler.Position.Location loc in
+     print_error pos msg text
+  | Parse_failure (span, msg) ->
+     let pos = Compiler.Position.Span span in
+     print_error pos msg text

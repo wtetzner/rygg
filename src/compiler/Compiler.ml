@@ -2,6 +2,7 @@
 
 module Env = Env
 module Span = Span
+module Location = Span.Location
 
 module Position : sig
   type t =
@@ -43,9 +44,9 @@ module Message : sig
 
   val print_pos : Position.t -> unit
 
-  val print_msg : tag -> Position.t -> string -> unit
+  val print_msg : tag -> Position.t -> string -> string -> unit
 
-  val print_msgln : tag -> Position.t -> string -> unit
+  val print_msgln : tag -> Position.t -> string -> string -> unit
 end = struct
   type tag =
     | None
@@ -102,7 +103,56 @@ end = struct
          )
     | No_position -> ()
 
-  let print_msg tag pos msg =
+  let lookup_line_start text line =
+    let len = String.length text in
+    let current = ref 1 in
+    let pos = ref 0 in
+    while !pos < len && !current < line do
+      let chr = String.get text !pos in
+      match chr with
+      | '\n' -> (pos := !pos + 1; current := !current + 1)
+      | '\r' ->
+         if !pos < len - 1 && String.get text (!pos + 1) = '\n' then
+           (current := !current + 1; pos := !pos + 2)
+         else
+           (pos := !pos + 1)
+      | _ -> (pos := !pos + 1)
+    done;
+    if !current = line then
+      Some !pos
+    else
+      None
+
+  let is_newline text pos =
+    let len = String.length text in
+    let chr = String.get text pos in
+    match chr with
+    | '\n' -> true
+    | '\r' ->
+       if pos < len - 1 && String.get text (pos + 1) = '\n' then
+         true
+       else
+         false
+    | _ -> false
+
+  let lookup_line text line =
+    let start = lookup_line_start text line in
+    match start with
+    | Some start ->
+       (let len = String.length text in
+        let line_len = ref 0 in
+        while not (is_newline text (start + !line_len)) do
+          line_len := !line_len + 1
+        done;
+        Some (String.sub text start !line_len))
+    | None -> None
+
+  let get_some opt =
+    match opt with
+    | Some x -> x
+    | None -> raise (Failure "Called get_some on None")
+
+  let print_msg tag pos msg text =
     if tag_exists tag then
       (print_tag tag;
        print_string " ")
@@ -113,9 +163,17 @@ end = struct
        print_string " ")
     else
       ();
-    print_string msg
+    print_string msg;
+    (match pos with
+     | Position.Location loc ->
+        let line = Location.line loc in
+        Printf.printf "\n  %s\n" (get_some (lookup_line text line))
+     | Position.Span span ->
+        let line = Location.line span.Span.start_pos in
+        Printf.printf "\n  %s\n" (get_some (lookup_line text line))
+     | _ -> ())
 
-  let print_msgln tag pos msg =
-    print_msg tag pos msg;
+  let print_msgln tag pos msg text =
+    print_msg tag pos msg text;
     print_newline ()
 end
