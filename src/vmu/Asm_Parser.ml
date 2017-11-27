@@ -195,7 +195,7 @@ end = struct
   let hex_num = [%sedlex.regexp? "$", Plus ascii_hex_digit ]
   let bin_num = [%sedlex.regexp? "%", Plus ('0' | '1') ]
   let dec_num = [%sedlex.regexp? Plus ('0'..'9') ]
-  let string_re = [%sedlex.regexp? "\"", Star ("\\\\" | "\\\"" | Compl ('"' | '\\')), "\"" ]
+  let string_re = [%sedlex.regexp? "\"", Star (("\\", any) | Compl ('"' | '\\')), "\"" ]
   let comment = [%sedlex.regexp? ";", Star (('\r' | Compl '\n') | (Compl (eof | '\n' | "\r"))) ]
 
   let token lexer =
