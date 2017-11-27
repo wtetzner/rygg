@@ -230,7 +230,13 @@ module Instruction = struct
     let encode instr pos env =
       let eval expr = Expression.eval expr env in
       let idx ri = IndirectionMode.index ri in
-      let rel expr = (eval expr) - pos in
+      let rel expr =
+        let value = (eval expr) - pos in
+        if value >= -128 && value <= 127 then
+          value land 0xFF
+        else
+          value
+         in
       match instr with
       | Add_i8 i8 -> [%bitstring {| 0b10000001 : 8; eval i8 : 8 |}]
       | Add_d9 d9 -> [%bitstring {| 0b1000001 : 7; eval d9 : 9 |}]
@@ -315,7 +321,7 @@ module Instruction = struct
                    true : 1;
                    rest : 11 : bitstring
                |}]))
-      | Jmpf a16 -> [%bitstring {| eval a16 : 16 |}]
+      | Jmpf a16 -> [%bitstring {| 0b00100001 : 8; eval a16 : 16 |}]
 
       | Br r8 -> [%bitstring {| 0b00000001 : 8; rel r8 : 8 |}]
       | Brf r16 -> [%bitstring {| 0b00010001 : 8; rel r16 : 16 : littleendian |}]
@@ -327,6 +333,7 @@ module Instruction = struct
              [%bitstring {|
                  0b011 : 3;
                  d8 : 1;
+                 true : 1;
                  eval b3 : 3;
                  d9rest : 8 : bitstring;
                  rel r8 : 8
@@ -347,6 +354,7 @@ module Instruction = struct
              [%bitstring {|
                  0b100 : 3;
                  d8 : 1;
+                 true : 1;
                  eval b3 : 3;
                  d9rest : 8 : bitstring;
                  rel r8 : 8
@@ -396,13 +404,14 @@ module Instruction = struct
 
       | Call a12 -> (
         let value: int = eval a12 in
+        Printf.printf "%02x (%d)\n" value value;
         let value_top_bits = value land 0b1111000000000000 in
         let pos_top_bits = pos land 0b1111000000000000 in
         if value_top_bits != pos_top_bits then
           fail a12.pos (Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos)
         else
-          (match%bitstring ([%bitstring {| value : 12|}]) with
-           | {| a11 : 1; rest : 11 : bitstring |} ->
+          (match%bitstring ([%bitstring {| value : 16|}]) with
+           | {| _ : 4; a11 : 1; rest : 11 : bitstring |} ->
               [%bitstring {|
                   0b000 : 3;
                   a11 : 1;
@@ -806,8 +815,11 @@ let generate_bytes statements names output =
                 let next_pos = !pos + (I.size instr) in
                 let bytes = I.encode instr next_pos names in
                 let str = Bitstring.string_of_bitstring bytes in
+                Printf.printf "%07x %s -> " !pos (I.to_string instr);
+                String.iter (fun b -> Printf.printf "%02x" (int_of_char b)) str;
+                print_newline ();
                 String.iter (fun b ->
-                             Bytes.set output !pos  b;
+                             Bytes.set output !pos b;
                              pos := !pos + 1) str
              | S.Variable (_,_) -> ()
              | S.Alias (_,_) -> ()

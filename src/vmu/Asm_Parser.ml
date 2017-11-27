@@ -504,7 +504,7 @@ module Parser = struct
        (let expr1 = expression tokens in
         do_match Token.Comma tokens;
         let expr2 = expression tokens in
-        let instr = S.Instruction (constr_i8 expr1 expr2) in
+        let instr = S.Instruction (constr_d9 expr1 expr2) in
         stmt (get_span name) (E.span expr2) instr)
 
   let match_single tokens value =
@@ -540,8 +540,8 @@ module Parser = struct
                        (fun e -> I.Inc_d9 e)
                        (fun e -> I.Inc_Ri e)
           | "dec" -> match_single_2 tokens
-                       (fun e -> I.Inc_d9 e)
-                       (fun e -> I.Inc_Ri e)
+                       (fun e -> I.Dec_d9 e)
+                       (fun e -> I.Dec_Ri e)
           | "mul" -> match_single tokens (S.Instruction I.Mul)
           | "div" -> match_single tokens (S.Instruction I.Div)
           | "and" -> match_single_3 tokens
@@ -578,9 +578,9 @@ module Parser = struct
           | "jmp" -> match_single_expr tokens (fun e -> I.Jmp e)
           | "jmpf" -> match_single_expr tokens (fun e -> I.Jmpf e)
           | "br" -> match_single_expr tokens (fun e -> I.Br e)
-          | "brf" -> match_single_expr tokens (fun e -> I.Jmpf e)
-          | "bz" -> match_single_expr tokens (fun e -> I.Jmpf e)
-          | "bnz" -> match_single_expr tokens (fun e -> I.Jmpf e)
+          | "brf" -> match_single_expr tokens (fun e -> I.Brf e)
+          | "bz" -> match_single_expr tokens (fun e -> I.Bz e)
+          | "bnz" -> match_single_expr tokens (fun e -> I.Bnz e)
           | "bp" -> match_triple_expr tokens (fun e1 e2 e3 -> I.Bp (e1, e2, e3))
           | "bpc" -> match_triple_expr tokens (fun e1 e2 e3 -> I.Bpc (e1, e2, e3))
           | "bn" -> match_triple_expr tokens (fun e1 e2 e3 -> I.Bn (e1, e2, e3))
