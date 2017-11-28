@@ -147,15 +147,18 @@ end = struct
 
   let is_newline text pos =
     let len = String.length text in
-    let chr = String.get text pos in
-    match chr with
-    | '\n' -> true
-    | '\r' ->
-       if pos < len - 1 && String.get text (pos + 1) = '\n' then
-         true
-       else
-         false
-    | _ -> false
+    if pos < len then
+      let chr = String.get text pos in
+      match chr with
+      | '\n' -> true
+      | '\r' ->
+         if pos < len - 1 && String.get text (pos + 1) = '\n' then
+           true
+         else
+           false
+      | _ -> false
+    else
+      false
 
   let lookup_line text line =
     let start = lookup_line_start text line in
@@ -163,7 +166,8 @@ end = struct
     | Some start ->
        (let len = String.length text in
         let line_len = ref 0 in
-        while not (is_newline text (start + !line_len)) do
+        while not (is_newline text (start + !line_len))
+              && (!line_len + start) < len do
           line_len := !line_len + 1
         done;
         Some (String.sub text start !line_len))

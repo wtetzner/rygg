@@ -1,12 +1,11 @@
 
 module org.bovinegenius.wombat/Main
 
-main :: () -> ()
+main :: unit -> unit
 main() {
-  let x:  = 
+  let x: u8 = sum(4, 6);
 }
 
-sum :: (int, int) -> int
+sum :: (u8, u8) -> u8
 sum(left, right) = left + right
-
 

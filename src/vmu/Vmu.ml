@@ -1,7 +1,9 @@
 
 module Asm = struct
   include Asm
-  module Parser = Asm_Parser
+  module Parser = struct
+    let assemble = Asm_Parser.assemble
+  end
 end
 
 

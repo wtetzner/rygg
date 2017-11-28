@@ -515,8 +515,6 @@ module Parser = struct
 
   let instruction tokens =
       let tok = peek tokens in
-      let make expr instr =
-        stmt (get_span tok) (E.span expr) (S.Instruction instr) in
       match get_token tok with
       | Token.Name name -> begin
           match name with
@@ -756,9 +754,12 @@ let assemble filename inc_dir output =
   let text = Files.get files filename in
   try
     let statements = list_of_stream (Parser.parse files inc_dir filename text) in
-    List.iter (fun s -> print_endline (S.to_string s)) statements;
+    (* List.iter (fun s -> print_endline (S.to_string s)) statements; *)
     let bytes = Asm.assemble statements in
-    write_bytes_to_file output bytes
+    write_bytes_to_file output bytes;
+    print_string "[";
+    ANSITerminal.(printf [green] "%s" "OK");
+    Printf.printf "] Generated %s\n" output;
   with
   | Asm.Asm_failure (pos,msg) -> print_error pos msg files
   | Lexer_failure (loc, msg) ->

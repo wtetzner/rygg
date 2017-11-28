@@ -1,7 +1,7 @@
 
 module Command = Core.Command
 
-let assemble input_file output_file =
+let vmu_assemble input_file output_file =
   let inc_dir = Core.Filename.dirname input_file in
   Vmu.Asm.Parser.assemble input_file inc_dir output_file
 
@@ -15,7 +15,7 @@ let vmu_cmd =
       +> anon ("input-file" %: file)
     )
       (fun output filename () ->
-        assemble filename output
+        vmu_assemble filename output
       ) in
   let compile_cmd =
     Command.basic

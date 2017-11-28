@@ -9,7 +9,7 @@ Create local switch:
 
 Ensure environment is up-to-date:
 
-     eval `opam env --switch=$PWD`
+    eval `opam env --switch=$PWD`
 
 Install dependencies and build:
 

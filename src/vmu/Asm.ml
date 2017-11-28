@@ -404,7 +404,6 @@ module Instruction = struct
 
       | Call a12 -> (
         let value: int = eval a12 in
-        Printf.printf "%02x (%d)\n" value value;
         let value_top_bits = value land 0b1111000000000000 in
         let pos_top_bits = pos land 0b1111000000000000 in
         if value_top_bits != pos_top_bits then
@@ -662,13 +661,31 @@ module Directive = struct
       | Word of Expression.t list
       | Cnop of Expression.t * Expression.t
 
+    let print_str string =
+      let len = String.length string in
+      let result = Buffer.create (String.length string) in
+      let pos = ref 0 in
+      while !pos < len do
+        let chr = String.get string !pos in
+        let append = (match chr with
+                      | '\n' -> "\\n"
+                      | '\r' -> "\\r"
+                      | '\t' -> "\\t"
+                      | '\b' -> "\\b"
+                      | '"' -> "\\\""
+                      | c -> Core.Std.Char.to_string c) in
+        Buffer.add_string result append;
+        pos := !pos + 1
+      done;
+      Printf.sprintf "\"%s\"" (Buffer.contents result)
+
     let to_string dir =
       match dir with
       | Byte exprs -> Printf.sprintf ".byte %s"
                         (String.concat ", "
                           (List.map (fun e -> Expression.to_string e) exprs))
-      | ByteString bits -> Printf.sprintf ".byte \"%s\""
-                             (Bitstring.string_of_bitstring bits)
+      | ByteString bits -> Printf.sprintf ".byte %s"
+                             (print_str (Bitstring.string_of_bitstring bits))
       | Org pos -> Printf.sprintf ".org $%X" pos
       | Word exprs -> Printf.sprintf ".word %s"
                         (String.concat ", "
@@ -815,9 +832,6 @@ let generate_bytes statements names output =
                 let next_pos = !pos + (I.size instr) in
                 let bytes = I.encode instr next_pos names in
                 let str = Bitstring.string_of_bitstring bytes in
-                Printf.printf "%07x %s -> " !pos (I.to_string instr);
-                String.iter (fun b -> Printf.printf "%02x" (int_of_char b)) str;
-                print_newline ();
                 String.iter (fun b ->
                              Bytes.set output !pos b;
                              pos := !pos + 1) str

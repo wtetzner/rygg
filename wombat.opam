@@ -6,14 +6,13 @@ build: [
   ["jbuilder" "build" "-p" name "-j" jobs]
 ]
 depends: [
-  "sedlex"
-  "bitstring"
-  "ppx_bitstring" {build}
-  "core"
-  "ANSITerminal"
-  "jbuilder" {build}
-  "ppx_deriving" {build}
-  "ocaml-migrate-parsetree" {build}
-  "ocaml" {build >= "4.05.0"}
+  "sedlex" {= "1.99.4"}
+  "bitstring" {= "2.1.1"}
+  "ppx_bitstring" {= "2.0.2" build}
+  "core" {= "v0.9.1" build}
+  "ANSITerminal" {= "0.8"}
+  "jbuilder" {= "1.0+beta16" build}
+  "ppx_deriving" {= "4.2" build}
+  "ocaml" {>= "4.05.0" build}
 ]
 
