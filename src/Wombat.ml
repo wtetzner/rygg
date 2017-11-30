@@ -32,7 +32,7 @@ let vmu_cmd =
     [ "assemble", assemble_cmd; "compile", compile_cmd ]
 
 let command =
-  Command.group ~summary:"Manipulate dates"
+  Command.group ~summary:"Compiler and build tool for Dreamcast VMU"
     [ "vmu", vmu_cmd ]
 
 let () = Command.run command
