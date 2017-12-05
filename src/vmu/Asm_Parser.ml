@@ -738,7 +738,8 @@ module Parser = struct
 end
 
 let print_error pos msg files =
-  Compiler.Message.(print_msgln Error pos msg files)
+  Compiler.Message.(print_msgln Error pos msg files);
+  exit 2
 
 let write_bytes_to_file file bytes =
   Out_channel.with_file file ~f:(fun f -> Out_channel.output_string f bytes);
@@ -749,7 +750,10 @@ let list_of_stream stream =
   Stream.iter (fun value -> result := value :: !result) stream;
   List.rev !result
 
-let assemble filename inc_dir output =
+let do_assemble filename inc_dir output =
+  let inc_dir = match inc_dir with
+    | Some dir -> dir
+    | None -> Core.Filename.dirname filename in
   let files = Files.empty in
   let text = Files.get files filename in
   try
@@ -768,3 +772,9 @@ let assemble filename inc_dir output =
   | Parse_failure (span, msg) ->
      let pos = Compiler.Position.Span span in
      print_error pos msg files
+
+let assemble filename inc_dir output =
+  try
+    do_assemble filename inc_dir output
+  with
+  | Sys_error msg -> (Compiler.Message.print_tag_msg Compiler.Message.Error msg; exit 1)

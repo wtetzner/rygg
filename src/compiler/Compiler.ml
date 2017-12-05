@@ -64,6 +64,8 @@ module Message : sig
 
   val print_tag : tag -> unit
 
+  val print_tag_msg : tag -> string -> unit
+
   val print_pos : Position.t -> unit
 
   val print_msg : tag -> Position.t -> string -> Files.t -> unit
@@ -90,6 +92,11 @@ end = struct
     | None -> ()
     | Error -> print_tag_str [ANSITerminal.red] "ERROR"
     | Ok -> print_tag_str [ANSITerminal.green] "OK"
+
+  let print_tag_msg tag msg =
+    print_tag tag;
+    print_string " ";
+    print_endline msg
 
   let print_pos pos =
     let open Position in
@@ -178,16 +185,19 @@ end = struct
     | Some x -> x
     | None -> raise (Failure "Called get_some on None")
 
-  let print_caret pos =
+  let print_caret pos line =
+    print_string "  ";
+    let is_whitespace c = c == ' ' || c == '\t' in
     let current = ref 0 in
     while !current < pos do
-      Printf.printf "%s" " ";
+      let chr = String.get line !current in
+      if is_whitespace chr then Printf.printf "%c" chr else Printf.printf "%s" " ";
       current := !current + 1
     done;
     ANSITerminal.(printf [magenta] "%s" "^")
 
-  let print_span pos len =
-    print_caret pos;
+  let print_span pos len line =
+    print_caret pos line;
     let current = ref 0 in
     while !current < len - 1 do
       ANSITerminal.(printf [magenta] "%s" "^");
@@ -210,15 +220,17 @@ end = struct
      | Position.Location loc ->
         let line = Location.line loc in
         let text = Files.get files (Location.source loc) in
-        Printf.printf "\n  %s\n" (get_some (lookup_line text line));
-        print_caret ((Location.column loc) + 2)
+        let line_text = (get_some (lookup_line text line)) in
+        Printf.printf "\n  %s\n" line_text;
+        print_caret (Location.column loc) line_text
      | Position.Span span ->
         let line = Location.line span.Span.start_pos in
         let text = Files.get files (Location.source span.Span.start_pos) in
-        Printf.printf "\n  %s\n" (get_some (lookup_line text line));
+        let line_text = (get_some (lookup_line text line)) in
+        Printf.printf "\n  %s\n" line_text;
         let start = Location.column span.Span.start_pos in
         let endp = Location.column span.Span.end_pos in
-        print_span (start + 2) (endp - start)
+        print_span start (endp - start) line_text
      | _ -> ())
 
   let print_msgln tag pos msg files =

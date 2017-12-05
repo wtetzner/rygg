@@ -344,6 +344,7 @@ module Instruction = struct
              [%bitstring {|
                  0b010 : 3;
                  d8 : 1;
+                 true : 1;
                  eval b3 : 3;
                  d9rest : 8 : bitstring;
                  rel r8 : 8

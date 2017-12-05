@@ -1,8 +1,7 @@
 
 module Command = Core.Command
 
-let vmu_assemble input_file output_file =
-  let inc_dir = Core.Filename.dirname input_file in
+let vmu_assemble input_file inc_dir output_file =
   Vmu.Asm.Parser.assemble input_file inc_dir output_file
 
 let vmu_cmd =
@@ -11,18 +10,19 @@ let vmu_cmd =
       ~summary:"Assembler for Dreamcast VMU"
       Command.Spec.(
       empty
-      +> flag ~aliases:["-o"] "-output" (required string) ~doc:"output-file"
+      +> flag ~aliases:["-o"] "-output" (required string) ~doc:"Output File"
+      +> flag ~aliases:["-i"] "-include" (optional string) ~doc:"Includes Directory"
       +> anon ("input-file" %: file)
     )
-      (fun output filename () ->
-        vmu_assemble filename output
+      (fun output inc_dir filename () ->
+        vmu_assemble filename inc_dir output
       ) in
   let compile_cmd =
     Command.basic
       ~summary:"Compiler for the Wombat programming language"
       Command.Spec.(
       empty
-      +> flag ~aliases:["-o"] "-output" (required string) ~doc:"output-file"
+      +> flag ~aliases:["-o"] "-output" (required string) ~doc:"Output File"
       +> anon ("input-file" %: file)
     )
       (fun output filename () ->
