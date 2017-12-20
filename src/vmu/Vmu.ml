@@ -6,4 +6,6 @@ module Asm = struct
   end
 end
 
-
+module Disasm = struct
+  include Disasm
+end
