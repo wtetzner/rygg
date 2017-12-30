@@ -95,7 +95,7 @@ let disasm_instr bytes pos =
   | {| 0b000101 : 6; 2 : 2 |} -> Some (I.St_Ri IM.R2)
   | {| 0b000101 : 6; 3 : 2 |} -> Some (I.St_Ri IM.R3)
 
-  | {| 0b0010001 : 7; d9 : 9; i8 : 8 |} -> Some (I.Mov_d9 (E.num d9, E.num i8))
+  | {| 0b0010001 : 7; d9 : 9; i8 : 8 |} -> Some (I.Mov_d9 (E.num i8, E.num d9))
 
   | {| 0b001001 : 6; rj : 2; i8 : 8 |} -> Some (I.Mov_Rj (E.num i8, IM.from_index rj))
 
@@ -133,10 +133,10 @@ let print_all bytes =
     match instr with
     | Some ins ->
        (let size = I.size ins in
-        Printf.printf "%08X %s\n" !pos (I.to_string ins);
+        Printf.printf "%s ; %08X\n" (I.to_string ins) !pos;
         pos := !pos + size)
     | None ->
-       (Printf.printf "%08X .byte $%02X\n" !pos (Char.code (String.get bytes !pos));
+       (Printf.printf ".byte $%02X ; %08X\n" (Char.code (String.get bytes !pos)) !pos;
         pos := !pos + 1)
   done
 
