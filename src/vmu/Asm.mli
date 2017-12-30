@@ -50,6 +50,8 @@ module IndirectionMode : sig
   val index : t -> int
 
   val to_string : t -> string
+
+  val from_index : int -> t
 end
 
 module Instruction : sig

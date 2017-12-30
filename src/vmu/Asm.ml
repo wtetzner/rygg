@@ -131,6 +131,13 @@ module IndirectionMode = struct
       | R1 -> "@R1"
       | R2 -> "@R2"
       | R3 -> "@R3"
+
+    let from_index idx =
+      match idx with
+      | 0 -> R0
+      | 1 -> R1
+      | 2 -> R2
+      | 3 -> R3
 end
 
 module Instruction = struct
@@ -229,6 +236,13 @@ module Instruction = struct
 
     let encode instr pos env =
       let eval expr = Expression.eval expr env in
+      let eval8 expr =
+        let value = eval expr in
+        if value >= 0 && value <= 255 then
+          value
+        else
+          fail expr.pos (Printf.sprintf "Invalid immediate value $%04X; should be only 8 bits" value)
+      in
       let idx ri = IndirectionMode.index ri in
       let rel expr =
         let value = (eval expr) - pos in
@@ -238,19 +252,19 @@ module Instruction = struct
           value
          in
       match instr with
-      | Add_i8 i8 -> [%bitstring {| 0b10000001 : 8; eval i8 : 8 |}]
+      | Add_i8 i8 -> [%bitstring {| 0b10000001 : 8; eval8 i8 : 8 |}]
       | Add_d9 d9 -> [%bitstring {| 0b1000001 : 7; eval d9 : 9 |}]
       | Add_Ri ri -> [%bitstring {| 0b100001 : 6; idx ri : 2 |}]
 
-      | Addc_i8 i8 -> [%bitstring {| 0b10010001 : 8; eval i8 : 8 |}]
+      | Addc_i8 i8 -> [%bitstring {| 0b10010001 : 8; eval8 i8 : 8 |}]
       | Addc_d9 d9 -> [%bitstring {| 0b1001001 : 7; eval d9 : 9 |}]
       | Addc_Ri ri -> [%bitstring {| 0b100101 : 6; idx ri : 2 |}]
 
-      | Sub_i8 i8 -> [%bitstring {| 0b10100001 : 8; eval i8 : 8 |}]
+      | Sub_i8 i8 -> [%bitstring {| 0b10100001 : 8; eval8 i8 : 8 |}]
       | Sub_d9 d9 -> [%bitstring {| 0b1010001 : 7; eval d9 : 9 |}]
       | Sub_Ri ri -> [%bitstring {| 0b101001 : 6; idx ri : 2 |}]
 
-      | Subc_i8 i8 -> [%bitstring {| 0b10110001 : 8; eval i8 : 8 |}]
+      | Subc_i8 i8 -> [%bitstring {| 0b10110001 : 8; eval8 i8 : 8 |}]
       | Subc_d9 d9 -> [%bitstring {| 0b1011001 : 7; eval d9 : 9 |}]
       | Subc_Ri ri -> [%bitstring {| 0b101101 : 6; idx ri : 2 |}]
 
@@ -263,15 +277,15 @@ module Instruction = struct
       | Mul -> [%bitstring {| 0b00110000 : 8 |}]
       | Div -> [%bitstring {| 0b01000000 : 8 |}]
 
-      | And_i8 i8 -> [%bitstring {| 0b11100001 : 8; eval i8 : 8 |}]
+      | And_i8 i8 -> [%bitstring {| 0b11100001 : 8; eval8 i8 : 8 |}]
       | And_d9 d9 -> [%bitstring {| 0b1110001 : 7; eval d9 : 9 |}]
       | And_Ri ri -> [%bitstring {| 0b111001 : 6; idx ri : 2 |}]
 
-      | Or_i8 i8 -> [%bitstring {| 0b11010001 : 8; eval i8 : 8 |}]
+      | Or_i8 i8 -> [%bitstring {| 0b11010001 : 8; eval8 i8 : 8 |}]
       | Or_d9 d9 -> [%bitstring {| 0b1101001 : 7; eval d9 : 9 |}]
       | Or_Ri ri -> [%bitstring {| 0b110101 : 6; idx ri : 2 |}]
 
-      | Xor_i8 i8 -> [%bitstring {| 0b11110001 : 8; eval i8 : 8 |}]
+      | Xor_i8 i8 -> [%bitstring {| 0b11110001 : 8; eval8 i8 : 8 |}]
       | Xor_d9 d9 -> [%bitstring {| 0b1111001 : 7; eval d9 : 9 |}]
       | Xor_Ri ri -> [%bitstring {| 0b111101 : 6; idx ri : 2 |}]
 
@@ -290,12 +304,12 @@ module Instruction = struct
       | Mov_d9 (i8, d9) -> [%bitstring {|
                                0b0010001 : 7;
                                eval d9 : 9;
-                               eval i8 : 8
+                               eval8 i8 : 8
                            |}]
       | Mov_Rj (i8, rj) -> [%bitstring {|
                                0b001001 : 6;
                                idx rj : 2;
-                               eval i8 : 8
+                               eval8 i8 : 8
                            |}]
 
       | Ldc -> [%bitstring {| 0b11000001 : 8 |}]
@@ -311,7 +325,7 @@ module Instruction = struct
          let value_top_bits = value land 0b1111000000000000 in
          let pos_top_bits = pos land 0b1111000000000000 in
          if value_top_bits != pos_top_bits then
-           fail a12.pos (Printf.sprintf "Invalid a12 value %d for pos %d; top 4 bits don't match" value pos)
+           fail a12.pos (Printf.sprintf "Invalid a12 value $%04X at pos $%04X; top 4 bits ($%X vs $%X) don't match" value pos (value_top_bits lsr 12) (pos_top_bits lsr 12))
          else
            (match%bitstring ([%bitstring {| value : 12 |}]) with
             | {| a11 : 1; rest : 11 : bitstring |} ->
@@ -372,7 +386,7 @@ module Instruction = struct
                             |}]
       | Be_i8 (i8, r8) -> [%bitstring {|
                               0b00110001 : 8;
-                              eval i8 : 8;
+                              eval8 i8 : 8;
                               rel r8 : 8
                           |}]
       | Be_d9 (d9, r8) -> [%bitstring {|
@@ -383,12 +397,12 @@ module Instruction = struct
       | Be_Rj (rj, i8, r8) -> [%bitstring {|
                                   0b001101 : 6;
                                   idx rj : 2;
-                                  eval i8 : 8;
+                                  eval8 i8 : 8;
                                   rel r8 : 8
                               |}]
       | Bne_i8 (i8, r8) -> [%bitstring {|
                                0b01000001 : 8;
-                               eval i8 : 8;
+                               eval8 i8 : 8;
                                rel r8 : 8
                            |}]
       | Bne_d9 (d9, r8) -> [%bitstring {|
@@ -399,7 +413,7 @@ module Instruction = struct
       | Bne_Rj (rj, i8, r8) -> [%bitstring {|
                                    0b010001 : 6;
                                    idx rj : 2;
-                                   eval i8 : 8;
+                                   eval8 i8 : 8;
                                    rel r8 : 8
                                |}]
 

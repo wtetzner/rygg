@@ -89,6 +89,38 @@ let disasm_instr bytes pos =
   | {| 0b000001 : 6; 2 : 2 |} -> Some (I.Ld_Ri IM.R2)
   | {| 0b000001 : 6; 3 : 2 |} -> Some (I.Ld_Ri IM.R3)
 
+  | {| 0b0001001 : 7; d9 : 9 |} -> Some (I.St_d9 (E.num d9))
+  | {| 0b000101 : 6; 0 : 2 |} -> Some (I.St_Ri IM.R0)
+  | {| 0b000101 : 6; 1 : 2 |} -> Some (I.St_Ri IM.R1)
+  | {| 0b000101 : 6; 2 : 2 |} -> Some (I.St_Ri IM.R2)
+  | {| 0b000101 : 6; 3 : 2 |} -> Some (I.St_Ri IM.R3)
+
+  | {| 0b0010001 : 7; d9 : 9; i8 : 8 |} -> Some (I.Mov_d9 (E.num d9, E.num i8))
+
+  | {| 0b001001 : 6; rj : 2; i8 : 8 |} -> Some (I.Mov_Rj (E.num i8, IM.from_index rj))
+
+  | {| 0b11000001 : 8 |} -> Some I.Ldc
+  | {| 0b0110000 : 7; d9 : 9 |} -> Some (I.Push (E.num d9))
+  | {| 0b0111000 : 7; d9 : 9 |} -> Some (I.Pop (E.num d9))
+
+  | {| 0b1100001 : 7; d9 : 9 |} -> Some (I.Xch_d9 (E.num d9))
+  | {| 0b110001 : 6; 0 : 2 |} -> Some (I.Xch_Ri IM.R0)
+  | {| 0b110001 : 6; 1 : 2 |} -> Some (I.Xch_Ri IM.R1)
+  | {| 0b110001 : 6; 2 : 2 |} -> Some (I.Xch_Ri IM.R2)
+  | {| 0b110001 : 6; 3 : 2 |} -> Some (I.Xch_Ri IM.R3)
+
+  | {| 0b001 : 3; a11 : 1; true : 1; rest : 11 : bitstring |} ->
+     (let num_bits = [%bitstring {| a11 : 1; rest : 11 : bitstring |}] in
+      let num = (match%bitstring num_bits with
+                 | {| value : 12 |} -> value) in
+      let next_pos = pos + 3 in
+      let top_bits = next_pos land 0b1111000000000000 in
+      let value = top_bits lor num in
+      Some (I.Jmp (E.num value)))
+
+  | {| 0b00100001 : 8; a16 : 16 |} -> Some (I.Jmpf (E.num a16))
+
+  (* | {| 0b00000001 : 8; r8 : 8 |} -> Some (I.Br (E.num r8)) *)
 
   | {| _ |} -> None
 
@@ -104,7 +136,7 @@ let print_all bytes =
         Printf.printf "%08X %s\n" !pos (I.to_string ins);
         pos := !pos + size)
     | None ->
-       (Printf.printf "%08X .byte %02X\n" !pos (Char.code (String.get bytes !pos));
+       (Printf.printf "%08X .byte $%02X\n" !pos (Char.code (String.get bytes !pos));
         pos := !pos + 1)
   done
 
