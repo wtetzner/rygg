@@ -3,7 +3,7 @@
 (executable
  ((name wombat)
   (libraries (Vmu Compiler core ANSITerminal))
-  (flags (-ccopt -static))
+  ; (flags (-ccopt -static))
   (modules Wombat)))
 
 (executable

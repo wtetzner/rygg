@@ -241,10 +241,10 @@ module Instruction = struct
       done;
       !value
 
-    let make_eval env bits =
+    let make_eval bits =
       let mask = make_mask bits in
       let inverted_mask = mask lxor max_int in
-      let eval expr =
+      let eval env expr =
         let num = Expression.eval expr env in
         if (num land inverted_mask) != 0 then
           fail expr.pos (Printf.sprintf "Value $%X too large; should be no more than %d bits" num bits)
@@ -252,11 +252,16 @@ module Instruction = struct
           num in
       eval
 
+    let make_eval3 env = (make_eval 3) env
+    let make_eval8 env = (make_eval 8) env
+    let make_eval9 env = (make_eval 9) env
+    let make_eval16 env = (make_eval 16) env
+
     let encode instr pos env =
-      let eval8 = make_eval env 8 in
-      let eval3 = make_eval env 3 in
-      let eval9 = make_eval env 9 in
-      let eval16 = make_eval env 16 in
+      let eval8 = make_eval8 env in
+      let eval3 = make_eval3 env in
+      let eval9 = make_eval9 env in
+      let eval16 = make_eval16 env in
       let idx ri = IndirectionMode.index ri in
       let rel expr =
         let value = (Expression.eval expr env) - pos in
