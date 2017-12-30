@@ -339,7 +339,7 @@ module Instruction = struct
          let value_top_bits = value land 0b1111000000000000 in
          let pos_top_bits = pos land 0b1111000000000000 in
          if value_top_bits != pos_top_bits then
-           fail a12.pos (Printf.sprintf "Invalid a12 value $%04X at pos $%04X; top 4 bits ($%X vs $%X) don't match" value pos (value_top_bits lsr 12) (pos_top_bits lsr 12))
+           fail a12.pos (Printf.sprintf "a12 value $%04X out of range for position $%04X; top 4 bits ($%X vs $%X) don't match" value pos (value_top_bits lsr 12) (pos_top_bits lsr 12))
          else
            (match%bitstring ([%bitstring {| value : 12 |}]) with
             | {| a11 : 1; rest : 11 : bitstring |} ->
@@ -436,7 +436,7 @@ module Instruction = struct
         let value_top_bits = value land 0b1111000000000000 in
         let pos_top_bits = pos land 0b1111000000000000 in
         if value_top_bits != pos_top_bits then
-          fail a12.pos (Printf.sprintf "Invalid a12 value $%04X at pos $%04X; top 4 bits ($%X vs $%X) don't match" value pos (value_top_bits lsr 12) (pos_top_bits lsr 12))
+          fail a12.pos (Printf.sprintf "a12 value $%04X out of range for position $%04X; top 4 bits ($%X vs $%X) don't match" value pos (value_top_bits lsr 12) (pos_top_bits lsr 12))
         else
           (match%bitstring ([%bitstring {| value : 16|}]) with
            | {| _ : 4; a11 : 1; rest : 11 : bitstring |} ->
