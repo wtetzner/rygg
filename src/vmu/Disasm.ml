@@ -120,7 +120,9 @@ let disasm_instr bytes pos =
 
   | {| 0b00100001 : 8; a16 : 16 |} -> Some (I.Jmpf (E.num a16))
 
-  (* | {| 0b00000001 : 8; r8 : 8 |} -> Some (I.Br (E.num r8)) *)
+  | {| 0b00000001 : 8; r8 : 8 : signed |} ->
+     let next_pos = pos + 2 in
+     Some (I.Br (E.num (r8 + next_pos)))
 
   | {| _ |} -> None
 
