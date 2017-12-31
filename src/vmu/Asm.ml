@@ -241,12 +241,17 @@ module Instruction = struct
       done;
       !value
 
-    let make_eval bits =
+    let make_size_checker bits =
       let mask = make_mask bits in
       let inverted_mask = mask lxor max_int in
+      let check num = (num land inverted_mask) = 0 in
+      check
+
+    let make_eval bits =
+      let size_ok = make_size_checker bits in
       let eval env expr =
         let num = Expression.eval expr env in
-        if (num land inverted_mask) != 0 then
+        if not (size_ok num) then
           fail expr.pos (Printf.sprintf "Value $%X too large; should be no more than %d bits" num bits)
         else
           num in
@@ -263,13 +268,20 @@ module Instruction = struct
       let eval9 = make_eval9 env in
       let eval16 = make_eval16 env in
       let idx ri = IndirectionMode.index ri in
-      let rel expr =
-        let value = (Expression.eval expr env) - pos in
+      let rel8 expr =
+        let value: int = (Expression.eval expr env) - pos in
         if value >= -128 && value <= 127 then
           value land 0xFF
         else
-          value
-         in
+          fail expr.pos (Printf.sprintf "Value $%X out of range; should be no more than 8 bits" value)
+      in
+      let rel16 expr =
+        let value = (Expression.eval expr env) - pos in
+        if value >= -32768 && value <= 32767 then
+          value land 0xFFFF
+        else
+          fail expr.pos (Printf.sprintf "Value $%X out of range; should be no more than 16 bits" value)
+      in
       match instr with
       | Add_i8 i8 -> [%bitstring {| 0b10000001 : 8; eval8 i8 : 8 |}]
       | Add_d9 d9 -> [%bitstring {| 0b1000001 : 7; eval9 d9 : 9 |}]
@@ -321,15 +333,15 @@ module Instruction = struct
       | St_Ri ri -> [%bitstring {| 0b000101 : 6; idx ri : 2 |}]
 
       | Mov_d9 (i8, d9) -> [%bitstring {|
-                               0b0010001 : 7;
-                               eval9 d9 : 9;
-                               eval8 i8 : 8
-                           |}]
+                                        0b0010001 : 7;
+                                        eval9 d9 : 9;
+                                        eval8 i8 : 8
+                                        |}]
       | Mov_Rj (i8, rj) -> [%bitstring {|
-                               0b001001 : 6;
-                               idx rj : 2;
-                               eval8 i8 : 8
-                           |}]
+                                        0b001001 : 6;
+                                        idx rj : 2;
+                                        eval8 i8 : 8
+                                        |}]
 
       | Ldc -> [%bitstring {| 0b11000001 : 8 |}]
 
@@ -340,101 +352,101 @@ module Instruction = struct
       | Xch_Ri ri -> [%bitstring {| 0b110001 : 6; idx ri : 2 |}]
 
       | Jmp a12 -> (
-         let value: int = eval16 a12 in
-         let value_top_bits = value land 0b1111000000000000 in
-         let pos_top_bits = pos land 0b1111000000000000 in
-         if value_top_bits != pos_top_bits then
-           fail a12.pos (Printf.sprintf "a12 value $%04X out of range for position $%04X; top 4 bits ($%X vs $%X) don't match" value pos (value_top_bits lsr 12) (pos_top_bits lsr 12))
-         else
-           (match%bitstring ([%bitstring {| value : 12 |}]) with
-            | {| a11 : 1; rest : 11 : bitstring |} ->
-               [%bitstring {|
-                   0b001 : 3;
-                   a11 : 1;
-                   true : 1;
-                   rest : 11 : bitstring
-               |}]))
+        let value: int = eval16 a12 in
+        let value_top_bits = value land 0b1111000000000000 in
+        let pos_top_bits = pos land 0b1111000000000000 in
+        if value_top_bits != pos_top_bits then
+          fail a12.pos (Printf.sprintf "a12 value $%04X out of range for position $%04X; top 4 bits ($%X vs $%X) don't match" value pos (value_top_bits lsr 12) (pos_top_bits lsr 12))
+        else
+          (match%bitstring ([%bitstring {| value : 12 |}]) with
+           | {| a11 : 1; rest : 11 : bitstring |} ->
+              [%bitstring {|
+                           0b001 : 3;
+                           a11 : 1;
+                           true : 1;
+                           rest : 11 : bitstring
+                           |}]))
       | Jmpf a16 -> [%bitstring {| 0b00100001 : 8; eval16 a16 : 16 |}]
 
-      | Br r8 -> [%bitstring {| 0b00000001 : 8; rel r8 : 8 |}]
-      | Brf r16 -> [%bitstring {| 0b00010001 : 8; rel r16 : 16 : littleendian |}]
-      | Bz r8 -> [%bitstring {| 0b10000000 : 8; rel r8 : 8 |}]
-      | Bnz r8 -> [%bitstring {| 0b10010000 : 8; rel r8 : 8 |}]
+      | Br r8 -> [%bitstring {| 0b00000001 : 8; rel8 r8 : 8 |}]
+      | Brf r16 -> [%bitstring {| 0b00010001 : 8; rel16 r16 : 16 : littleendian |}]
+      | Bz r8 -> [%bitstring {| 0b10000000 : 8; rel8 r8 : 8 |}]
+      | Bnz r8 -> [%bitstring {| 0b10010000 : 8; rel8 r8 : 8 |}]
       | Bp (d9, b3, r8) ->
          (match%bitstring ([%bitstring {| eval9 d9 : 9|}]) with
           | {| d8 : 1; d9rest : 8 : bitstring |} ->
              [%bitstring {|
-                 0b011 : 3;
-                 d8 : 1;
-                 true : 1;
-                 eval3 b3 : 3;
-                 d9rest : 8 : bitstring;
-                 rel r8 : 8
-               |}])
+                          0b011 : 3;
+                          d8 : 1;
+                          true : 1;
+                          eval3 b3 : 3;
+                          d9rest : 8 : bitstring;
+                          rel8 r8 : 8
+                          |}])
       | Bpc (d9, b3, r8) ->
          (match%bitstring ([%bitstring {| eval9 d9 : 9|}]) with
           | {| d8 : 1; d9rest : 8 : bitstring |} ->
              [%bitstring {|
-                 0b010 : 3;
-                 d8 : 1;
-                 true : 1;
-                 eval3 b3 : 3;
-                 d9rest : 8 : bitstring;
-                 rel r8 : 8
-               |}])
+                          0b010 : 3;
+                          d8 : 1;
+                          true : 1;
+                          eval3 b3 : 3;
+                          d9rest : 8 : bitstring;
+                          rel8 r8 : 8
+                          |}])
       | Bn (d9, b3, r8) ->
          (match%bitstring ([%bitstring {| eval9 d9 : 9|}]) with
           | {| d8 : 1; d9rest : 8 : bitstring |} ->
              [%bitstring {|
-                 0b100 : 3;
-                 d8 : 1;
-                 true : 1;
-                 eval3 b3 : 3;
-                 d9rest : 8 : bitstring;
-                 rel r8 : 8
-               |}])
+                          0b100 : 3;
+                          d8 : 1;
+                          true : 1;
+                          eval3 b3 : 3;
+                          d9rest : 8 : bitstring;
+                          rel8 r8 : 8
+                          |}])
       | Dbnz_d9 (d9, r8) -> [%bitstring {|
-                                0b0101001 : 7;
-                                eval9 d9 : 9;
-                                rel r8 : 8
-                            |}]
+                                         0b0101001 : 7;
+                                         eval9 d9 : 9;
+                                         rel8 r8 : 8
+                                         |}]
       | Dbnz_Ri (ri, r8) -> [%bitstring {|
-                                0b010101 : 6;
-                                idx ri : 2;
-                                rel r8 : 8
-                            |}]
+                                         0b010101 : 6;
+                                         idx ri : 2;
+                                         rel8 r8 : 8
+                                         |}]
       | Be_i8 (i8, r8) -> [%bitstring {|
-                              0b00110001 : 8;
-                              eval8 i8 : 8;
-                              rel r8 : 8
-                          |}]
+                                       0b00110001 : 8;
+                                       eval8 i8 : 8;
+                                       rel8 r8 : 8
+                                       |}]
       | Be_d9 (d9, r8) -> [%bitstring {|
-                              0b0011001 : 7;
-                              eval9 d9 : 9;
-                              rel r8 : 8
-                          |}]
+                                       0b0011001 : 7;
+                                       eval9 d9 : 9;
+                                       rel8 r8 : 8
+                                       |}]
       | Be_Rj (rj, i8, r8) -> [%bitstring {|
-                                  0b001101 : 6;
-                                  idx rj : 2;
-                                  eval8 i8 : 8;
-                                  rel r8 : 8
-                              |}]
+                                           0b001101 : 6;
+                                           idx rj : 2;
+                                           eval8 i8 : 8;
+                                           rel8 r8 : 8
+                                           |}]
       | Bne_i8 (i8, r8) -> [%bitstring {|
-                               0b01000001 : 8;
-                               eval8 i8 : 8;
-                               rel r8 : 8
-                           |}]
+                                        0b01000001 : 8;
+                                        eval8 i8 : 8;
+                                        rel8 r8 : 8
+                                        |}]
       | Bne_d9 (d9, r8) -> [%bitstring {|
-                               0b0100001 : 7;
-                               eval9 d9 : 9;
-                               rel r8 : 8
-                           |}]
+                                        0b0100001 : 7;
+                                        eval9 d9 : 9;
+                                        rel8 r8 : 8
+                                        |}]
       | Bne_Rj (rj, i8, r8) -> [%bitstring {|
-                                   0b010001 : 6;
-                                   idx rj : 2;
-                                   eval8 i8 : 8;
-                                   rel r8 : 8
-                               |}]
+                                            0b010001 : 6;
+                                            idx rj : 2;
+                                            eval8 i8 : 8;
+                                            rel8 r8 : 8
+                                            |}]
 
       | Call a12 -> (
         let value: int = eval16 a12 in
@@ -446,19 +458,19 @@ module Instruction = struct
           (match%bitstring ([%bitstring {| value : 16|}]) with
            | {| _ : 4; a11 : 1; rest : 11 : bitstring |} ->
               [%bitstring {|
-                  0b000 : 3;
-                  a11 : 1;
-                  true : 1;
-                  rest : 11 : bitstring
-                |}]))
+                           0b000 : 3;
+                           a11 : 1;
+                           true : 1;
+                           rest : 11 : bitstring
+                           |}]))
       | Callf a16 -> [%bitstring {|
-                         0b00100000 : 8;
-                         eval16 a16 : 16 : bigendian
-                     |}]
+                                  0b00100000 : 8;
+                                  eval16 a16 : 16 : bigendian
+                                  |}]
       | Callr r16 -> [%bitstring {|
-                         0b00010000 : 8;
-                         rel r16 : 16 : littleendian
-                     |}]
+                                  0b00010000 : 8;
+                                  rel16 r16 : 16 : littleendian
+                                  |}]
 
       | Ret -> [%bitstring {| 0b10100000 : 8 |}]
       | Reti -> [%bitstring {| 0b10110000 : 8 |}]
@@ -467,32 +479,32 @@ module Instruction = struct
          (match%bitstring ([%bitstring {| eval9 d9 : 9|}]) with
           | {| d8 : 1; d9rest : 8 : bitstring |} ->
              [%bitstring {|
-                 0b110 : 3;
-                 d8 : 1;
-                 true : 1;
-                 eval3 b3 : 3;
-                 d9rest : 8 : bitstring
-               |}])
+                          0b110 : 3;
+                          d8 : 1;
+                          true : 1;
+                          eval3 b3 : 3;
+                          d9rest : 8 : bitstring
+                          |}])
       | Set1 (d9, b3) ->
          (match%bitstring ([%bitstring {| eval9 d9 : 9|}]) with
           | {| d8 : 1; d9rest : 8 : bitstring |} ->
              [%bitstring {|
-                 0b111 : 3;
-                 d8 : 1;
-                 true : 1;
-                 eval3 b3 : 3;
-                 d9rest : 8 : bitstring
-               |}])
+                          0b111 : 3;
+                          d8 : 1;
+                          true : 1;
+                          eval3 b3 : 3;
+                          d9rest : 8 : bitstring
+                          |}])
       | Not1 (d9, b3) ->
          (match%bitstring ([%bitstring {| eval9 d9 : 9|}]) with
           | {| d8 : 1; d9rest : 8 : bitstring |} ->
              [%bitstring {|
-                 0b101 : 3;
-                 d8 : 1;
-                 true : 1;
-                 eval3 b3 : 3;
-                 d9rest : 8 : bitstring
-               |}])
+                          0b101 : 3;
+                          d8 : 1;
+                          true : 1;
+                          eval3 b3 : 3;
+                          d9rest : 8 : bitstring
+                          |}])
 
       | Nop -> [%bitstring {| 0b00000000 : 8 |}]
 

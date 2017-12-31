@@ -123,6 +123,23 @@ let disasm_instr bytes pos =
   | {| 0b00000001 : 8; r8 : 8 : signed |} ->
      let next_pos = pos + 2 in
      Some (I.Br (E.num (r8 + next_pos)))
+  | {| 0b00010001 : 8; r16 : 16 : littleendian, signed |} ->
+     let next_pos = pos + 3 in
+     Some (I.Brf (E.num (r16 + next_pos)))     
+
+  | {| 0b10000000 : 8; r8 : 8 : signed |} ->
+     let next_pos = pos + 2 in
+     Some (I.Bz (E.num (r8 + next_pos)))
+  | {| 0b10010000 : 8; r8 : 8 : signed |} ->
+     let next_pos = pos + 2 in
+     Some (I.Bnz (E.num (r8 + next_pos)))
+  | {| 0b011 : 3; d8 : 1; true : 1; b3 : 3; d9rest : 8 : bitstring; r8 : 8 : signed |} ->
+     (let d9_bits = [%bitstring {| d8 : 1; d9rest : 8 : bitstring |}] in
+      let d9 = (match%bitstring d9_bits with
+                | {| value : 9 |} -> value) in
+      let next_pos = pos + 3 in
+      Some (I.Bp (E.num d9, E.num b3, E.num (r8 + next_pos))))
+     
 
   | {| _ |} -> None
 
