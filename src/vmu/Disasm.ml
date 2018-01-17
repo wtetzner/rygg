@@ -139,7 +139,55 @@ let disasm_instr bytes pos =
                 | {| value : 9 |} -> value) in
       let next_pos = pos + 3 in
       Some (I.Bp (E.num d9, E.num b3, E.num (r8 + next_pos))))
-     
+  | {| 0b010 : 3; d8 : 1; true : 1; b3 : 3; d9rest : 8 : bitstring; r8 : 8 : signed |} ->
+     (let d9_bits = [%bitstring {| d8 : 1; d9rest : 8 : bitstring |}] in
+      let d9 = (match%bitstring d9_bits with
+                | {| value : 9 |} -> value) in
+      let next_pos = pos + 3 in
+      Some (I.Bpc (E.num d9, E.num b3, E.num (r8 + next_pos))))
+  | {| 0b100 : 3; d8 : 1; true : 1; b3 : 3; d9rest : 8 : bitstring; r8 : 8 : signed |} ->
+     (let d9_bits = [%bitstring {| d8 : 1; d9rest : 8 : bitstring |}] in
+      let d9 = (match%bitstring d9_bits with
+                | {| value : 9 |} -> value) in
+      let next_pos = pos + 3 in
+      Some (I.Bn (E.num d9, E.num b3, E.num (r8 + next_pos))))
+  | {| 0b0101001 : 7; d9 : 9; r8 : 8 : signed |} ->
+     (let next_pos = pos + 3 in
+      Some (I.Dbnz_d9 (E.num d9, E.num (r8 + next_pos))))
+  | {| 0b010101 : 6; ri : 2; r8 : 8 : signed |} ->
+     (let next_pos = pos + 2 in
+      Some (I.Dbnz_Ri (IM.from_index ri, E.num (r8 + next_pos))))
+  | {| 0b00110001 : 8; i8 : 8; r8 : 8 : signed |} ->
+     (let next_pos = pos + 3 in
+      Some (I.Be_i8 (E.num i8, E.num (r8 + next_pos))))
+  | {| 0b0011001 : 7; d9 : 9; r8 : 8 : signed |} ->
+     (let next_pos = pos + 3 in
+      Some (I.Be_d9 (E.num d9, E.num (r8 + next_pos))))
+  | {| 0b001101 : 6; rj : 2; i8 : 8; r8 : 8 : signed |} ->
+     (let next_pos = pos + 3 in
+      Some (I.Be_Rj (IM.from_index rj, E.num i8, E.num (r8 + next_pos))))
+  | {| 0b01000001 : 8; i8 : 8; r8 : 8 : signed |} ->
+     (let next_pos = pos + 3 in
+      Some (I.Bne_i8 (E.num i8, E.num (r8 + next_pos))))
+  | {| 0b0100001 : 7; d9 : 9; r8 : 8 : signed |} ->
+     (let next_pos = pos + 3 in
+      Some (I.Bne_d9 (E.num d9, E.num (r8 + next_pos))))
+  | {| 0b010001 : 6; rj : 2; i8 : 8; r8 : 8 : signed |} ->
+     (let next_pos = pos + 3 in
+      Some (I.Bne_Rj (IM.from_index rj, E.num i8, E.num (r8 + next_pos))))
+
+  | {| 0b000 : 3; a11 : 1; true : 1; rest : 11 : bitstring |} ->
+     (let num_bits = [%bitstring {| a11 : 1; rest : 11 : bitstring |}] in
+      let num = (match%bitstring num_bits with
+                 | {| value : 12 |} -> value) in
+      let next_pos = pos + 3 in
+      let top_bits = next_pos land 0b1111000000000000 in
+      let value = top_bits lor num in
+      Some (I.Call (E.num value)))
+  | {| 0b00100000 : 8; a16 : 16 : bigendian |} -> Some (I.Callf (E.num a16))
+  (* | {| 0b00010000 : 8; r16 : 16 : littleendian |} ->
+   *    (let next_pos = pos + 3 in
+   *     Some (I.Callr (E.num (r16 + next_pos)))) *)
 
   | {| _ |} -> None
 

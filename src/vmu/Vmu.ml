@@ -9,3 +9,5 @@ end
 module Disasm = struct
   include Disasm
 end
+
+module Lir = Lir

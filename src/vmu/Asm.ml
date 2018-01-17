@@ -276,7 +276,7 @@ module Instruction = struct
           fail expr.pos (Printf.sprintf "Value $%X out of range; should be no more than 8 bits" value)
       in
       let rel16 expr =
-        let value = (Expression.eval expr env) - pos in
+        let value = (Expression.eval expr env) - (pos - 1) in
         if value >= -32768 && value <= 32767 then
           value land 0xFFFF
         else
