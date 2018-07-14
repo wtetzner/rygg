@@ -7,6 +7,92 @@ module I = Asm.Instruction
 type name = string
 module EnvMap = Map.Make(String)
 
+let extra_var_location idx =
+  match idx with
+  | 0  -> 0x10A
+  | 1  -> 0x10B
+  | 2  -> 0x10C
+  | 3  -> 0x10F
+  | 4  -> 0x116
+  | 5  -> 0x117
+  | 6  -> 0x119
+  | 7  -> 0x11E
+  | 8  -> 0x11F
+  | 9  -> 0x121
+  | 10 -> 0x126
+  | 11 -> 0x128
+  | 12 -> 0x129
+  | 13 -> 0x12A
+  | 14 -> 0x12B
+  | 15 -> 0x12C
+  | 16 -> 0x12D
+  | 17 -> 0x12E
+  | 18 -> 0x12F
+  | 19 -> 0x133
+  | 20 -> 0x136
+  | 21 -> 0x136
+  | 22 -> 0x137
+  | 23 -> 0x138
+  | 24 -> 0x139
+  | 25 -> 0x13A
+  | 26 -> 0x13B
+  | 27 -> 0x13C
+  | 28 -> 0x13D
+  | 29 -> 0x13E
+  | 30 -> 0x13F
+  | 31 -> 0x140
+  | 32 -> 0x141
+  | 33 -> 0x142
+  | 34 -> 0x143
+  | 35 -> 0x147
+  | 36 -> 0x148
+  | 37 -> 0x149
+  | 38 -> 0x14A
+  | 39 -> 0x14B
+  | 40 -> 0x14F
+  | 41 -> 0x150
+  | 42 -> 0x151
+  | 43 -> 0x152
+  | 44 -> 0x153
+  | 45 -> 0x154
+  | 46 -> 0x155
+  | 47 -> 0x156
+  | 48 -> 0x157
+  | 49 -> 0x158
+  | 50 -> 0x159
+  | 51 -> 0x15A
+  | 52 -> 0x15B
+  | 53 -> 0x160
+  | 54 -> 0x161
+  | 55 -> 0x162
+  | 56 -> 0x168
+  | 57 -> 0x169
+  | 58 -> 0x16A
+  | 59 -> 0x16B
+  | 60 -> 0x16C
+  | 61 -> 0x16D
+  | 62 -> 0x16E
+  | 63 -> 0x16F
+  | 64 -> 0x170
+  | 65 -> 0x171
+  | 66 -> 0x172
+  | 67 -> 0x173
+  | 68 -> 0x174
+  | 69 -> 0x175
+  | 70 -> 0x176
+  | 71 -> 0x177
+  | 72 -> 0x178
+  | 73 -> 0x179
+  | 74 -> 0x17A
+  | 75 -> 0x17B
+  | 76 -> 0x17C
+  | 77 -> 0x17D
+  | 78 -> 0x17E
+  | 79 -> 0x1FC
+  | 80 -> 0x1FD
+  | 81 -> 0x1FE
+  | 82 -> 0x1FF
+
 module Type = struct
   type t =
     | I8
@@ -20,14 +106,6 @@ module Variable = struct
   type t = {
       location: int;
       vartype: Type.t
-    }
-end
-
-module Env = struct
-  type t = {
-      global: Variable.t EnvMap.t;
-      local: Variable.t EnvMap.t;
-      max_local: int (* The largest local variable location *)
     }
 end
 
@@ -95,7 +173,7 @@ module Expression : sig
     | TailCall of name * (t list)
     | Let of name * t * t
     | RamVar of name
-    | RomVar of name
+    | Const of name
     | I8 of int
 end = struct
   type t = Type.t * expr
@@ -104,7 +182,7 @@ end = struct
     | TailCall of name * (t list)
     | Let of name * t * t
     | RamVar of name
-    | RomVar of name
+    | Const of name
     | I8 of int
 
   let get_type expr =
@@ -133,8 +211,8 @@ module Function = struct
 
   let compile_one statements func variables =
     (match func with
-     | Normal (args, body) ->
-        
+     | Normal (args, body, typ) ->
+        ()
      | AsmFunc stmts ->
         List.iter
           (fun stmt -> Statements.append statements stmt) stmts);

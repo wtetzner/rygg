@@ -13,6 +13,7 @@ module type Environment = sig
  val lookup : t -> name -> value option
  val contains : t -> name -> bool
  val empty : t
+ val iter : (name -> value -> unit) -> t -> unit
 end
 
 module type Value = sig
@@ -48,5 +49,14 @@ struct
     match lookup env name with
     | Some _ -> true
     | None -> false
+
+  let rec iter func env =
+    match env with
+    | Empty -> ()
+    | Env (name, value, parent) ->
+       begin
+         func name value;
+         iter func parent
+       end
 end
 

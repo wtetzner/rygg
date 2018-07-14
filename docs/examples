@@ -1,11 +1,21 @@
 
-module org.bovinegenius.wombat/Main
+module org.bovinegenius.example-01/Main
 
-main :: unit -> unit
+import wombat.vmu/Screen;
+
+main : unit -> unit
 main() {
   let x: u8 = sum(4, 6);
+  Screen.display(1, 1, String.format("Result of 4 + 6: %d", x));
 }
 
-sum :: (u8, u8) -> u8
+sum : (u8, u8) -> u8
 sum(left, right) = left + right
+
+bin-hex-test : unit -> u8
+bin-hex-test() {
+  let x: u8 = 0b00000010;
+  let y: u8 = 0x0F;
+  x + y
+}
 
