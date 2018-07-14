@@ -1,31 +1,3 @@
-Build
-=====
-
-Requires [OPAM 2.0](https://opam.ocaml.org/blog/opam-2-0-preview/#Let-39-s-go-then-how-to-try-it)
-
-Create local switch:
-
-    opam switch create ./ 4.05.0
-
-Ensure environment is up-to-date:
-
-    eval `opam env --switch=$PWD`
-
-Install dependencies and build:
-
-    opam build
-
-To build directly with jbuilder (after dependencies are installed)
-
-    jbuilder build -p wombat -j 3
-
-If you use `opam build`, then the `wombat` executable will be in your
-path. If you use `jbuilder` to do the build, the executable will be at
-`./_build/install/default/bin/wombat`. The reason to use `jbuilder`
-over `opam build` is that it runs faster, because it doesn't have to
-do any dependency resolution, so it gives better turn-around time when
-developing.
-
 Usage
 =====
 
@@ -72,3 +44,31 @@ The `help` command can be used on subcommands as well:
                (alias: -o)
       [-help]  print this help text and exit
                (alias: -?)
+
+Build
+=====
+
+Requires [OPAM 2.0](https://opam.ocaml.org/blog/opam-2-0-preview/#Let-39-s-go-then-how-to-try-it)
+
+Create local switch:
+
+    opam switch create ./ 4.05.0
+
+Ensure environment is up-to-date:
+
+    eval `opam env --switch=$PWD`
+
+Install dependencies and build:
+
+    opam build
+
+To build directly with jbuilder (after dependencies are installed)
+
+    jbuilder build -p wombat -j 3
+
+If you use `opam build`, then the `wombat` executable will be in your
+path. If you use `jbuilder` to do the build, the executable will be at
+`./_build/install/default/bin/wombat`. The reason to use `jbuilder`
+over `opam build` is that it runs faster, because it doesn't have to
+do any dependency resolution, so it gives better turn-around time when
+developing.
