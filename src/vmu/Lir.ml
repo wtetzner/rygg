@@ -7,6 +7,8 @@ module I = Asm.Instruction
 type name = string
 module EnvMap = Map.Make(String)
 
+module Env = EnvMap
+
 let extra_var_location idx =
   match idx with
   | 0  -> 0x10A
@@ -219,11 +221,12 @@ module Function = struct
     Statements.append statements (S.instruction I.Ret)
 
   let compile statements functions variables =
-    Env.iter (fun name func ->
-        Statements.append statements (S.comment (Printf.sprintf "\nThe %s function" name));
-        Statements.append statements (S.label name);
-        compile_one statements func variables
-      ) functions
+    []
+    (* Compiler.Env.iter (fun name func ->
+     *     Statements.append statements (S.comment (Printf.sprintf "\nThe %s function" name));
+     *     Statements.append statements (S.label name);
+     *     compile_one statements func variables
+     *   ) functions *)
 end
 
 module Compiler = struct

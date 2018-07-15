@@ -1,12 +1,16 @@
 
 module org.bovinegenius.example-01/Main
 
-import wombat.vmu/Screen;
+import wombat.vmu/Screen
+
+let mut score: u8 = 0
+
+type point = { x: u8, y: u8 }
 
 main : unit -> unit
 main() {
   let x: u8 = sum(4, 6);
-  Screen.display(1, 1, String.format("Result of 4 + 6: %d", x));
+  Screen.display(1, 1, s"Result of 4 + 6: ${x}");
 }
 
 sum : (u8, u8) -> u8
