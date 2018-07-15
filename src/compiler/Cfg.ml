@@ -34,8 +34,8 @@ end
 
 module Edges(Node: NODE) : sig
   type t
-  val assoc : t -> Node.t -> Node.t -> t
   val assoc_id : t -> Node.id -> Node.id -> t
+  val dissoc : t -> Node.id -> Node.id -> t
 end = struct
   module NodeId = struct
     type t = Node.id
@@ -67,23 +67,46 @@ end = struct
                    edges.from_nodes;
     }
 
-  let assoc edges from_node to_node =
-    assoc_id edges (Node.id from_node) (Node.id to_node)
+  let dissoc edges from_node to_node =
+    let without_to =
+      NodeMap.update from_node
+        (function
+         | None -> None
+         | Some set ->
+            let new_set = NodeSet.remove to_node set in
+            if NodeSet.is_empty new_set then
+              None
+            else
+              Some new_set)
+        edges
+    in
+    NodeMap.update to_node
+      (function
+       | None -> None
+       | Some set ->
+          let new_set = NodeSet.remove from_node set in
+          if NodeSet.is_empty new_set then
+            None
+          else
+            Some new_set)
+      without_to
 end
 
-module Make(NodeId: NODE_ID)(NodeBody: NODE_BODY): sig
+module Make(Node: NODE): sig
+  module Node : NODE
   type node
   type node_id
   type node_body
   type t
   val assoc : t -> node -> node -> t
+  val dissoc : t -> node_id -> node_id -> t
   val map : t -> (node_body -> node_body) -> t
   val map_node : t -> node_id -> (node_body -> node_body) -> t
   val node_id : node -> node_id
   val node_body : node -> node_body
   val node : t -> node_id -> node option
 end = struct
-  module Node = MakeNode(NodeId)(NodeBody)
+  module Node = Node
   module NId = struct
     type t = Node.id
     let compare = Node.compare_id
@@ -96,7 +119,7 @@ end = struct
   type node_body = Node.body
 
   type t = {
-      nodes: (node NodeMap.t);
+      nodes: node NodeMap.t;
       edges: NodeEdges.t
     }
 
@@ -106,7 +129,12 @@ end = struct
     { graph with
       nodes = (NodeMap.add to_id to_node
                  (NodeMap.add from_id from_node graph.nodes));
-      edges = NodeEdges.assoc graph.edges from_node to_node
+      edges = NodeEdges.assoc_id graph.edges from_id to_id
+    }
+
+  let dissoc graph from_node to_node =
+    { graph with
+      edges = NodeEdges.dissoc graph.edges from_node to_node
     }
 
   let map graph func =
