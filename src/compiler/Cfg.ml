@@ -36,6 +36,8 @@ module Edges(Node: NODE) : sig
   type t
   val assoc_id : t -> Node.id -> Node.id -> t
   val dissoc : t -> Node.id -> Node.id -> t
+  val incoming : t -> Node.id -> Node.id list
+  val outgoing : t -> Node.id -> Node.id list
 end = struct
   module NodeId = struct
     type t = Node.id
@@ -48,6 +50,16 @@ end = struct
       to_nodes: NodeSet.t NodeMap.t;
       from_nodes: NodeSet.t NodeMap.t
     }
+
+  let incoming edges id =
+    match (NodeMap.find_opt id edges.from_nodes) with
+    | None -> []
+    | Some set -> NodeSet.elements set
+
+  let outgoing edges id =
+    match (NodeMap.find_opt id edges.to_nodes) with
+    | None -> []
+    | Some set -> NodeSet.elements set
 
   let assoc_id edges from_node to_node =
     let to_set = match (NodeMap.find_opt from_node edges.to_nodes) with
@@ -112,6 +124,7 @@ end = struct
     let compare = Node.compare_id
   end
   module NodeMap = Map.Make(NId)
+  module NodeSet = Set.Make(NId)
   module NodeEdges = Edges(Node)
 
   type node = Node.t
@@ -119,6 +132,7 @@ end = struct
   type node_body = Node.body
 
   type t = {
+      roots: NodeSet.t;
       nodes: node NodeMap.t;
       edges: NodeEdges.t
     }
@@ -126,15 +140,24 @@ end = struct
   let assoc graph from_node to_node =
     let from_id = Node.id from_node in
     let to_id = Node.id to_node in
+    let new_edges = NodeEdges.assoc_id graph.edges from_id to_id in
+    let new_roots = NodeSet.remove to_id graph.roots in
     { graph with
+      roots = new_roots;
       nodes = (NodeMap.add to_id to_node
                  (NodeMap.add from_id from_node graph.nodes));
-      edges = NodeEdges.assoc_id graph.edges from_id to_id
+      edges = new_edges
     }
 
   let dissoc graph from_node to_node =
+    let new_edges = NodeEdges.dissoc graph.edges from_node to_node in
+    let new_roots = if List.is_empty (NodeEdges.incoming graph.edges to_node) then
+                      NodeSet.add to_node graph.roots
+                    else
+                      graph.roots
     { graph with
-      edges = NodeEdges.dissoc graph.edges from_node to_node
+      roots = new_roots;
+      edges = new_edges
     }
 
   let map graph func =

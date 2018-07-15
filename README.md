@@ -52,7 +52,7 @@ Requires [OPAM 2.0](https://opam.ocaml.org/blog/opam-2-0-preview/#Let-39-s-go-th
 
 Create local switch:
 
-    opam switch create ./ 4.05.0
+    opam switch create ./ 4.06.0
 
 Ensure environment is up-to-date:
 
