@@ -47,6 +47,7 @@ public interface Ident<NAME> extends HasLocation {
                 return Long.hashCode(this.stamp);
             }
 
+            @SuppressWarnings("unchecked")
             @Override
             public boolean equals(Object other) {
                 if (other == null) {
