@@ -1,0 +1,15 @@
+
+parser org.bovinegenius.wombat/WombatParser
+
+use org.bovinegenius.wombat/WombatLang as WL
+
+str(string) = r'"(\\.|[^"\\])*"' -> clean-str
+num(number) =
+   r'(?:0[xX][a-fA-F0-9]+)|(?:0[bB][01]+)|(?:0[oO][0-7]+)|(?:[0-9]+)'
+  -> parse-int
+
+expr = {
+  str
+  num
+  
+}

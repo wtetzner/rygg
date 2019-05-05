@@ -1,0 +1,26 @@
+
+language org.bovinegenius.wombat/WombatLang
+
+clean-str : string -> string
+clean-str(text) {
+  ...
+}
+
+terminals {
+  str(string),
+  num(number)
+}
+
+nonterminals {
+  expr (e, body) {
+    str,
+    num,
+    if(e:test, e:then),
+    if(e:test, e:then, e:else),
+    or(e:1, e:2),
+    and(e:1, e:2),
+    not(e),
+    apply(e, e ...)
+  }
+}
+
