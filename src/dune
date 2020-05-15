@@ -1,18 +1,18 @@
 
 (executable
- ((name wombat)
-  (libraries (Vmu Compiler core ANSITerminal))
-  ; (flags (-ccopt -static))
-  (modules Wombat)))
+ (name wombat)
+ (libraries Vmu Compiler core ANSITerminal)
+ ; (flags (-ccopt -static))
+ (modules Wombat))
 
 (executable
- ((name       mytoplevel)
-  (libraries  (Vmu core ANSITerminal compiler-libs.toplevel))
-  (link_flags (-linkall))
-  (modules mytoplevel)
-  (modes      (byte))))
+ (name       mytoplevel)
+ (libraries  Vmu core ANSITerminal compiler-libs.toplevel)
+ (link_flags (-linkall))
+ (modules mytoplevel)
+ (modes      byte))
 
 (install
- ((section bin)
-  (files ((wombat.exe as wombat)
-          (mytoplevel.exe as mytoplevel)))))
+ (section bin)
+ (files (wombat.exe as wombat)
+        (mytoplevel.exe as mytoplevel)))

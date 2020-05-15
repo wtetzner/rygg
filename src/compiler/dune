@@ -1,6 +1,6 @@
 
 (library
- ((name Compiler)
-  (libraries (ANSITerminal core))
-  (preprocess (pps (ppx_deriving.show ppx_deriving.eq ppx_deriving.ord)))
-  (wrapped true)))
+ (name Compiler)
+ (libraries ANSITerminal core)
+ (preprocess (pps ppx_deriving.show ppx_deriving.eq ppx_deriving.ord))
+ (wrapped true))

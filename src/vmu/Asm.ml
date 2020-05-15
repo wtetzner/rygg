@@ -719,7 +719,7 @@ module Directive = struct
                       | '\t' -> "\\t"
                       | '\b' -> "\\b"
                       | '"' -> "\\\""
-                      | c -> Core.Std.Char.to_string c) in
+                      | c -> Core.Char.to_string c) in
         Buffer.add_string result append;
         pos := !pos + 1
       done;

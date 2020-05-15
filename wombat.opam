@@ -6,12 +6,12 @@ build: [
   ["dune" "build" "-p" name "-j" jobs]
 ]
 depends: [
-  "sedlex" {= "1.99.4"}
-  "bitstring" {= "3.0.0"}
-  "core" {= "v0.11.2" build}
+  "sedlex" {>= "1.99.4"}
+  "bitstring" {> "3.0.0"}
+  "core" {>= "v0.11.2" build}
   "ANSITerminal" {= "0.8"}
-  "dune" {= "1.0.0" build}
-  "ppx_deriving" {= "4.2.1" build}
+  "dune" {>= "1.6.2" build}
+  "ppx_deriving" {>= "4.2.1" build}
   "ocaml" {>= "4.06.0" build}
 ]
 

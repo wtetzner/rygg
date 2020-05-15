@@ -18,13 +18,15 @@ let vmu_cmd =
   let lir_cmd =
     Command.basic
       ~summary:"Compiler for Dreamcast VMU Low-level Intermediate Language"
+      ~readme:(fun () -> "Compiler for Dreamcast VMU Low-level Intermediate Language")
+      (fun filename () ->
+        vmu_lir_compile filename
+      )
       Command.Spec.(
       empty
       +> anon ("input-file" %: file)
     )
-      (fun filename () ->
-        vmu_lir_compile filename
-      ) in  
+  in
   let disassemble_cmd =
     Command.basic
       ~summary:"Disassembler for Dreamcast VMU"

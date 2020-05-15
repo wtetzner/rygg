@@ -742,7 +742,7 @@ let print_error pos msg files =
   exit 2
 
 let write_bytes_to_file file bytes =
-  Out_channel.with_file file ~f:(fun f -> Out_channel.output_string f bytes);
+  Out_channel.with_file file ~f:(fun f -> Out_channel.output_string f (Bytes.to_string bytes));
   ()
 
 let list_of_stream stream =
