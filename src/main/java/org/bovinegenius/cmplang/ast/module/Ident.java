@@ -1,5 +1,10 @@
-package org.bovinegenius.cmplang;
+package org.bovinegenius.cmplang.ast.module;
 
+import lombok.Getter;
+import org.apache.commons.lang3.StringUtils;
+import org.bovinegenius.cmplang.util.Display;
+
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -15,21 +20,23 @@ import java.util.concurrent.atomic.AtomicLong;
  *   val find: t -> 'a tbl -> 'a
  * end
  */
-public interface Ident<NAME> extends HasLocation {
+public interface Ident<NAME,LOCATION> extends HasLocation<LOCATION>, Display {
     public NAME getName();
 
-    public static <NAME> Ident<NAME> create(NAME name) {
-        return Private.IdentImpl.create(name);
+    public static <NAME,LOCATION> Ident<NAME,LOCATION> create(LOCATION location, NAME name) {
+        return Private.IdentImpl.create(location, name);
     }
 
     public static class Private {
-        private static class IdentImpl<NAME> implements Ident<NAME> {
+        private static class IdentImpl<NAME,LOCATION> implements Ident<NAME,LOCATION> {
             private static final AtomicLong STAMP_SEQ = new AtomicLong(1);
 
+            @Getter private final LOCATION location;
             private final NAME name;
             private final long stamp;
 
-            private IdentImpl(NAME name, long stamp) {
+            private IdentImpl(LOCATION location, NAME name, long stamp) {
+                this.location = location;
                 this.name = name;
                 this.stamp = stamp;
             }
@@ -38,8 +45,8 @@ public interface Ident<NAME> extends HasLocation {
                 return this.name;
             }
 
-            public static <NAME> Ident<NAME> create(NAME name) {
-                return new IdentImpl<>(name, STAMP_SEQ.getAndIncrement());
+            public static <NAME,LOCATION> Ident<NAME,LOCATION> create(LOCATION location, NAME name) {
+                return new IdentImpl<>(location, name, STAMP_SEQ.getAndIncrement());
             }
 
             @Override
@@ -54,7 +61,7 @@ public interface Ident<NAME> extends HasLocation {
                     return false;
                 }
                 if (other instanceof IdentImpl) {
-                    return this.stamp == ((IdentImpl<NAME>) other).stamp;
+                    return this.stamp == ((IdentImpl<NAME,LOCATION>) other).stamp;
                 }
                 throw new IllegalArgumentException(String.format("Cannot compare object of type %s against object of type %s: %s vs %s",
                         this.getClass().getCanonicalName(),
@@ -62,6 +69,21 @@ public interface Ident<NAME> extends HasLocation {
                         this,
                         other
                 ));
+            }
+
+            @Override
+            public String toString() {
+                String location = Objects.toString(this.location, "");
+                if (!StringUtils.isBlank(location)) {
+                    return String.format("%s^%s:%s", this.name, this.stamp, location);
+                } else {
+                    return String.format("%s^%s", this.name, this.stamp);
+                }
+            }
+
+            @Override
+            public String display() {
+                return Objects.toString(this.name, "");
             }
         }
     }

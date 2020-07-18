@@ -1,5 +1,9 @@
 
 module org.bovinegenius.wombat/Main
 
+let main args = {
+    println s"$d{args}" // Prints:  args: ["foo", "bar"]
+}
+
 
 

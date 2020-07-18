@@ -1,9 +1,9 @@
-package org.bovinegenius.cmplang;
+package org.bovinegenius.cmplang.ast.module;
 
-public abstract class Definition<NAME, IDENT extends Ident<NAME>, VAL, KIND, DEF, TERM> {
+public abstract class Definition<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF, TERM> {
     private Definition() {}
 
-    public static class ValueDef<NAME, IDENT extends Ident<NAME>, VAL, KIND, DEF, TERM> extends Definition<NAME, IDENT, VAL, KIND, DEF, TERM> {
+    public static class ValueDef<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF, TERM> extends Definition<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> {
         private final IDENT name;
         private final TERM value;
 
@@ -21,7 +21,7 @@ public abstract class Definition<NAME, IDENT extends Ident<NAME>, VAL, KIND, DEF
         }
     }
 
-    public static class TypeDef<NAME, IDENT extends Ident<NAME>, VAL, KIND, DEF, TERM> extends Definition<NAME, IDENT, VAL, KIND, DEF, TERM> {
+    public static class TypeDef<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF, TERM> extends Definition<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> {
         private final IDENT name;
         private final KIND kind;
         private final DEF definition;
@@ -45,11 +45,11 @@ public abstract class Definition<NAME, IDENT extends Ident<NAME>, VAL, KIND, DEF
         }
     }
 
-    public static class ModuleDef<NAME, IDENT extends Ident<NAME>, VAL, KIND, DEF, TERM> extends Definition<NAME, IDENT, VAL, KIND, DEF, TERM> {
+    public static class ModuleDef<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF, TERM> extends Definition<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> {
         private final IDENT name;
-        private final ModuleTerm<NAME, IDENT, VAL, KIND, DEF, TERM> body;
+        private final ModuleTerm<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> body;
 
-        private ModuleDef(IDENT name, ModuleTerm<NAME, IDENT, VAL, KIND, DEF, TERM> body) {
+        private ModuleDef(IDENT name, ModuleTerm<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> body) {
             this.name = name;
             this.body = body;
         }
@@ -58,7 +58,7 @@ public abstract class Definition<NAME, IDENT extends Ident<NAME>, VAL, KIND, DEF
             return this.name;
         }
 
-        public ModuleTerm<NAME, IDENT, VAL, KIND, DEF, TERM> getBody() {
+        public ModuleTerm<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> getBody() {
             return this.body;
         }
     }

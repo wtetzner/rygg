@@ -1,4 +1,4 @@
-package org.bovinegenius.cmplang;
+package org.bovinegenius.cmplang.ast.module;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -6,7 +6,7 @@ import java.util.Optional;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-public class Path<NAME, T extends Ident<NAME>> {
+public class Path<LOC, NAME, T extends Ident<NAME, LOC>> {
     private final T ident;
     private final PVector<NAME> components;
 
@@ -33,7 +33,7 @@ public class Path<NAME, T extends Ident<NAME>> {
         return Optional.empty();
     }
 
-    public Path<NAME, T> getRoot() {
+    public Path<LOC, NAME, T> getRoot() {
         if (components.size() <= 1) {
             return new Path<>(ident, TreePVector.empty());
         } else {
@@ -45,18 +45,22 @@ public class Path<NAME, T extends Ident<NAME>> {
         }
     }
 
-    public static <NAME, T extends Ident<NAME>> Path<NAME, T> of(T ident) {
-        if (null == ident) {
-            throw new NullPointerException("ident cannot be null");
-        }
-        return new Path<NAME, T>(ident, null);
+    public Path<LOC, NAME, T> plus(NAME name) {
+        return new Path(this.ident, this.components.plus(name));
     }
 
-    public static <NAME, T extends Ident<NAME>> Path<NAME, T> of(T ident, PVector<NAME> components) {
+    public static <LOC, NAME, T extends Ident<NAME, LOC>> Path<LOC, NAME, T> of(T ident) {
         if (null == ident) {
             throw new NullPointerException("ident cannot be null");
         }
-        return new Path<NAME, T>(ident, components);
+        return new Path<LOC, NAME, T>(ident, null);
+    }
+
+    public static <LOC, NAME, T extends Ident<NAME, LOC>> Path<LOC, NAME, T> of(T ident, PVector<NAME> components) {
+        if (null == ident) {
+            throw new NullPointerException("ident cannot be null");
+        }
+        return new Path<LOC, NAME, T>(ident, components);
     }
 
     @Override
@@ -81,4 +85,15 @@ public class Path<NAME, T extends Ident<NAME>> {
                 other
                 ));
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb  = new StringBuilder();
+        sb.append(this.getIdent());
+        for (NAME name : this.getComponents()) {
+            sb.append(".").append(name);
+        }
+        return sb.toString();
+    }
+
 }
