@@ -1,18 +1,18 @@
 package org.bovinegenius.cmplang.ast.module;
 
-public abstract class Definition<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF, TERM> {
+public abstract class Definition<LOC, NAME, VAL, KIND, DEF, TERM> {
     private Definition() {}
 
-    public static class ValueDef<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF, TERM> extends Definition<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> {
-        private final IDENT name;
+    public static class ValueDef<LOC, NAME, VAL, KIND, DEF, TERM> extends Definition<LOC, NAME, VAL, KIND, DEF, TERM> {
+        private final Ident<LOC, NAME> name;
         private final TERM value;
 
-        private ValueDef(IDENT name, TERM value) {
+        private ValueDef(Ident<LOC, NAME> name, TERM value) {
             this.name = name;
             this.value = value;
         }
 
-        public IDENT getName() {
+        public Ident<LOC, NAME> getName() {
             return this.name;
         }
 
@@ -21,18 +21,18 @@ public abstract class Definition<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL,
         }
     }
 
-    public static class TypeDef<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF, TERM> extends Definition<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> {
-        private final IDENT name;
+    public static class TypeDef<LOC, NAME, VAL, KIND, DEF, TERM> extends Definition<LOC, NAME, VAL, KIND, DEF, TERM> {
+        private final Ident<LOC, NAME> name;
         private final KIND kind;
         private final DEF definition;
 
-        private TypeDef(IDENT name, KIND kind, DEF definition) {
+        private TypeDef(Ident<LOC, NAME> name, KIND kind, DEF definition) {
             this.name = name;
             this.kind = kind;
             this.definition = definition;
         }
 
-        public IDENT getName() {
+        public Ident<LOC, NAME> getName() {
             return this.name;
         }
 
@@ -45,20 +45,20 @@ public abstract class Definition<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL,
         }
     }
 
-    public static class ModuleDef<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF, TERM> extends Definition<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> {
-        private final IDENT name;
-        private final ModuleTerm<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> body;
+    public static class ModuleDef<LOC, NAME, VAL, KIND, DEF, TERM> extends Definition<LOC, NAME, VAL, KIND, DEF, TERM> {
+        private final Ident<LOC, NAME> name;
+        private final ModuleTerm<LOC, NAME, VAL, KIND, DEF, TERM> body;
 
-        private ModuleDef(IDENT name, ModuleTerm<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> body) {
+        private ModuleDef(Ident<LOC, NAME> name, ModuleTerm<LOC, NAME, VAL, KIND, DEF, TERM> body) {
             this.name = name;
             this.body = body;
         }
 
-        public IDENT getName() {
+        public Ident<LOC, NAME> getName() {
             return this.name;
         }
 
-        public ModuleTerm<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> getBody() {
+        public ModuleTerm<LOC, NAME, VAL, KIND, DEF, TERM> getBody() {
             return this.body;
         }
     }

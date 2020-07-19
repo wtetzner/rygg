@@ -10,9 +10,9 @@ import java.util.Optional;
 import java.util.function.Function;
 
 @Builder
-public class ApplicationOfANonFunctor<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF, TERM> implements TypeError<LOC> {
+public class ApplicationOfANonFunctor<LOC, NAME, VAL, KIND, DEF, TERM> implements TypeError<LOC> {
     @Getter @NonNull private final LOC location;
-    @NonNull private final ModuleTerm.Apply<LOC, NAME, IDENT, VAL, KIND, DEF, TERM> apply;
+    @NonNull private final ModuleTerm.Apply<LOC, NAME, VAL, KIND, DEF, TERM> apply;
 
     @Override
     public String displayError(Function<String, Optional<String>> getFileContents) {

@@ -1,32 +1,32 @@
 package org.bovinegenius.cmplang.ast.module;
 
-public abstract class Specification<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF> {
+public abstract class Specification<LOC, NAME, VAL, KIND, DEF> {
     private Specification() {}
 
-    public abstract IDENT getName();
+    public abstract Ident<LOC, NAME> getName();
     
-    public static <LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF> ValueSig<LOC, NAME, IDENT, VAL, KIND, DEF> valueSig(IDENT name, VAL type) {
+    public static <LOC, NAME, VAL, KIND, DEF> ValueSig<LOC, NAME, VAL, KIND, DEF> valueSig(Ident<LOC, NAME> name, VAL type) {
         return new ValueSig<>(name, type);
     }
 
-    public static <LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF> TypeSig<LOC, NAME, IDENT, VAL, KIND, DEF> typeSig(IDENT name, TypeDecl<KIND, DEF> decl) {
+    public static <LOC, NAME, VAL, KIND, DEF> TypeSig<LOC, NAME, VAL, KIND, DEF> typeSig(Ident<LOC, NAME> name, TypeDecl<KIND, DEF> decl) {
         return new TypeSig<>(name, decl);
     }
 
-    public static <LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF> ModuleSig<LOC, NAME, IDENT, VAL, KIND, DEF> moduleSig(IDENT name, ModuleType<LOC, NAME, IDENT, VAL, KIND, DEF> type) {
+    public static <LOC, NAME, VAL, KIND, DEF> ModuleSig<LOC, NAME, VAL, KIND, DEF> moduleSig(Ident<LOC, NAME> name, ModuleType<LOC, NAME, VAL, KIND, DEF> type) {
         return new ModuleSig<>(name, type);
     }
 
-    public static class ValueSig<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF> extends Specification<LOC, NAME, IDENT, VAL, KIND, DEF> {
-        private final IDENT name;
+    public static class ValueSig<LOC, NAME, VAL, KIND, DEF> extends Specification<LOC, NAME, VAL, KIND, DEF> {
+        private final Ident<LOC, NAME> name;
         private final VAL type;
 
-        private ValueSig(IDENT name, VAL type) {
+        private ValueSig(Ident<LOC, NAME> name, VAL type) {
             this.name = name;
             this.type = type;
         }
 
-        public IDENT getName() {
+        public Ident<LOC, NAME> getName() {
             return this.name;
         }
 
@@ -35,16 +35,16 @@ public abstract class Specification<LOC, NAME, IDENT extends Ident<NAME, LOC>, V
         }
     }
 
-    public static class TypeSig<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF> extends Specification<LOC, NAME, IDENT, VAL, KIND, DEF> {
-        private final IDENT name;
+    public static class TypeSig<LOC, NAME, VAL, KIND, DEF> extends Specification<LOC, NAME, VAL, KIND, DEF> {
+        private final Ident<LOC, NAME> name;
         private final TypeDecl<KIND, DEF> decl;
 
-        private TypeSig(IDENT name, TypeDecl<KIND, DEF> decl) {
+        private TypeSig(Ident<LOC, NAME> name, TypeDecl<KIND, DEF> decl) {
             this.name = name;
             this.decl = decl;
         }
 
-        public IDENT getName() {
+        public Ident<LOC, NAME> getName() {
             return this.name;
         }
 
@@ -53,20 +53,20 @@ public abstract class Specification<LOC, NAME, IDENT extends Ident<NAME, LOC>, V
         }
     }
 
-    public static class ModuleSig<LOC, NAME, IDENT extends Ident<NAME, LOC>, VAL, KIND, DEF> extends Specification<LOC, NAME, IDENT, VAL, KIND, DEF> {
-        private final IDENT name;
-        private final ModuleType<LOC, NAME, IDENT, VAL, KIND, DEF> type;
+    public static class ModuleSig<LOC, NAME, VAL, KIND, DEF> extends Specification<LOC, NAME, VAL, KIND, DEF> {
+        private final Ident<LOC, NAME> name;
+        private final ModuleType<LOC, NAME, VAL, KIND, DEF> type;
 
-        private ModuleSig(IDENT name, ModuleType<LOC, NAME, IDENT, VAL, KIND, DEF> type) {
+        private ModuleSig(Ident<LOC, NAME> name, ModuleType<LOC, NAME, VAL, KIND, DEF> type) {
             this.name = name;
             this.type = type;
         }
 
-        public IDENT getName() {
+        public Ident<LOC, NAME> getName() {
             return this.name;
         }
 
-        public ModuleType<LOC, NAME, IDENT, VAL, KIND, DEF> getType() {
+        public ModuleType<LOC, NAME, VAL, KIND, DEF> getType() {
             return this.type;
         }
     }

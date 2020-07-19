@@ -2,23 +2,21 @@ package org.bovinegenius.cmplang.c;
 
 import lombok.NonNull;
 import lombok.Value;
-import org.bovinegenius.cmplang.ast.module.*;
-import org.bovinegenius.cmplang.ast.module.error.TypeError;
-import org.bovinegenius.cmplang.ast.module.error.UndelcaredType;
-import org.bovinegenius.cmplang.util.Result;
+import org.apache.commons.lang3.NotImplementedException;
+import org.bovinegenius.cmplang.ast.module.Path;
+import org.bovinegenius.cmplang.ast.module.Span;
+import org.bovinegenius.cmplang.ast.module.Subst;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public abstract class CType {
-    private CType() {}
+    private CType() {
+    }
 
-    public abstract CType subst(Subst<Span, String, Ident<String, Span>> subst);
-    public abstract Result<Optional<CType>, TypeError<Span>> expand(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, java.lang.Void> env);
+    public abstract CType subst(Subst<Span, String> subst);
+
     public abstract boolean matches(CType other);
 
     @Value(staticConstructor = "create")
@@ -29,18 +27,13 @@ public abstract class CType {
         }
 
         @Override
-        public CType subst(Subst<Span, String, Ident<String, Span>> subst) {
+        public CType subst(Subst<Span, String> subst) {
             return this;
         }
 
         @Override
         public boolean matches(@NonNull CType other) {
             return (other instanceof Void);
-        }
-
-        @Override
-        public Result<Optional<CType>, TypeError<Span>> expand(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, java.lang.Void> env) {
-            return Result.ok(this);
         }
     }
 
@@ -52,18 +45,13 @@ public abstract class CType {
         }
 
         @Override
-        public CType subst(Subst<Span, String, Ident<String, Span>> subst) {
+        public CType subst(Subst<Span, String> subst) {
             return this;
         }
 
         @Override
         public boolean matches(@NonNull CType other) {
             return (other instanceof Int);
-        }
-
-        @Override
-        public Result<Optional<CType>, TypeError<Span>> expand(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, java.lang.Void> env) {
-            return Result.ok(this);
         }
     }
 
@@ -75,18 +63,13 @@ public abstract class CType {
         }
 
         @Override
-        public CType subst(Subst<Span, String, Ident<String, Span>> subst) {
+        public CType subst(Subst<Span, String> subst) {
             return this;
         }
 
         @Override
         public boolean matches(@NonNull CType other) {
             return (other instanceof Float);
-        }
-
-        @Override
-        public Result<Optional<CType>, TypeError<Span>> expand(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, java.lang.Void> env) {
-            return Result.ok(this);
         }
     }
 
@@ -100,7 +83,7 @@ public abstract class CType {
         }
 
         @Override
-        public CType subst(Subst<Span, String, Ident<String, Span>> subst) {
+        public CType subst(Subst<Span, String> subst) {
             return Pointer.of(pointedType.subst(subst));
         }
 
@@ -111,11 +94,6 @@ public abstract class CType {
             } else {
                 return false;
             }
-        }
-
-        @Override
-        public Result<Optional<CType>, TypeError<Span>> expand(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, java.lang.Void> env) {
-            return this.getPointedType().expand(env).map(Pointer::of);
         }
     }
 
@@ -142,15 +120,19 @@ public abstract class CType {
         }
 
         @Override
-        public CType subst(Subst<Span, String, Ident<String, Span>> subst) {
+        public CType subst(Subst<Span, String> subst) {
             List<CType> substArgTypes = argTypes.stream().map(t -> t.subst(subst)).collect(Collectors.toList());
             return Function.of(substArgTypes, returnType.subst(subst));
         }
 
         @Override
         public boolean matches(@NonNull CType other) {
+            if (true) {
+                // TODO: Finish implementing this
+                throw new NotImplementedException("matches");
+            }
             if (other instanceof Function) {
-                Function otherFunc = (Function)other;
+                Function otherFunc = (Function) other;
                 if (this.getArgTypes().size() == otherFunc.getArgTypes().size()) {
                     for (int i = 0; i < this.getArgTypes().size(); i++) {
 
@@ -159,31 +141,16 @@ public abstract class CType {
                     return false;
                 }
             } else {
+
                 return false;
             }
-        }
-
-        @Override
-        public Result<Optional<CType>, TypeError<Span>> expand(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, java.lang.Void> env) {
-            List<CType> expandedArgTypes = new ArrayList<>();
-            for (CType type : this.getArgTypes()) {
-                Result<Optional<CType>, TypeError<Span>> result = type.expand(env);
-                if (result.isErr() || !result.get().isPresent()) {
-                    return result.mapErr(java.util.function.Function.identity());
-                }
-                expandedArgTypes.add(result.get().get());
-            }
-            Result<Optional<CType>, TypeError<Span>> result = returnType.expand(env);
-            if (result.isErr() || !result.get().isPresent()) {
-                return result.mapErr(java.util.function.Function.identity());
-            }
-            return Result.ok(Function.of(expandedArgTypes, result.get().get()));
+            throw new NotImplementedException("matches");
         }
     }
 
     @Value(staticConstructor = "of")
     public static class TypeName extends CType {
-        Path<Span, String, Ident<String, Span>> path;
+        Path<Span, String> path;
 
         @Override
         public String toString() {
@@ -191,20 +158,14 @@ public abstract class CType {
         }
 
         @Override
-        public CType subst(Subst<Span, String, Ident<String, Span>> subst) {
+        public CType subst(Subst<Span, String> subst) {
             return TypeName.of(subst.apply(path));
         }
 
         @Override
-        public Result<Optional<CType>, TypeError<Span>> expand(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, java.lang.Void> env) {
-            Optional<TypeDecl<java.lang.Void, CType>> foundType = env.findType(this.path);
-            if (!foundType.isPresent()) {
-                return Result.err(UndelcaredType.<Span, CType>builder()
-                        .location(this.path.getIdent().getLocation())
-                        .type(this)
-                .build());
-            }
-
+        public boolean matches(@NonNull CType other) {
+            // TODO: Implement this
+            throw new NotImplementedException("matches");
         }
     }
 

@@ -45,7 +45,7 @@ public abstract class CExpr {
 
     @Value(staticConstructor = "of")
     public static class Variable extends CExpr {
-        Path<Span, String, Ident<String, Span>> value;
+        Path<Span, String> value;
 
         @Override
         public boolean isComplex() {

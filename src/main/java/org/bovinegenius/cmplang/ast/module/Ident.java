@@ -20,71 +20,62 @@ import java.util.concurrent.atomic.AtomicLong;
  *   val find: t -> 'a tbl -> 'a
  * end
  */
-public interface Ident<NAME,LOCATION> extends HasLocation<LOCATION>, Display {
-    public NAME getName();
+public class Ident<LOC, NAME> implements Display {
+    private static final AtomicLong STAMP_SEQ = new AtomicLong(1);
 
-    public static <NAME,LOCATION> Ident<NAME,LOCATION> create(LOCATION location, NAME name) {
-        return Private.IdentImpl.create(location, name);
+    @Getter private final LOC location;
+    private final NAME name;
+    private final long stamp;
+
+    private Ident(LOC location, NAME name, long stamp) {
+        this.location = location;
+        this.name = name;
+        this.stamp = stamp;
     }
 
-    public static class Private {
-        private static class IdentImpl<NAME,LOCATION> implements Ident<NAME,LOCATION> {
-            private static final AtomicLong STAMP_SEQ = new AtomicLong(1);
+    public NAME getName() {
+        return this.name;
+    }
 
-            @Getter private final LOCATION location;
-            private final NAME name;
-            private final long stamp;
+    public static <LOC, NAME> Ident<LOC, NAME> create(LOC location, NAME name) {
+        return new Ident<>(location, name, STAMP_SEQ.getAndIncrement());
+    }
 
-            private IdentImpl(LOCATION location, NAME name, long stamp) {
-                this.location = location;
-                this.name = name;
-                this.stamp = stamp;
-            }
+    @Override
+    public int hashCode() {
+        return Long.hashCode(this.stamp);
+    }
 
-            public NAME getName() {
-                return this.name;
-            }
+    @SuppressWarnings("unchecked")
+    @Override
+    public boolean equals(Object other) {
+        if (other == null) {
+            return false;
+        }
+        if (other instanceof Ident) {
+            return this.stamp == ((Ident<LOC, NAME>) other).stamp;
+        }
+        throw new IllegalArgumentException(String.format("Cannot compare object of type %s against object of type %s: %s vs %s",
+                this.getClass().getCanonicalName(),
+                other.getClass().getCanonicalName(),
+                this,
+                other
+        ));
+    }
 
-            public static <NAME,LOCATION> Ident<NAME,LOCATION> create(LOCATION location, NAME name) {
-                return new IdentImpl<>(location, name, STAMP_SEQ.getAndIncrement());
-            }
-
-            @Override
-            public int hashCode() {
-                return Long.hashCode(this.stamp);
-            }
-
-            @SuppressWarnings("unchecked")
-            @Override
-            public boolean equals(Object other) {
-                if (other == null) {
-                    return false;
-                }
-                if (other instanceof IdentImpl) {
-                    return this.stamp == ((IdentImpl<NAME,LOCATION>) other).stamp;
-                }
-                throw new IllegalArgumentException(String.format("Cannot compare object of type %s against object of type %s: %s vs %s",
-                        this.getClass().getCanonicalName(),
-                        other.getClass().getCanonicalName(),
-                        this,
-                        other
-                ));
-            }
-
-            @Override
-            public String toString() {
-                String location = Objects.toString(this.location, "");
-                if (!StringUtils.isBlank(location)) {
-                    return String.format("%s^%s:%s", this.name, this.stamp, location);
-                } else {
-                    return String.format("%s^%s", this.name, this.stamp);
-                }
-            }
-
-            @Override
-            public String display() {
-                return Objects.toString(this.name, "");
-            }
+    @Override
+    public String toString() {
+        String location = Objects.toString(this.location, "");
+        if (!StringUtils.isBlank(location)) {
+            return String.format("%s^%s:%s", this.name, this.stamp, location);
+        } else {
+            return String.format("%s^%s", this.name, this.stamp);
         }
     }
+
+    @Override
+    public String display() {
+        return Objects.toString(this.name, "");
+    }
 }
+

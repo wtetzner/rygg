@@ -6,11 +6,11 @@ import java.util.Optional;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-public class Path<LOC, NAME, T extends Ident<NAME, LOC>> {
-    private final T ident;
+public class Path<LOC, NAME> {
+    private final Ident<LOC, NAME> ident;
     private final PVector<NAME> components;
 
-    private Path(T ident, PVector<NAME> components) {
+    private Path(Ident<LOC, NAME> ident, PVector<NAME> components) {
         if (null == ident) {
             throw new NullPointerException("ident cannot be null");
         }
@@ -18,7 +18,7 @@ public class Path<LOC, NAME, T extends Ident<NAME, LOC>> {
         this.components = (components == null) ? TreePVector.empty() : components;
     }
 
-    public T getIdent() {
+    public Ident<LOC, NAME> getIdent() {
         return this.ident;
     }
 
@@ -33,7 +33,7 @@ public class Path<LOC, NAME, T extends Ident<NAME, LOC>> {
         return Optional.empty();
     }
 
-    public Path<LOC, NAME, T> getRoot() {
+    public Path<LOC, NAME> getRoot() {
         if (components.size() <= 1) {
             return new Path<>(ident, TreePVector.empty());
         } else {
@@ -45,22 +45,22 @@ public class Path<LOC, NAME, T extends Ident<NAME, LOC>> {
         }
     }
 
-    public Path<LOC, NAME, T> plus(NAME name) {
+    public Path<LOC, NAME> plus(NAME name) {
         return new Path(this.ident, this.components.plus(name));
     }
 
-    public static <LOC, NAME, T extends Ident<NAME, LOC>> Path<LOC, NAME, T> of(T ident) {
+    public static <LOC, NAME> Path<LOC, NAME> of(Ident<LOC, NAME> ident) {
         if (null == ident) {
             throw new NullPointerException("ident cannot be null");
         }
-        return new Path<LOC, NAME, T>(ident, null);
+        return new Path<LOC, NAME>(ident, null);
     }
 
-    public static <LOC, NAME, T extends Ident<NAME, LOC>> Path<LOC, NAME, T> of(T ident, PVector<NAME> components) {
+    public static <LOC, NAME> Path<LOC, NAME> of(Ident<LOC, NAME> ident, PVector<NAME> components) {
         if (null == ident) {
             throw new NullPointerException("ident cannot be null");
         }
-        return new Path<LOC, NAME, T>(ident, components);
+        return new Path<>(ident, components);
     }
 
     @Override

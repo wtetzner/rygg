@@ -9,10 +9,10 @@ import java.util.Optional;
 import java.util.function.Function;
 
 @Builder
-public class RepeatedTypeName<LOC, NAME, IDENT extends Ident<NAME, LOC>> implements TypeError<LOC> {
+public class RepeatedTypeName<LOC, NAME> implements TypeError<LOC> {
     @Getter @NonNull private final LOC location;
-    @NonNull private final IDENT original;
-    @NonNull private final IDENT duplicate;
+    @NonNull private final Ident<LOC, NAME> original;
+    @NonNull private final Ident<LOC, NAME> duplicate;
 
     @Override
     public String displayError(Function<String, Optional<String>> getFileContents) {

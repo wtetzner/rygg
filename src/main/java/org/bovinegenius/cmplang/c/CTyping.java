@@ -10,19 +10,19 @@ import java.lang.reflect.UndeclaredThrowableException;
 import java.util.Optional;
 import java.util.function.Function;
 
-public class CTyping implements CoreTyping<Span, String, Ident<String, Span>, CTerm, CType, CType, Void> {
+public class CTyping implements CoreTyping<Span, String, CTerm, CType, CType, Void> {
     @Override
-    public Result<CType, TypeError<Span>> typeTerm(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, Void> env, CTerm cTerm) {
+    public Result<CType, TypeError<Span>> typeTerm(Env<Span, String, CTerm, CType, CType, Void> env, CTerm cTerm) {
         return null;
     }
 
     @Override
-    public Result<Void, TypeError<Span>> kindDeftype(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, Void> env, CType cType) {
+    public Result<Void, TypeError<Span>> kindDeftype(Env<Span, String, CTerm, CType, CType, Void> env, CType cType) {
         return checkValtype(env, cType);
     }
 
     @Override
-    public Result<Void, TypeError<Span>> checkValtype(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, Void> env, CType cType) {
+    public Result<Void, TypeError<Span>> checkValtype(Env<Span, String, CTerm, CType, CType, Void> env, CType cType) {
         if (cType instanceof CType.TypeName) {
             CType.TypeName typename = (CType.TypeName)cType;
             Optional<TypeDecl<Void, CType>> foundType = env.findType(typename.getPath());
@@ -50,27 +50,27 @@ public class CTyping implements CoreTyping<Span, String, Ident<String, Span>, CT
     }
 
     @Override
-    public Result<Void, TypeError<Span>> checkKind(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, Void> env, Void aVoid) {
+    public Result<Void, TypeError<Span>> checkKind(Env<Span, String, CTerm, CType, CType, Void> env, Void aVoid) {
         return Result.ok();
     }
 
     @Override
-    public boolean valtypeMatch(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, Void> env, CType val1, CType val2) {
+    public boolean valtypeMatch(Env<Span, String, CTerm, CType, CType, Void> env, CType val1, CType val2) {
         return false;
     }
 
     @Override
-    public boolean deftypeEquiv(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, Void> env, Void aVoid, CType def1, CType def2) {
+    public boolean deftypeEquiv(Env<Span, String, CTerm, CType, CType, Void> env, Void aVoid, CType def1, CType def2) {
         return false;
     }
 
     @Override
-    public boolean kindMatch(Env<Span, String, Ident<String, Span>, CTerm, CType, CType, Void> env, Void kind1, Void kind2) {
+    public boolean kindMatch(Env<Span, String, CTerm, CType, CType, Void> env, Void kind1, Void kind2) {
         return false;
     }
 
     @Override
-    public CType deftypeOfPath(Path<Span, String, Ident<String, Span>> path, Void aVoid) {
+    public CType deftypeOfPath(Path<Span, String> path, Void aVoid) {
         return CType.TypeName.of(path);
     }
 }
