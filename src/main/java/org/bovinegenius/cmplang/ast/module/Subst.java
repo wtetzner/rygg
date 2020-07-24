@@ -1,5 +1,6 @@
 package org.bovinegenius.cmplang.ast.module;
 
+import org.bovinegenius.cmplang.modules.Substable;
 import org.pcollections.HashPMap;
 import org.pcollections.HashTreePMap;
 
@@ -12,14 +13,14 @@ import org.pcollections.HashTreePMap;
  *   val path: path -> t -> path
  * end
  */
-public class Subst<LOC, NAME> {
+public class Subst<LOC extends Comparable<LOC>, NAME> {
     private final HashPMap<Ident<LOC, NAME>, Path<LOC, NAME>> mapping;
 
     private Subst(HashPMap<Ident<LOC, NAME>, Path<LOC, NAME>> mapping) {
         this.mapping = mapping;
     }
 
-    public static <LOC, NAME> Subst<LOC, NAME> identity() {
+    public static <LOC extends Comparable<LOC>, NAME> Subst<LOC, NAME> identity() {
         return new Subst<>(HashTreePMap.empty());
     }
 
@@ -33,6 +34,13 @@ public class Subst<LOC, NAME> {
             return path;
         }
         return Path.of(substPath.getIdent(), substPath.getComponents().plusAll(path.getComponents()));
+    }
+
+    public <T extends Substable<LOC, NAME, T>> T apply(T obj) {
+        if (null == obj) {
+            return null;
+        }
+        return obj.subst(this);
     }
 
 }

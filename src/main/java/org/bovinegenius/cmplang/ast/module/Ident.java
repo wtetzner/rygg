@@ -3,6 +3,7 @@ package org.bovinegenius.cmplang.ast.module;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.bovinegenius.cmplang.util.Display;
+import org.bovinegenius.cmplang.util.Formatted;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -20,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *   val find: t -> 'a tbl -> 'a
  * end
  */
-public class Ident<LOC, NAME> implements Display {
+public class Ident<LOC extends Comparable<LOC>, NAME> implements Display, Formatted, Comparable<Ident<LOC, NAME>> {
     private static final AtomicLong STAMP_SEQ = new AtomicLong(1);
 
     @Getter private final LOC location;
@@ -37,7 +38,7 @@ public class Ident<LOC, NAME> implements Display {
         return this.name;
     }
 
-    public static <LOC, NAME> Ident<LOC, NAME> create(LOC location, NAME name) {
+    public static <LOC extends Comparable<LOC>, NAME> Ident<LOC, NAME> create(LOC location, NAME name) {
         return new Ident<>(location, name, STAMP_SEQ.getAndIncrement());
     }
 
@@ -77,5 +78,19 @@ public class Ident<LOC, NAME> implements Display {
     public String display() {
         return Objects.toString(this.name, "");
     }
+
+    @Override
+    public String formatted(boolean inline, int indentAmount, int indentLevel) {
+        return Objects.toString(this.name, "");
+    }
+
+    @Override
+    public int compareTo(Ident<LOC, NAME> o) {
+        if (null == o) {
+            return 1;
+        }
+        return this.getLocation().compareTo(o.getLocation());
+    }
+
 }
 

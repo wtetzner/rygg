@@ -1,4 +1,5 @@
 package org.bovinegenius.cmplang.modules;
 
-public class ValueDef {
+public class ValueDef<VAL> {
+
 }

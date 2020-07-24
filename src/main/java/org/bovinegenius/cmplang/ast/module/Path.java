@@ -3,10 +3,11 @@ package org.bovinegenius.cmplang.ast.module;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.bovinegenius.cmplang.util.Formatted;
 import org.pcollections.PVector;
 import org.pcollections.TreePVector;
 
-public class Path<LOC, NAME> {
+public class Path<LOC, NAME> implements Formatted {
     private final Ident<LOC, NAME> ident;
     private final PVector<NAME> components;
 
@@ -88,6 +89,11 @@ public class Path<LOC, NAME> {
 
     @Override
     public String toString() {
+        return this.formatted(true, 0, 0);
+    }
+
+    @Override
+    public String formatted(boolean inline, int indentAmount, int indentLevel) {
         StringBuilder sb  = new StringBuilder();
         sb.append(this.getIdent());
         for (NAME name : this.getComponents()) {
@@ -95,5 +101,4 @@ public class Path<LOC, NAME> {
         }
         return sb.toString();
     }
-
 }

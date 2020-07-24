@@ -1,5 +1,8 @@
 package org.bovinegenius.cmplang.modules;
 
-public interface Node<NODE> {
-    NodeID<NODE> getId();
+import org.bovinegenius.cmplang.ast.module.HasLocation;
+import org.bovinegenius.cmplang.util.Formatted;
+
+public interface Node<LOC extends Comparable<LOC>, NAME, SELF extends Substable<LOC, NAME, SELF>> extends HasLocation<LOC>, Formatted {
+
 }

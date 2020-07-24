@@ -2,6 +2,6 @@ package org.bovinegenius.cmplang.modules;
 
 import org.bovinegenius.cmplang.ast.module.Subst;
 
-public interface Substable<LOC, NAME, T> {
-    T subst(Subst<LOC, NAME> subst);
+public interface Substable<LOC extends Comparable<LOC>, NAME, SELF> {
+    SELF subst(Subst<LOC, NAME> subst);
 }

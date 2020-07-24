@@ -6,7 +6,7 @@ import lombok.Value;
 
 @Value
 @AllArgsConstructor(staticName = "of")
-public class Span {
+public class Span implements Comparable<Span> {
     private static final Span EMPTY = Span.of(Location.empty(), Location.empty());
 
     @NonNull Location start;
@@ -19,4 +19,13 @@ public class Span {
     public static Span empty() {
         return EMPTY;
     }
+
+    @Override
+    public int compareTo(Span o) {
+        if (null == o) {
+            return 1;
+        }
+        return this.getStart().compareTo(o.getStart());
+    }
+
 }
