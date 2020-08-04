@@ -2,15 +2,13 @@ package org.bovinegenius.cmplang.modules;
 
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.ToString;
 import org.bovinegenius.cmplang.ast.module.Path;
 import org.bovinegenius.cmplang.ast.module.Subst;
 import org.bovinegenius.cmplang.util.Formatted;
 
 import java.util.Optional;
 
-@ToString
-public class FunctorArgType<LOC extends Comparable<LOC>, NAME,KIND extends Node<LOC, NAME, KIND>, TYPE extends Node<LOC, NAME, TYPE>>
+public class FunctorArgType<LOC extends Comparable<LOC>, NAME, KIND extends Node<LOC, NAME, KIND>, TYPE extends Node<LOC, NAME, TYPE>>
         implements Substable<LOC, NAME, FunctorArgType<LOC, NAME, KIND, TYPE>>, Formatted {
 
     @Getter private final Optional<ModuleType<LOC, NAME, KIND, TYPE>> moduleType;

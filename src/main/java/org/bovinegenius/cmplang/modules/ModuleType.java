@@ -31,6 +31,10 @@ public class ModuleType<LOC extends Comparable<LOC>, NAME, KIND extends Node<LOC
         this.moduleType = moduleType;
     }
 
+    public static <LOC extends Comparable<LOC>, NAME, KIND extends Node<LOC, NAME, KIND>, TYPE extends Node<LOC, NAME, TYPE>> Class<ModuleType<LOC, NAME, KIND, TYPE>> tag() {
+        return  (Class<ModuleType<LOC, NAME, KIND, TYPE>>)(Object)ModuleType.class;
+    }
+
     public static <LOC extends Comparable<LOC>, NAME, KIND extends Node<LOC, NAME, KIND>, TYPE extends Node<LOC, NAME, TYPE>> ModuleType<LOC, NAME, KIND, TYPE> empty() {
         return new ModuleType<>(
                 IdentMap.<LOC, NAME, TypeDef<LOC, NAME, KIND, TYPE>>empty(),
