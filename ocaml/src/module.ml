@@ -178,12 +178,11 @@ module Make_path(Ident: IDENT)
       | None -> ref ""
       | Some ns -> ref ((Name.to_string ns) ^ "/") in
     let first = ref true in
-    Array.iter (fun name -> if !first then
+    Array.iter (fun name -> (if !first then
                               first := false
-                            else begin
-                                output := !output ^ ".";
-                                output := !output ^ Name.to_string name
-                              end)
+                            else 
+                              output := !output ^ ".");
+                            output := !output ^ Name.to_string name)
       path.parts;
     !output
 
