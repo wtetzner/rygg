@@ -17,6 +17,7 @@ module type LOC = sig
   type t
   type source
 
+  val merge : t -> t -> t
   val sources : t -> source list
   val equal : t -> t -> bool
   val compare : t -> t -> int
@@ -35,13 +36,17 @@ end
 
 module type PATH = sig
   type t
+  type loc
   type ident
   type name
 
   val from_ident : ident -> t
-  val create : ident -> name list -> t
-  val create_ns : ident -> ident -> name list -> t
-  val namespace : t -> ident option
+  val create : name list -> t
+  val create_ns : name -> name list -> t
+  val namespace : t -> name option
+  val loc : t -> loc option
+  val with_loc : t -> loc -> t
+  val without_loc : t -> t
   val plus : t -> name -> t
   val equal : t -> t -> bool
   val compare : t -> t -> int
@@ -74,38 +79,66 @@ module Make_ident(Name: NAME)(Loc: LOC): IDENT
       (Loc.debug_string ident.loc)
 end
 
-module Make_path(Ident: IDENT)(Name: NAME with type t = Ident.name): (
-  PATH with type name = Name.t
-  with type name = Ident.name
-  with type ident = Ident.t
-) = struct
+module Make_path(Ident: IDENT)
+         (Name: NAME with type t = Ident.name)
+         (Loc: LOC with type t = Ident.loc): PATH
+       with type name = Name.t
+       with type name = Ident.name
+       with type ident = Ident.t = struct
   type ident = Ident.t
   type name = Name.t
+  type loc = Ident.loc
 
   type t = {
-      namespace: Ident.t option;
-      ident: Ident.t;
-      parts: name array
+      namespace: Name.t option;
+      parts: name array;
+      loc: loc option;
   }
 
-  let from_ident ident = { namespace = None; ident = ident; parts = [||] }
+  let from_ident ident = {
+      namespace = None;
+      parts = [| Ident.name ident |];
+      loc = Some (Ident.loc ident)
+  }
 
-  let create ident names =
+  let create names =
     let parts = Array.of_list names in
-    { namespace = None; ident; parts }
+    { namespace = None; loc = None; parts }
 
-  let create_ns namespace ident names =
-    let intermediate = create ident names in
+  let create_ns namespace names =
+    let intermediate = create names in
     { intermediate with namespace = Some namespace }
     
+  let loc path = path.loc
+
   let namespace path = path.namespace
 
   let plus path part =
-    let { namespace; ident; parts } = path in
-    { namespace; ident; parts = Array.append parts [| part |] }
+    let { parts } = path in
+    { path with parts = Array.append parts [| part |];
+                loc = None}
+
+  let with_loc path loc =
+    { path with loc = Some loc }
+
+  let without_loc path =
+    { path with loc = None }
+
+  let ns_equal ns1 ns2 =
+    match (ns1, ns2) with
+    | (Some n1, Some n2) -> Name.equal n1 n2
+    | (None, None) -> true
+    | _ -> false
+
+  let ns_compare ns1 ns2 =
+    match (ns1, ns2) with
+    | (Some n1, Some n2) -> Name.compare n1 n2
+    | (None, None) -> 0
+    | (Some _, None) -> 1
+    | (None, Some _) -> -1
 
   let equal left right =
-    if Ident.equal left.ident right.ident
+    if (ns_equal left.namespace right.namespace)
        && (Array.length left.parts) = (Array.length right.parts) then
       let still_equal = ref true in
       let pos = ref 0 in
@@ -120,8 +153,8 @@ module Make_path(Ident: IDENT)(Name: NAME with type t = Ident.name): (
       false
 
   let compare left right =
-    let ident_cmp = Ident.compare left.ident right.ident in
-    if ident_cmp = 0 then
+    let namespace_cmp = ns_compare left.namespace right.namespace in
+    if namespace_cmp = 0 then
       let llen = Array.length left.parts in
       let rlen = Array.length right.parts in
       let pos = ref 0 in
@@ -138,25 +171,34 @@ module Make_path(Ident: IDENT)(Name: NAME with type t = Ident.name): (
       done;
       !cmp_result
     else
-      ident_cmp
+      namespace_cmp
 
   let to_string path =
     let output = match path.namespace with
       | None -> ref ""
-      | Some ns -> ref ((Ident.to_string ns) ^ "/") in 
-    output := !output ^ (Ident.to_string path.ident);
-    Array.iter (fun name -> output := !output ^ "." ^ Name.to_string name) path.parts;
+      | Some ns -> ref ((Name.to_string ns) ^ "/") in
+    let first = ref true in
+    Array.iter (fun name -> if !first then
+                              first := false
+                            else begin
+                                output := !output ^ ".";
+                                output := !output ^ Name.to_string name
+                              end)
+      path.parts;
     !output
 
   let debug_string path =
     let output = ref "{ namespace = " in
     (match path.namespace with
      | None -> output := !output ^ "None"
-     | Some ns -> output := !output ^ ("Some " ^ (Ident.debug_string ns)));
-    output := !output ^ (", ident = " ^ (Ident.debug_string path.ident));
+     | Some ns -> output := !output ^ ("Some " ^ (Name.debug_string ns)));
     output := !output ^ ", parts = [";
     Array.iter (fun name -> output := !output ^ ", " ^ Name.debug_string name) path.parts;
-    output := !output ^ "] }";
+    output := !output ^ "]";
+    (match path.loc with
+    | Some loc -> output := !output ^ ", loc = " ^ (Loc.debug_string loc)
+    | None -> ());
+    output := !output ^ " }";
     !output
 end
 
@@ -183,46 +225,67 @@ module type LANG = sig
 end
 
 module type SIGNATURE = sig
-  type ('t, 'v, 'm) t
+  type t
   type name
   type ident
-  val empty : ('t, 'v, 'm) t
-  val plus_type : ('t, 'v, 'm) t -> ident -> 't -> (('t, 'v, 'm) t, ident) result
-  val plus_value_type : ('t, 'v, 'm) t -> ident -> 'v -> (('t, 'v, 'm) t, ident) result
-  val plus_module_type : ('t, 'v, 'm) t -> ident -> 'm -> (('t, 'v, 'm) t, ident) result
+  type type_decl
+  type value_type
+  type module_type
+  type module_decl
 
-  val lookup_type : ('t, 'v, 'm) t -> ident -> 't option
-  val lookup_type_name : ('t, 'v, 'm) t -> name -> 't option
-  val lookup_value_type : ('t, 'v, 'm) t -> ident -> 'v option
-  val lookup_value_type_name : ('t, 'v, 'm) t -> name -> 'v option
-  val lookup_module_type : ('t, 'v, 'm) t -> ident -> 'm option
-  val lookup_module_type_name : ('t, 'v, 'm) t -> name -> 'm option
+  val empty : t
+  val plus_type : t -> ident -> type_decl -> (t, ident) result
+  val plus_value_type : t -> ident -> value_type -> (t, ident) result
+  val plus_module_type : t -> ident -> module_type -> (t, ident) result
+  val plus_module_decl : t -> ident -> module_decl -> (t, ident) result
 
-  val type_seq : ('t, 'v, 'm) t -> (ident * 't) Seq.t
-  val value_type_seq : ('t, 'v, 'm) t -> (ident * 'v) Seq.t
-  val module_type_seq : ('t, 'v, 'm) t -> (ident * 'm) Seq.t
+  val lookup_type : t -> ident -> type_decl option
+  val lookup_type_name : t -> name -> type_decl option
+  val lookup_value_type : t -> ident -> value_type option
+  val lookup_value_type_name : t -> name -> value_type option
+  val lookup_module_type : t -> ident -> module_type option
+  val lookup_module_type_name : t -> name -> module_type option
+  val lookup_module_decl : t -> ident -> module_decl option
+  val lookup_module_decl_name : t -> name -> module_decl option
+
+  val type_seq : t -> (ident * type_decl) Seq.t
+  val value_type_seq : t -> (ident * value_type) Seq.t
+  val module_type_seq : t -> (ident * module_type) Seq.t
+  val module_decl_seq : t -> (ident * module_decl) Seq.t
+
+  (* val find_type : t -> name list -> type_decl option
+   * val find_value_type : t -> name list -> value_type option
+   * val find_module_type : t -> name list -> module_type option *)
 end
 
 module type STRUCTURE = sig
-  type ('type_def, 'term, 'module_term) t
+  type t
   type name
   type ident
+  type type_def
+  type term
+  type module_term
+  type module_type
      
-  val empty : ('d, 't, 'm) t
-  val plus_type : ('d, 't, 'm) t -> ident -> 'd -> (('d, 't, 'm) t, ident) result
-  val plus_term : ('d, 't, 'm) t -> ident -> 't -> (('d, 't, 'm) t, ident) result
-  val plus_module : ('d, 't, 'm) t -> ident -> 'm -> (('d, 't, 'm) t, ident) result
+  val empty : t
+  val plus_type : t -> ident -> type_def -> (t, ident) result
+  val plus_term : t -> ident -> term -> (t, ident) result
+  val plus_module : t -> ident -> module_term -> (t, ident) result
+  val plus_module_type : t -> ident -> module_type -> (t, ident) result
 
-  val lookup_type : ('d, 't, 'm) t -> ident -> 'd option
-  val lookup_type_name : ('d, 't, 'm) t -> name -> 'd option
-  val lookup_term : ('d, 't, 'm) t -> ident -> 't option
-  val lookup_term_name : ('d, 't, 'm) t -> name -> 't option
-  val lookup_module : ('d, 't, 'm) t -> ident -> 'm option
-  val lookup_module_name : ('d, 't, 'm) t -> name -> 'm option
+  val lookup_type : t -> ident -> type_def option
+  val lookup_type_name : t -> name -> type_def option
+  val lookup_term : t -> ident -> term option
+  val lookup_term_name : t -> name -> term option
+  val lookup_module : t -> ident -> module_term option
+  val lookup_module_name : t -> name -> module_term option
+  val lookup_module_type : t -> ident -> module_type option
+  val lookup_module_type_name : t -> name -> module_type option
 
-  val type_seq : ('d, 't, 'm) t -> (ident * 'd) Seq.t
-  val term_seq : ('d, 't, 'm) t -> (ident * 't) Seq.t
-  val module_seq : ('d, 't, 'm) t -> (ident * 'm) Seq.t
+  val type_seq : t -> (ident * type_def) Seq.t
+  val term_seq : t -> (ident * term) Seq.t
+  val module_seq : t -> (ident * module_term) Seq.t
+  val module_type_seq : t -> (ident * module_type) Seq.t
 end
 
 module type NAMESPACE_DECLARATION = sig
@@ -315,6 +378,7 @@ module type ENV = sig
   type t
   type ident
   type path
+  type name
   type type_decl
   type value_type
   type module_type
@@ -322,14 +386,9 @@ module type ENV = sig
   type term
   type module_term
 
-  val empty: t
-  val plus_value_type : t -> path -> value_type -> t
-  val plus_type_decl : t -> path -> type_decl -> t 
-  val plus_module_type : t -> path -> module_type -> t
-
-  val plus_type_def : t -> path -> type_def -> t
-  val plus_term : t -> path -> term -> t
-  val plus_module_term : t -> path -> module_term -> t
+  val current_path : t -> path option
+  val with_current_path : t -> path option -> t
+  val plus_current_path : t -> name -> t
 
   val find_value_type : t -> path -> value_type option
   val find_type_decl : t -> path -> type_decl option
@@ -344,11 +403,17 @@ module type NAMESPACES = sig
   type t
   type name
   type ident
-  type source
   type namespace
   type module_type
   type module_term
   type env
+
+  module Env : ENV
+           with type t = env
+           with type ident = ident
+           with type name = name
+           with type module_type = module_type
+           with type module_term = module_term
 
   val create : namespace list -> t
 
@@ -424,24 +489,36 @@ module type MODULE_SYNTAX = sig
       concrete: typ
   }
 
+  type module_decl
+
+  type signature
+  type module_type = Signature of signature
+                   | Functor_type of module_type * module_type
+
+  type structure
+  type module_term = Path of Path.t
+                   | Structure of structure
+                   | Functor of Ident.t * module_type * module_term
+                   | Apply of module_term * module_term
+                   | Constraint of module_term * module_type
+
   module Signature : SIGNATURE
+         with type t = signature
          with type name = Name.t
          with type ident = Ident.t
+         with type type_decl = type_decl
+         with type value_type = value_type
+         with type module_type = module_type
+         with type module_decl = module_decl
 
   module Structure : STRUCTURE
+         with type t = structure
          with type name = Name.t
          with type ident = Ident.t
-
-  type signature = (type_decl, value_type, module_type) Signature.t
-  and module_type = Signature of signature
-                  | Functor_type of module_type * module_type
-
-  type structure = (type_def, term, module_term) Structure.t
-  and module_term = Path of Path.t
-              | Structure of structure
-              | Functor of Ident.t * module_type * module_term
-              | Apply of module_term * module_term
-              | Constraint of module_term * module_type
+         with type type_def = type_def
+         with type term = term
+         with type module_term = module_term
+         with type module_type = module_type
 
   module NamespaceDeclaration : NAMESPACE_DECLARATION
          with type loc = Loc.t
@@ -464,6 +541,23 @@ module type MODULE_SYNTAX = sig
          with type module_type = module_type
          with type module_term = module_term
          with type namespace_declaration = NamespaceDeclaration.t
+
+  (* module Env : ENV
+   *        with type ident = Ident.t
+   *        with type type_decl = type_decl
+   *        with type value_type = value_type
+   *        with type module_type = module_type
+   *        with type type_def = type_def
+   *        with type term = term
+   *        with type module_term = module_term
+   * 
+   * module Namespaces : NAMESPACES
+   *        with type name = Name.t
+   *        with type ident = Ident.t
+   *        with type namespace = Namespace.t
+   *        with type module_type = module_type
+   *        with type module_term = module_term
+   *        with type env = Env.t *)
 end
 
 module Modularize(Lang: LANG): MODULE_SYNTAX
@@ -493,6 +587,9 @@ module Modularize(Lang: LANG): MODULE_SYNTAX
       kind: kind;
       concrete: typ
   }
+
+  type type_decl_alias = type_decl
+  type type_def_alias = type_def
 
   module IdentMap : sig
     type 'a t
@@ -547,26 +644,58 @@ module Modularize(Lang: LANG): MODULE_SYNTAX
     let name_seq map = NameMap.to_seq map.name_map
   end
 
+  type signature = {
+      type_decls: type_decl IdentMap.t;
+      values: value_type IdentMap.t;
+      sig_module_types: module_type IdentMap.t;
+      module_decls: module_decl IdentMap.t
+  }
+  and module_type = Signature of signature
+                  | Functor_type of module_type * module_type
+  and module_decl = module_type
+
+  type structure = {
+        types: type_def IdentMap.t;
+        terms: Lang.term IdentMap.t;
+        modules: module_term IdentMap.t;
+        module_types: module_type IdentMap.t
+  }
+  and module_term = Path of Path.t
+              | Structure of structure
+              | Functor of Ident.t * module_type * module_term
+              | Apply of module_term * module_term
+              | Constraint of module_term * module_type
+
+  type module_type_alias = module_type
+  type module_term_alias = module_term
+  type module_decl_alias = module_decl
+
   module Signature : SIGNATURE
+         with type t = signature
          with type name = Name.t
-         with type ident = Ident.t = struct
-    type ('t, 'v, 'm) t = {
-        types: 't IdentMap.t;
-        values: 'v IdentMap.t;
-        module_types: 'm IdentMap.t
-      }
+         with type ident = Ident.t
+         with type type_decl = type_decl
+         with type value_type = value_type
+         with type module_type = module_type
+         with type module_decl = module_decl = struct
     type name = Name.t
     type ident = Ident.t
+    type type_decl = type_decl_alias
+    type value_type = Lang.value_type
+    type module_type = module_type_alias
+    type module_decl = module_decl_alias
+    type t = signature
 
     let empty = {
-        types = IdentMap.empty;
+        type_decls = IdentMap.empty;
         values = IdentMap.empty;
-        module_types = IdentMap.empty
+        sig_module_types = IdentMap.empty;
+        module_decls = IdentMap.empty
     }
 
     let plus_type signature ident typ =
-      match IdentMap.plus signature.types ident typ with
-      | Ok new_tbl -> Ok { signature with types = new_tbl }
+      match IdentMap.plus signature.type_decls ident typ with
+      | Ok new_tbl -> Ok { signature with type_decls = new_tbl }
       | Error old_ident -> Error old_ident
 
     let plus_value_type signature ident value =
@@ -575,37 +704,52 @@ module Modularize(Lang: LANG): MODULE_SYNTAX
       | Error old_ident -> Error old_ident
 
     let plus_module_type signature ident module_type =
-      match IdentMap.plus signature.module_types ident module_type with
-      | Ok new_tbl -> Ok { signature with module_types = new_tbl }
+      match IdentMap.plus signature.sig_module_types ident module_type with
+      | Ok new_tbl -> Ok { signature with sig_module_types = new_tbl }
       | Error old_ident -> Error old_ident
 
-    let lookup_type signature ident = IdentMap.lookup_ident signature.types ident
-    let lookup_type_name signature name = IdentMap.lookup_name signature.types name
+    let plus_module_decl signature ident module_decl =
+      match IdentMap.plus signature.module_decls ident module_decl with
+      | Ok new_tbl -> Ok { signature with module_decls = new_tbl }
+      | Error old_ident -> Error old_ident
+
+    let lookup_type signature ident = IdentMap.lookup_ident signature.type_decls ident
+    let lookup_type_name signature name = IdentMap.lookup_name signature.type_decls name
     let lookup_value_type signature ident = IdentMap.lookup_ident signature.values ident
     let lookup_value_type_name signature name = IdentMap.lookup_name signature.values name
-    let lookup_module_type signature ident = IdentMap.lookup_ident signature.module_types ident
-    let lookup_module_type_name signature name = IdentMap.lookup_name signature.module_types name
+    let lookup_module_type signature ident = IdentMap.lookup_ident signature.sig_module_types ident
+    let lookup_module_type_name signature name = IdentMap.lookup_name signature.sig_module_types name
+    let lookup_module_decl signature ident = IdentMap.lookup_ident signature.module_decls ident
+    let lookup_module_decl_name signature name = IdentMap.lookup_name signature.module_decls name
 
-    let type_seq signature = IdentMap.ident_seq signature.types
+    let type_seq signature = IdentMap.ident_seq signature.type_decls
     let value_type_seq signature = IdentMap.ident_seq signature.values
-    let module_type_seq signature = IdentMap.ident_seq signature.module_types
+    let module_type_seq signature = IdentMap.ident_seq signature.sig_module_types
+    let module_decl_seq signature = IdentMap.ident_seq signature.module_decls
   end
  
   module Structure: STRUCTURE
+         with type t = structure
          with type name = Name.t
-         with type ident = Ident.t = struct
-    type ('d, 't, 'm) t = {
-        types: 'd IdentMap.t;
-        terms: 't IdentMap.t;
-        modules: 'm IdentMap.t
-    }
+         with type ident = Ident.t
+         with type type_def = type_def
+         with type term = Lang.term
+         with type module_term = module_term
+         with type module_type = module_type = struct
     type name = Name.t
     type ident = Ident.t
+    type type_def = type_def_alias
+    type term = Lang.term
+    type module_term = module_term_alias
+    type module_type = module_type_alias
+
+    type t = structure
 
     let empty = {
         types = IdentMap.empty;
         terms = IdentMap.empty;
-        modules = IdentMap.empty
+        modules = IdentMap.empty;
+        module_types = IdentMap.empty
     }
 
     let plus_type structure ident type_def =
@@ -623,31 +767,25 @@ module Modularize(Lang: LANG): MODULE_SYNTAX
       | Ok new_tbl -> Ok { structure with modules = new_tbl }
       | Error old_ident -> Error old_ident
 
+    let plus_module_type structure ident module_type =
+      match IdentMap.plus structure.module_types ident module_type with
+      | Ok new_tbl -> Ok { structure with module_types = new_tbl }
+      | Error old_ident -> Error old_ident
+
     let lookup_type structure ident = IdentMap.lookup_ident structure.types ident
     let lookup_type_name structure name = IdentMap.lookup_name structure.types name
     let lookup_term structure ident = IdentMap.lookup_ident structure.terms ident
     let lookup_term_name structure name = IdentMap.lookup_name structure.terms name
     let lookup_module structure ident = IdentMap.lookup_ident structure.modules ident
     let lookup_module_name structure name = IdentMap.lookup_name structure.modules name
+    let lookup_module_type structure ident = IdentMap.lookup_ident structure.module_types ident
+    let lookup_module_type_name structure name = IdentMap.lookup_name structure.module_types name
 
     let type_seq structure = IdentMap.ident_seq structure.types
     let term_seq structure = IdentMap.ident_seq structure.terms
     let module_seq structure = IdentMap.ident_seq structure.modules
+    let module_type_seq structure = IdentMap.ident_seq structure.module_types
   end
-
-  type signature = (type_decl, value_type, module_type) Signature.t
-  and module_type = Signature of signature
-                  | Functor_type of module_type * module_type
-
-  type structure = (type_def, term, module_term) Structure.t
-  and module_term = Path of Path.t
-              | Structure of structure
-              | Functor of Ident.t * module_type * module_term
-              | Apply of module_term * module_term
-              | Constraint of module_term * module_type
-
-  type module_type_alias = module_type
-  type module_term_alias = module_term
 
   module NamespaceDeclaration : NAMESPACE_DECLARATION
          with type loc = Loc.t
@@ -711,6 +849,11 @@ module Modularize(Lang: LANG): MODULE_SYNTAX
     let term_seq ns = IdentMap.ident_seq ns.terms
   end
 
+  type ns_merge_error = [
+    | `Duplicate_signature of Ident.t * Ident.t
+    | `Duplicate_module of Ident.t * Ident.t
+  ]
+
   module Source : SOURCE
          with type source_id = SourceId.t
          with type name = Name.t
@@ -766,11 +909,6 @@ module Modularize(Lang: LANG): MODULE_SYNTAX
 
     let namespace_declaration_seq source = IdMap.to_seq source.declarations
   end
-
-  type ns_merge_error = [
-    | `Duplicate_signature of Ident.t * Ident.t
-    | `Duplicate_module of Ident.t * Ident.t
-  ]
 
   module Namespace : NAMESPACE
          with type name = Name.t
@@ -884,4 +1022,82 @@ module Modularize(Lang: LANG): MODULE_SYNTAX
     let sig_seq ns = IdentMap.ident_seq ns.types
     let term_seq ns = IdentMap.ident_seq ns.terms
   end
+
+  (* module Namespaces : NAMESPACES
+   *        with type name = Name.t
+   *        with type ident = Ident.t
+   *        with type namespace = Namespace.t
+   *        with type module_type = module_type_alias
+   *        with type module_term = module_term_alias
+   *        with type env = Env.t = struct
+   *   type name = Name.t
+   *   type ident = Ident.t
+   *   type namespace = Namespace.t
+   *   type module_type = module_type_alias
+   *   type module_term = module_term_alias
+   * 
+   *   module NameMap = Map.Make(Name)
+   *   module IdentMap = Map.Make(Ident)
+   * 
+   *   type t = namespace NameMap.t
+   * 
+   *   type env = {
+   *       namespaces: t;
+   *       current_path: Path.t option;
+   *       namespace_remappings: Name.t NameMap.t;
+   *       value_types: Path.t NameMap.t;
+   *       type_decls: Path.t NameMap.t;
+   *       module_types: Path.t NameMap.t;
+   *       type_defs: Path.t NameMap.t;
+   *       terms: Path.t NameMap.t;
+   *       module_terms: Path.t NameMap.t;
+   *       ident_paths: Path.t IdentMap.t
+   *   }
+   * 
+   *   module Env : ENV
+   *          with type t = env
+   *          with type ident = Ident.t
+   *          with type path = Path.t
+   *          with type name = Name.t
+   *          with type type_decl = type_decl
+   *          with type value_type = value_type
+   *          with type module_type = module_type_alias
+   *          with type type_def = type_def
+   *          with type term = term
+   *          with type module_term = module_term_alias = struct
+   *     type t = env
+   *     type path = Path.t
+   *     type ident = Ident.t
+   *     type name = Name.t
+   *     type type_decl = type_decl_alias
+   *     type value_type = Lang.value_type
+   *     type module_type = module_type_alias
+   *     type type_def = type_def_alias
+   *     type term = Lang.term
+   *     type module_term = module_term_alias
+   * 
+   *     let current_path env = env.current_path
+   * 
+   *     let with_current_path env path =
+   *       { env with current_path = path }
+   * 
+   *     let plus_current_path env name =
+   *       match current_path env with
+   *       | Some path -> with_current_path env (Some (Path.plus path name))
+   *       | None -> env
+   * 
+   *     let find_value_type env path =
+   *       match NameMap.find_opt  env.value_types with
+   *         
+   * 
+   *     let find_type_decl env path = ()
+   *     let find_module_type env path = ()
+   * 
+   *     let find_type_def env path = ()
+   *     let find_term env path = ()
+   *     let find_module_term env path = ()
+   * 
+   *   end
+   * 
+   * end *)
 end

@@ -85,6 +85,7 @@ module Span: sig
 
   val equal : t -> t -> bool
   val compare : t -> t -> int
+  val merge : t -> t -> t
   val to_string : t -> string
   val debug_string : t -> string
 end = struct
@@ -108,6 +109,8 @@ end = struct
       Loc.compare span1.finish span2.finish
     else
       start_cmp
+
+  let merge span1 span2 = { start = span1.start; finish = span2.finish }
 
   let to_string span =
     let { start; finish } = span in

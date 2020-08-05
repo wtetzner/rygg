@@ -51,7 +51,7 @@ end = struct
 end
 
 module Ident = Module.Make_ident(Name)(Span)
-module Path = Module.Make_path(Ident)(Name)
+module Path = Module.Make_path(Ident)(Name)(Span)
    
 let () =
   let loc = Loc.create "some-file.cmp" 3 5 15 in
@@ -59,7 +59,7 @@ let () =
   let span2 = Span.from loc (Loc.create "foo.cmp" 7 4 25) in
   let span3 = Span.from loc (Loc.create "some-file.cmp" 4 15 25) in
   let name = Name.internal "foo" in
-  let path = Path.create_ns (Ident.create (Name.input "org.bovinegenius") span2) (Ident.create (Name.input "Foo") span) (List.map Name.input ["abc"; "xyz"; "baz"]) in
+  let path = Path.create_ns (Name.input "org.bovinegenius") (List.map Name.input ["Foo"; "abc"; "xyz"; "baz"]) in
   Printf.printf "%s\n" (Loc.to_string loc);
   Printf.printf "%s\n" (Span.to_string span);
   Printf.printf "%s\n" (Span.to_string span2);
