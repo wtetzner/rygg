@@ -1,4 +1,6 @@
 
+open Location
+
 module type IDENT = sig
   type t
   type name
@@ -48,6 +50,8 @@ module type PATH = sig
   val loc : t -> loc option
   val with_loc : t -> loc -> t
   val without_loc : t -> t
+  val with_local : t -> t -> t
+  val without_local : t -> t
   val plus : t -> name -> t
   val subst : t -> (ident * t) -> t
   val equal : t -> t -> bool
@@ -96,6 +100,7 @@ module Make_path(Ident: IDENT)
       ident: Ident.t;
       parts: name array;
       loc: loc option;
+      local: t option
   }
 
   let has_ns path =
@@ -112,12 +117,13 @@ module Make_path(Ident: IDENT)
       namespace = None;
       ident = ident;
       parts = [||];
-      loc = Some (Ident.loc ident)
+      loc = Some (Ident.loc ident);
+      local = None
   }
-
+                       
   let create ident names =
     let parts = Array.of_list names in
-    { namespace = None; ident = ident; loc = None; parts }
+    { namespace = None; ident = ident; loc = None; parts; local = None }
 
   let create_ns namespace ident names =
     let intermediate = create ident names in
@@ -140,6 +146,12 @@ module Make_path(Ident: IDENT)
   let without_loc path =
     { path with loc = None }
 
+  let with_local path local =
+    { path with local = Some local }
+
+  let without_local path =
+    { path with local = None }
+
   let subst path s =
     if has_ns path then
       path
@@ -147,15 +159,16 @@ module Make_path(Ident: IDENT)
       let (ident, p) = s in
       let new_parts = Array.append p.parts path.parts in
       let new_path = { path with ident = ident; parts = new_parts } in
-      match path.loc with
-      | Some l -> with_loc new_path l
-      | None -> without_loc new_path
+      let new_path = match path.loc with
+        | Some l -> with_loc new_path l
+        | None -> without_loc new_path in
+      with_local new_path path
 
-  let ns_equal ns1 ns2 =
-    match (ns1, ns2) with
-    | (Some n1, Some n2) -> Name.equal n1 n2
-    | (None, None) -> true
-    | _ -> false
+      let ns_equal ns1 ns2 =
+        match (ns1, ns2) with
+        | (Some n1, Some n2) -> Name.equal n1 n2
+        | (None, None) -> true
+        | _ -> false
 
   let ns_compare ns1 ns2 =
     match (ns1, ns2) with
@@ -236,6 +249,58 @@ module Make_path(Ident: IDENT)
     !output
 end
 
+module Name: sig
+  type t
+
+  val input : string -> t
+  val internal : string -> t
+
+  val is_input : t -> bool
+  val is_internal : t -> bool
+
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  val to_string : t -> string
+  val debug_string : t -> string
+end = struct
+  type t = { tag: int; name: string }
+  type tag = Input | Internal
+
+  let input_tag = 0
+  let current_internal_tag = ref (input_tag + 1)
+
+  let input name = { tag = input_tag; name }
+  let internal name =
+    let tag = !current_internal_tag in
+    current_internal_tag := !current_internal_tag + 1;
+    { tag; name }
+
+  let is_input name = name.tag = input_tag
+  let is_internal name = name.tag != input_tag
+
+  let equal n1 n2 =
+    n1.tag = n2.tag
+    && String.equal n1.name n2.name
+
+  let compare n1 n2 =
+    let tag_cmp = Int.compare n1.tag n2.tag in
+    if tag_cmp = 0 then
+      String.compare n1.name n2.name
+    else
+      tag_cmp
+
+  let to_string name =
+    if name.tag = input_tag then
+      name.name
+    else
+      Printf.sprintf "%s%%%d" name.name name.tag
+
+  let debug_string name = Printf.sprintf "{ tag = %d; name = %s }" name.tag name.name
+end
+
+module Ident = Make_ident(Name)(Span)
+module Path = Make_path(Ident)(Name)(Span)
+
 module type SUBST = sig
   type t
   type ident
@@ -296,7 +361,56 @@ module Make_subst(Ident: IDENT)
       (IdentMap.to_seq subst);
     !output ^ " }"
 end
-                                 
+
+module Subst = Make_subst(Ident)(Path)
+
+module Source = struct
+  type type_decl = unit
+  type type_def = unit
+  type value_type = unit
+  type module_decl = unit
+  type term = unit
+
+  type import_entry =
+    | Name of Loc.t * Name.t
+    | Rename of (Loc.t * Name.t) * (Loc.t * Name.t)
+
+  type import_line =
+    | Type_import of Loc.t * import_entry list
+    | Value_import of Loc.t * import_entry list
+    | Module_type_import of Loc.t * import_entry list
+    | Module_import of Loc.t * import_entry list
+
+  type open_mask = import_line list
+
+  type signature_entry = [
+    | `Type_decl of Ident.t * type_decl
+    | `Value_type of Ident.t * value_type
+    | `Module_type of Ident.t * module_type
+    | `Module_decl of Ident.t * module_decl
+    | `Module_open of module_term * open_mask option
+  ]
+  and signature = signature_entry list
+  and module_type =
+    | Signature of Loc.t * signature
+    | Functor_type of Loc.t * Ident.t * module_type * module_type
+  and module_entry = [
+    | `Type_def of Ident.t * type_def
+    | `Term of Ident.t * term
+    | `Module_type of Ident.t * module_type
+    | `Module_term of Ident.t * module_term
+    | `Module_open of module_term * open_mask option
+  ]
+  and module_term = [
+    | `Path of Path.t
+    | `Structure of Loc.t * structure
+    | `Functor of Ident.t * module_type * module_term
+    | `Apply of module_term * module_term
+    | `Constraint of module_term * module_term
+  ]
+  and structure = module_entry list
+end
+
 module type SIGNATURE = sig
   type t
   type name
@@ -305,12 +419,7 @@ module type SIGNATURE = sig
   type value_type
   type module_type
   type module_decl
-
-  (* val empty : t
-   * val plus_type : t -> ident -> type_decl -> (t, ident) result
-   * val plus_value_type : t -> ident -> value_type -> (t, ident) result
-   * val plus_module_type : t -> ident -> module_type -> (t, ident) result
-   * val plus_module_decl : t -> ident -> module_decl -> (t, ident) result *)
+  type module_term
 
   val lookup_type : t -> ident -> type_decl option
   val lookup_type_name : t -> name -> type_decl option
@@ -391,30 +500,6 @@ module type NAMESPACE_DECLARATION = sig
 
   val sig_seq : t -> (ident * module_type) Seq.t
   val term_seq : t -> (ident * module_term) Seq.t
-end
-
-module type SOURCE = sig
-  type t
-  type source_id
-  type name
-  type ident
-  type term
-  type module_type
-  type module_term
-  type namespace_declaration
-
-  val empty : source_id -> t
-
-  val name: t -> source_id
-  val namespaces : t -> name list
-
-  val plus : t -> namespace_declaration -> t
-  val plus_all : t -> namespace_declaration list -> t
-
-  val lookup_namespace_declaration : t -> ident -> namespace_declaration option
-  val lookup_namespace_declarations : t -> name -> namespace_declaration Seq.t
-
-  val namespace_declaration_seq : t -> (ident * namespace_declaration) Seq.t
 end
 
 module type NAMESPACE = sig
@@ -536,6 +621,7 @@ module type SOURCES_PARSER = sig
   val reload : source_id list -> source_id list -> (t, parse_error) result
 end
 
+(*
 module type MODULE_SYNTAX = sig
   module Name : NAME
   module Loc : LOC
@@ -1342,3 +1428,4 @@ module Modularize(Lang: LANG): MODULE_SYNTAX
    * 
    * end *)
 end
+ *)

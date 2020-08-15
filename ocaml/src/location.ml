@@ -13,6 +13,7 @@ module Loc: sig
   type source = string
 
   val create : string -> int -> int -> int -> t
+  val unknown : t
 
   val sources : t -> string list
 
@@ -39,6 +40,13 @@ end = struct
       line;
       column;
       offset
+  }
+
+  let unknown = {
+      filename = "unknown";
+      line = -1;
+      column = -1;
+      offset = -1
   }
 
   let sources loc = [loc.filename]
@@ -77,6 +85,7 @@ module Span: sig
   type source = string
 
   val from : Loc.t -> Loc.t -> t
+  val unknown : t
 
   val start : t -> Loc.t
   val finish : t -> Loc.t
@@ -93,6 +102,8 @@ end = struct
   type source = string
 
   let from start finish = { start; finish }
+
+  let unknown = { start = Loc.unknown; finish = Loc.unknown }
 
   let start span = span.start
   let finish span = span.finish

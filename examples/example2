@@ -1,0 +1,75 @@
+
+ns com.foo.bar export (
+  
+) {
+  sig Foo {
+    open 
+    type t
+  }
+}
+
+ns org.bovinegenius {
+  sig COLLECTION {
+    type 'a t
+    fn empty : 'a t
+    fn plus : 'a -> 'a t -> 'a t
+    macro 
+  }
+}
+
+ns org.bovinegenius.foo export
+  mod Foo as Bar,
+  sig FOO,
+  mod Baz
+{
+
+  mod Main {
+    fn main args {
+      let vec: i8 Vector.t = Vector.empty;
+      let updated_vec = Vector.plus 4 vec;
+
+      let num: u8 = 45;
+      let value: i8 = num | Option.or_else I8.max;
+      let foo: i8 = I8.max |> Option.or_else num;
+
+      let value_ptr: i8 ptr = addr value;
+
+      
+    }
+  }
+}
+
+ns org.bovinegenius (export:  mod Foo as Bar) {
+  sig VECTOR {
+    type 'a t
+     
+  }
+}
+
+ns org.bovinegenius {
+  sig VECTOR {
+    type t('a)
+    type 'a t
+    fn empty : 'a t
+    fn plus : 'a -> 'a t -> 'a t
+    fn size : 'a t -> usize
+  }
+
+  mod Vector : VECTOR {
+    type ('a, 'b) thing = Foo 'a | Bar 'b | Baz 'a
+
+    type 'a t = {
+      array: 'a array,
+      capacity: usize
+    }
+
+    fn empty = Array.empty
+    fn plus value vec {
+      let size = Array.size vec.array;
+      let capacity = vec.capacity;
+      if capacity < size {
+        
+      }
+    }
+  }
+}

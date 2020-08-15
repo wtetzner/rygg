@@ -50,8 +50,12 @@ end = struct
   let debug_string name = Printf.sprintf "{ tag = %d; name = %s }" name.tag name.name
 end
 
-module Ident = Module.Make_ident(Name)(Span)
-module Path = Module.Make_path(Ident)(Name)(Span)
+(* module Ident = Module.Make_ident(Name)(Span)
+ * module Path = Module.Make_path(Ident)(Name)(Span) *)
+
+(* module SeaX = Sea *)
+
+open Wombat
    
 let () =
   let loc = Loc.create "some-file.cmp" 3 5 15 in
@@ -59,7 +63,8 @@ let () =
   let span2 = Span.from loc (Loc.create "foo.cmp" 7 4 25) in
   let span3 = Span.from loc (Loc.create "some-file.cmp" 4 15 25) in
   let name = Name.internal "foo" in
-  let path = Path.create_ns (Name.input "org.bovinegenius") (List.map Name.input ["Foo"; "abc"; "xyz"; "baz"]) in
+  let some_ident = Ident.create (Name.input "some_ident") Span.unknown in
+  let path = Path.create_ns (Name.input "org.bovinegenius") (Ident.create (Name.input "org.bovinegenius") Span.unknown) (List.map Name.input ["Foo"; "abc"; "xyz"; "baz"]) in
   Printf.printf "%s\n" (Loc.to_string loc);
   Printf.printf "%s\n" (Span.to_string span);
   Printf.printf "%s\n" (Span.to_string span2);
