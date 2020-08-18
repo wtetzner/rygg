@@ -50,20 +50,23 @@ Build
 
 Requires opam 2.0.
 
-([How to do local builds](https://opam.ocaml.org/blog/opam-install-dir/))
-([Lock files in opam](https://opam.ocaml.org/blog/opam-20-tips/))
-
 Install dependencies and build:
 
-    opam build
+    opam install . --working-dir --locked
 
-To build directly with jbuilder (after dependencies are installed)
+To build directly with dune (after dependencies are installed)
 
-    jbuilder build -p wombat -j 3
+    dune build -p wombat -j 3
 
-If you use `opam build`, then the `wombat` executable will be in your
-path. If you use `jbuilder` to do the build, the executable will be at
-`./_build/install/default/bin/wombat`. The reason to use `jbuilder`
-over `opam build` is that it runs faster, because it doesn't have to
+If you use `opam install`, then the `wombat` executable will be in your
+path. If you use `dune` to do the build, the executable will be at
+`./_build/install/default/bin/wombat`. The reason to use `dune`
+over `opam install` is that it runs faster, because it doesn't have to
 do any dependency resolution, so it gives better turn-around time when
 developing.
+
+Links:
+
+([How to do local builds](https://opam.ocaml.org/blog/opam-install-dir/))
+
+([Lock files in opam](https://opam.ocaml.org/blog/opam-20-tips/))
