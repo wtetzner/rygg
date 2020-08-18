@@ -2,6 +2,7 @@
 (executable
  (name wombat)
  (libraries Vmu Compiler core ANSITerminal)
+ (preprocess (pps ppx_let))
  ; (flags (-ccopt -static))
  (modules Wombat))
 

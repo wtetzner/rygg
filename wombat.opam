@@ -2,16 +2,21 @@ opam-version: "2.0"
 name: "wombat"
 maintainer: "Walter Tetzner"
 version: "0.1.0"
+synopsis: "VMU language"
+description: """
+Longer description
+"""
 build: [
   ["dune" "build" "-p" name "-j" jobs]
 ]
 depends: [
   "sedlex" {>= "1.99.4"}
-  "bitstring" {> "3.0.0"}
+  "bitstring" {>= "3.1.1"}
   "core" {>= "v0.11.2" build}
-  "ANSITerminal" {= "0.8"}
+  "ANSITerminal" {>= "0.8"}
   "dune" {>= "1.6.2" build}
-  "ppx_deriving" {>= "4.2.1" build}
-  "ocaml" {>= "4.06.0" build}
+  "ppx_deriving" {>= "4.5" build}
+  "ppx_let" {>= "0.14.0" build}
+  "ocaml" {>= "4.10.0" build}
 ]
 

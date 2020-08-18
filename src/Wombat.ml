@@ -19,47 +19,42 @@ let vmu_cmd =
     Command.basic
       ~summary:"Compiler for Dreamcast VMU Low-level Intermediate Language"
       ~readme:(fun () -> "Compiler for Dreamcast VMU Low-level Intermediate Language")
-      (fun filename () ->
-        vmu_lir_compile filename
-      )
-      Command.Spec.(
-      empty
-      +> anon ("input-file" %: file)
+      Command.Let_syntax.(
+      let%map_open filename = anon ("input-file" %: string) in
+      fun () -> vmu_lir_compile filename
     )
   in
   let disassemble_cmd =
     Command.basic
       ~summary:"Disassembler for Dreamcast VMU"
-      Command.Spec.(
-      empty
-      +> anon ("input-file" %: file)
+      ~readme:(fun () -> "Disassembler for Dreamcast VMU")
+      Command.Let_syntax.(
+      let%map_open filename = anon ("input-file" %: string) in
+      fun () -> vmu_disassemble filename
     )
-      (fun filename () ->
-        vmu_disassemble filename
-      ) in  
+  in
   let assemble_cmd =
     Command.basic
       ~summary:"Assembler for Dreamcast VMU"
-      Command.Spec.(
-      empty
-      +> flag ~aliases:["-o"] "-output" (required string) ~doc:"Output File"
-      +> flag ~aliases:["-i"] "-include" (optional string) ~doc:"Includes Directory"
-      +> anon ("input-file" %: file)
+      ~readme:(fun () -> "Assembler for Dreamcast VMU")
+      Command.Let_syntax.(
+      let%map_open output = flag ~aliases:["-o"] "--output" (required string) ~doc:"output Specifies the output filename"
+      and inc_dir = flag ~aliases:["-i"] "--include" (optional string) ~doc:"dir Specifies the includes directory"
+      and filename = anon ("INPUT_FILE" %: string)
+      in
+      fun () -> vmu_assemble filename inc_dir output
     )
-      (fun output inc_dir filename () ->
-        vmu_assemble filename inc_dir output
-      ) in
+  in
   let compile_cmd =
     Command.basic
       ~summary:"Compiler for the Wombat programming language"
-      Command.Spec.(
-      empty
-      +> flag ~aliases:["-o"] "-output" (required string) ~doc:"Output File"
-      +> anon ("input-file" %: file)
-    )
-      (fun output filename () ->
-        raise (Failure "compile is not yet implemented")
-      ) in
+      ~readme:(fun () -> "Assembler for Dreamcast VMU")
+      Command.Let_syntax.(
+      let%map_open output = flag ~aliases:["-o"] "-output" (required string) ~doc:"Output File"
+      and filename = anon ("input-file" %: string)
+      in
+      fun () -> raise (Failure (Printf.sprintf "compile is not yet implemented; (output = %s, filename = %s)" output filename))
+    ) in
   Command.group ~summary:"Operations for Dreamcast VMU"
     [ "assemble", assemble_cmd;
       "disassemble", disassemble_cmd;

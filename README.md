@@ -48,15 +48,10 @@ The `help` command can be used on subcommands as well:
 Build
 =====
 
-Requires [OPAM 2.0](https://opam.ocaml.org/blog/opam-2-0-preview/#Let-39-s-go-then-how-to-try-it)
+Requires opam 2.0.
 
-Create local switch:
-
-    opam switch create ./ 4.06.0
-
-Ensure environment is up-to-date:
-
-    eval `opam env --switch=$PWD`
+([How to do local builds](https://opam.ocaml.org/blog/opam-install-dir/))
+([Lock files in opam](https://opam.ocaml.org/blog/opam-20-tips/))
 
 Install dependencies and build:
 
