@@ -1,20 +1,6 @@
 
 open Location
 
-module type IDENT = sig
-  type t
-  type name
-  type loc
-
-  val create : name -> loc -> t
-  val loc : t -> loc
-  val name : t -> name
-  val compare : t -> t -> int
-  val equal : t -> t -> bool
-  val to_string : t -> string
-  val debug_string : t -> string
-end
-
 module type LOC = sig
   type t
   type source
@@ -32,6 +18,20 @@ module type NAME = sig
 
   val equal : t -> t -> bool
   val compare : t -> t -> int
+  val to_string : t -> string
+  val debug_string : t -> string
+end
+
+module type IDENT = sig
+  type t
+  type name
+  type loc
+
+  val create : name -> loc -> t
+  val loc : t -> loc
+  val name : t -> name
+  val compare : t -> t -> int
+  val equal : t -> t -> bool
   val to_string : t -> string
   val debug_string : t -> string
 end
@@ -365,35 +365,54 @@ end
 module Subst = Make_subst(Ident)(Path)
 
 module Source = struct
-  type type_decl = unit
-  type type_def = unit
+  type deftype = unit
+  type kind = unit
+  type type_decl = {
+      decl_kind: kind;
+      decl_concrete: deftype option
+  }
+  type type_def = {
+      def_kind: kind;
+      def_concrete: deftype option
+  }
   type value_type = unit
   type module_decl = unit
   type term = unit
 
-  type import_entry =
-    | Name of Loc.t * Name.t
-    | Rename of (Loc.t * Name.t) * (Loc.t * Name.t)
+  type import_entry = [
+    | `Name of Span.t * Name.t
+    | `Rename of (Span.t * Name.t) * (Span.t * Name.t)
+  ]
 
-  type import_line =
-    | Type_import of Loc.t * import_entry list
-    | Value_import of Loc.t * import_entry list
-    | Module_type_import of Loc.t * import_entry list
-    | Module_import of Loc.t * import_entry list
+  type import_line = [
+    | `Type_import of Span.t * import_entry list
+    | `Value_import of Span.t * import_entry list
+    | `Module_type_import of Span.t * import_entry list
+    | `Module_import of Span.t * import_entry list
+    | `All_import of Span.t * import_entry list
+  ]
 
   type open_mask = import_line list
 
-  type signature_entry = [
+  type t = {
+      
+      namespace_entries: namespace_entry list
+  }
+  and signature_entry = [
     | `Type_decl of Ident.t * type_decl
     | `Value_type of Ident.t * value_type
     | `Module_type of Ident.t * module_type
     | `Module_decl of Ident.t * module_decl
     | `Module_open of module_term * open_mask option
   ]
+
   and signature = signature_entry list
-  and module_type =
-    | Signature of Loc.t * signature
-    | Functor_type of Loc.t * Ident.t * module_type * module_type
+
+  and module_type = [
+    | `Signature of Span.t * signature
+    | `Functor_type of Span.t * Ident.t * module_type * module_type
+  ]
+
   and module_entry = [
     | `Type_def of Ident.t * type_def
     | `Term of Ident.t * term
@@ -401,14 +420,286 @@ module Source = struct
     | `Module_term of Ident.t * module_term
     | `Module_open of module_term * open_mask option
   ]
+
   and module_term = [
     | `Path of Path.t
-    | `Structure of Loc.t * structure
+    | `Structure of Span.t * structure
     | `Functor of Ident.t * module_type * module_term
     | `Apply of module_term * module_term
     | `Constraint of module_term * module_term
   ]
+
   and structure = module_entry list
+  and namespace_entry = [
+    | `Module_type of Ident.t * module_type
+    | `Module_term of Ident.t * module_term
+    | `Module_open of module_term * open_mask option
+  ]
+
+end
+
+type source = Source.t
+
+module Input: sig
+  type t
+
+  type regexp_match_result = {
+      string: string;
+      groups: string list
+  }
+
+  (* filename -> data -> input *)
+  val from_string : string -> string -> t
+  val length : t -> int
+  val is_empty : t -> bool
+  val loc : t -> Loc.t
+  val starts_with : t -> string -> bool
+  val advance_by : t -> int -> t
+  val advance : t -> string -> t
+  val end_loc : t -> int -> Loc.t
+  val match_regexp : t -> Str.regexp -> regexp_match_result option
+end = struct
+  type t = {
+      source: string;
+      data: string;
+      pos: int;
+      line: int;
+      column: int
+    }
+
+  type regexp_match_result = {
+      string: string;
+      groups: string list
+  }
+
+  let from_string filename string = {
+      source = filename;
+      data = string;
+      pos = 0;
+      line = 1;
+      column = 0
+  }
+
+  let length input =
+    (String.length input.data) - input.pos
+
+  let is_empty input = (length input) = 0
+
+  let loc input =
+    Loc.create input.source input.line input.column input.pos
+
+  let advance_loc loc str end_pos =
+    let line = ref (Loc.line loc) in
+    let column = ref (Loc.column loc) in
+    let pos = ref (Loc.offset loc) in
+    let str_len = (String.length str) in
+    while !pos < end_pos && !pos < str_len do
+      let chr = String.get str !pos in
+      match chr with
+      | '\n' -> (line := !line + 1; column := 0; pos := !pos + 1)
+      | '\r' -> if !pos < end_pos - 1 && String.get str (!pos + 1) = '\n' then
+                  (line := !line + 1; column := 0; pos := !pos + 2)
+                else
+                  (column := !column + 1; pos := !pos + 1)
+      | _ -> (column := !column + 1; pos := !pos + 1)
+    done;
+    Loc.create (Loc.filename loc) !line !column !pos
+
+  let end_loc input amount =
+    let str_len = String.length input.data in
+    let end_pos = (input.pos + amount) in
+    let end_pos = if end_pos > str_len then str_len else end_pos in
+    advance_loc (loc input) input.data end_pos
+
+  let advance_by input amount =
+    let new_loc = end_loc input amount in
+    { input with
+      pos = Loc.offset new_loc;
+      line = Loc.line new_loc;
+      column = Loc.column new_loc }
+
+  let advance input substr =
+    advance_by input (String.length substr)
+
+  let rec starts_with_at string substr str_idx sub_idx =
+    let sub_len = String.length substr in
+    if sub_idx >= sub_len then
+      true
+    else if (String.get string str_idx) != (String.get substr sub_idx) then
+      false
+    else
+      starts_with_at string substr (str_idx + 1) (sub_idx + 1)
+
+  let starts_with input substr =
+    let slen = (String.length substr) in
+    let ilen = length input in
+    if ilen < slen then
+      false
+    else
+      starts_with_at input.data substr input.pos 0
+
+  let match_regexp input regexp =
+    if Str.string_match regexp input.data input.pos then
+      let string = Str.matched_string input.data in
+      let rec groups idx =
+        try
+          let str = Str.matched_group idx input.data in
+          str :: (groups (idx + 1))
+        with
+        | Not_found -> [] in
+      Some { string = string; groups = groups 1 }
+    else
+      None
+end
+
+module Lexer = struct
+  type 'a token_constructor = Span.t -> Input.regexp_match_result -> 'a
+  type 'a matcher =
+    | Re of string * 'a token_constructor
+    | Lit of string * 'a token_constructor
+
+  module type RULES = sig
+    type token
+
+    val is_invalid : token -> bool
+    val is_whitespace : token -> bool
+
+    val invalid : 'a token_constructor
+    val rules : (token matcher) list
+  end
+
+  module Make(Rules: RULES): sig
+    type token = Rules.token
+
+    val is_invalid : token -> bool
+    val is_whitespace : token -> bool
+
+    val lex : Input.t -> token Stream.t
+  end = struct
+    type token = Rules.token
+
+    type lexer_error = [
+      | `Unexpected_character of Loc.t
+    ]
+
+    let is_invalid = Rules.is_invalid
+    let is_whitespace = Rules.is_whitespace
+
+    let read_invalid_token =
+      let regexps =
+        List.map
+          (fun rule ->
+            let str, constr =
+              match rule with
+              | Re (str, constr) -> (str, constr)
+              | Lit (str, constr) -> (Str.quote str, constr)
+            in
+            Printf.sprintf "(?:%s)" str)
+          Rules.rules
+      in
+      let token_regexp = String.concat "|" regexps in
+      let regexp = Str.regexp @@ Printf.sprintf "(.+)(?:%s)?" token_regexp in
+      fun input -> begin
+          match Input.match_regexp input regexp with
+          | Some { groups = [noise] } ->
+             let span = Span.from (Input.loc input) (Input.end_loc input (String.length noise)) in
+             Some (span, Rules.invalid span { string = noise; groups = [] })
+          | _ -> None
+        end      
+
+    let rule_to_matcher rule =
+      let str, constr =
+        match rule with
+        | Re (str, constr) -> (str, constr)
+        | Lit (str, constr) -> (Str.quote str, constr)
+      in
+      let re = Str.regexp ("^" ^ str) in
+      let lex input = begin
+          match Input.match_regexp input re with
+          | Some { string; groups } -> begin
+              let start = Input.loc input in
+              let finish = Input.end_loc input (String.length string) in
+              let span = (Span.from start finish) in
+              Some (span, constr span { string; groups })
+            end
+          | None -> None
+        end
+      in
+      lex
+
+    let matchers = List.map rule_to_matcher Rules.rules
+
+    let rec read_token_from input matchers =
+      match matchers with
+      | [] -> None
+      | m :: rest ->
+         match m input with
+         | Some result -> Some result
+         | None -> read_token_from input rest
+
+    let rec read_token input =
+      if Input.is_empty input then
+        None
+      else begin
+          match read_token_from input matchers with
+          | Some tok -> Some tok
+          | None -> begin
+              match read_invalid_token input with
+              | Some n -> Some n
+              | None -> raise Not_found
+            end
+        end
+
+    let lex_token input =
+      if Input.is_empty !input then
+        None
+      else
+        let tok = read_token !input in
+        match tok with
+        | Some (span, token) -> begin
+            let len = (Loc.offset (Span.finish span)) - (Loc.offset (Span.start span)) in
+            input := Input.advance_by !input len;
+            Some token
+          end
+        | None -> None
+
+    let lex input =
+      let iref = ref input in
+      Stream.from (fun idex -> lex_token iref)
+
+  end
+end
+
+module SourceParser = struct
+  type token_type =
+    | Left_brace
+    | Right_brace
+    | Left_paren
+    | Right_paren
+    | Left_bracket
+    | Right_bracket
+    | Colon
+    | Equal
+    | Semicolon
+    | Dot
+    | Pipe
+    | Plus
+    | Dash
+    | Asterisk
+    | Slash
+    | Type
+    | Namespace
+    | Module
+    | Let
+    | Ident of Ident.t
+    | Path of Path.t
+
+  type token = Span.t * token_type
+
+  type parse_error = [
+    | `Unexpected_character of Loc.t
+    | `Unexpected_token of Span.t * string
+  ]
 end
 
 module type SIGNATURE = sig

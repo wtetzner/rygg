@@ -56,7 +56,11 @@ end
 (* module SeaX = Sea *)
 
 open Wombat
-   
+
+let () =
+  let input = Wombat.Input.from_string "<unknown>" "foo bar baz" in
+  Printf.printf "Matches: %B\n" (Wombat.Input.starts_with input "foo bar baz")
+
 let () =
   let loc = Loc.create "some-file.cmp" 3 5 15 in
   let span = Span.from loc (Loc.create "some-file.cmp" 3 15 25) in
