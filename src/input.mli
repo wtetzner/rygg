@@ -24,6 +24,5 @@ val in_bounds : t -> int -> bool
 val advance_by : t -> int -> t
 val advance : t -> string -> t
 val end_loc : t -> int -> Loc.t
-val match_regexp : t -> Str.regexp -> regexp_match_result option
 val substring : t -> Span.t -> string
 val to_string : t -> string

@@ -93,20 +93,6 @@ let char_at input idx = String.get input.data (input.pos + idx)
 
 let in_bounds input idx = idx >= 0 && idx < (length input)
 
-let match_regexp input regexp =
-  if Str.string_match regexp input.data input.pos then
-    let string = Str.matched_string input.data in
-    let rec groups idx =
-      try
-        let str = Str.matched_group idx input.data in
-        str :: (groups (idx + 1))
-      with
-      | Invalid_argument _ -> []
-      | Not_found -> [] in
-    Some { string = string; groups = groups 1 }
-  else
-    None
-
 let substring input span =
   let start = Loc.offset (Span.start span) in
   let finish = Loc.offset (Span.finish span) in
