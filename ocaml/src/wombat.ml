@@ -745,8 +745,6 @@ end = struct
 
 end
 
-(* module SourceLexer = Lexer.Make(Tokens) *)
-
 module SourceParser = struct
 
   type parse_error = [
