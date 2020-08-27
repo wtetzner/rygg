@@ -50,16 +50,7 @@ end = struct
   let debug_string name = Printf.sprintf "{ tag = %d; name = %s }" name.tag name.name
 end
 
-(* module Ident = Module.Make_ident(Name)(Span)
- * module Path = Module.Make_path(Ident)(Name)(Span) *)
-
-(* module SeaX = Sea *)
-
 open Wombat
-
-let () =
-  let input = Wombat.Input.from_string "<unknown>" "foo bar baz" in
-  Printf.printf "Matches: %B\n" (Wombat.Input.starts_with input "foo bar baz")
 
 let () =
   let loc = Loc.create "some-file.cmp" 3 5 15 in
@@ -76,3 +67,29 @@ let () =
   Printf.printf "%s\n" (Name.to_string name);
   Printf.printf "%s\n" (Path.to_string path);
   Printf.printf "%s\n" (Path.debug_string path)
+
+let read_whole_file filename =
+  let ch = open_in filename in
+  let s = really_input_string ch (in_channel_length ch) in
+  close_in ch;
+  s
+
+(* let () =
+ *   let filename = Array.get Sys.argv 1 in
+ *   let text = read_whole_file filename in
+ *   let input = Input.from_string filename text in
+ *   (\* Printf.printf "input: \"%s\"\n" (Input.to_string input); *\)
+ *   let tokens = Wombat.SourceLexer.lex input in
+ *   (\* Stream.iter (fun tok -> Printf.printf "%s\n" (Wombat.Tokens.to_string tok))
+ *    *   tokens *\)
+ *   Stream.iter (fun tok -> ()) tokens *)
+
+let () =
+  let filename = Array.get Sys.argv 1 in
+  let text = read_whole_file filename in
+  let input = Input.from_string filename text in
+  Printf.printf "\n**fast lexer**\n";
+  let tokens = Wombat.Lexer.lex input in
+  Stream.iter (fun tok -> Printf.printf "%s\n" (Wombat.Token.to_string tok))
+    tokens
+  (* Stream.iter (fun tok -> ()) tokens *)

@@ -22,6 +22,8 @@ module Loc: sig
   val column : t -> int
   val offset : t -> int
 
+  val inc_column : t -> int -> t
+
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val to_string : t -> string
@@ -55,6 +57,10 @@ end = struct
   let line loc = loc.line
   let column loc = loc.column
   let offset loc = loc.offset
+
+  let inc_column loc amount =
+    { loc with column = loc.column + amount;
+               offset = loc.offset + amount }
 
   let equal loc1 loc2 =
     String.equal loc1.filename loc2.filename
@@ -92,6 +98,8 @@ module Span: sig
 
   val sources : t -> source list
 
+  val is_singular : t -> bool
+
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val merge : t -> t -> t
@@ -109,6 +117,8 @@ end = struct
   let finish span = span.finish
 
   let sources span = [Loc.filename span.start; Loc.filename span.finish]
+
+  let is_singular span = Loc.equal span.start span.finish
 
   let equal span1 span2 =
     Loc.equal span1.start span2.start

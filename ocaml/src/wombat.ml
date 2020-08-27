@@ -89,6 +89,7 @@ module Make_path(Ident: IDENT)
          (Name: NAME with type t = Ident.name)
          (Loc: LOC with type t = Ident.loc): PATH
        with type name = Name.t
+       with type loc = Loc.t
        with type name = Ident.name
        with type ident = Ident.t = struct
   type ident = Ident.t
@@ -440,244 +441,19 @@ end
 
 type source = Source.t
 
-module Input: sig
-  type t
-
-  type regexp_match_result = {
-      string: string;
-      groups: string list
-  }
-
-  (* filename -> data -> input *)
-  val from_string : string -> string -> t
-  val length : t -> int
-  val is_empty : t -> bool
-  val loc : t -> Loc.t
-  val starts_with : t -> string -> bool
-  val advance_by : t -> int -> t
-  val advance : t -> string -> t
-  val end_loc : t -> int -> Loc.t
-  val match_regexp : t -> Str.regexp -> regexp_match_result option
-end = struct
-  type t = {
-      source: string;
-      data: string;
-      pos: int;
-      line: int;
-      column: int
-    }
-
-  type regexp_match_result = {
-      string: string;
-      groups: string list
-  }
-
-  let from_string filename string = {
-      source = filename;
-      data = string;
-      pos = 0;
-      line = 1;
-      column = 0
-  }
-
-  let length input =
-    (String.length input.data) - input.pos
-
-  let is_empty input = (length input) = 0
-
-  let loc input =
-    Loc.create input.source input.line input.column input.pos
-
-  let advance_loc loc str end_pos =
-    let line = ref (Loc.line loc) in
-    let column = ref (Loc.column loc) in
-    let pos = ref (Loc.offset loc) in
-    let str_len = (String.length str) in
-    while !pos < end_pos && !pos < str_len do
-      let chr = String.get str !pos in
-      match chr with
-      | '\n' -> (line := !line + 1; column := 0; pos := !pos + 1)
-      | '\r' -> if !pos < end_pos - 1 && String.get str (!pos + 1) = '\n' then
-                  (line := !line + 1; column := 0; pos := !pos + 2)
-                else
-                  (column := !column + 1; pos := !pos + 1)
-      | _ -> (column := !column + 1; pos := !pos + 1)
-    done;
-    Loc.create (Loc.filename loc) !line !column !pos
-
-  let end_loc input amount =
-    let str_len = String.length input.data in
-    let end_pos = (input.pos + amount) in
-    let end_pos = if end_pos > str_len then str_len else end_pos in
-    advance_loc (loc input) input.data end_pos
-
-  let advance_by input amount =
-    let new_loc = end_loc input amount in
-    { input with
-      pos = Loc.offset new_loc;
-      line = Loc.line new_loc;
-      column = Loc.column new_loc }
-
-  let advance input substr =
-    advance_by input (String.length substr)
-
-  let rec starts_with_at string substr str_idx sub_idx =
-    let sub_len = String.length substr in
-    if sub_idx >= sub_len then
-      true
-    else if (String.get string str_idx) != (String.get substr sub_idx) then
-      false
-    else
-      starts_with_at string substr (str_idx + 1) (sub_idx + 1)
-
-  let starts_with input substr =
-    let slen = (String.length substr) in
-    let ilen = length input in
-    if ilen < slen then
-      false
-    else
-      starts_with_at input.data substr input.pos 0
-
-  let match_regexp input regexp =
-    if Str.string_match regexp input.data input.pos then
-      let string = Str.matched_string input.data in
-      let rec groups idx =
-        try
-          let str = Str.matched_group idx input.data in
-          str :: (groups (idx + 1))
-        with
-        | Not_found -> [] in
-      Some { string = string; groups = groups 1 }
-    else
-      None
-end
-
-module Lexer = struct
-  type 'a token_constructor = Span.t -> Input.regexp_match_result -> 'a
-  type 'a matcher =
-    | Re of string * 'a token_constructor
-    | Lit of string * 'a token_constructor
-
-  module type RULES = sig
-    type token
-
-    val is_invalid : token -> bool
-    val is_whitespace : token -> bool
-
-    val invalid : 'a token_constructor
-    val rules : (token matcher) list
-  end
-
-  module Make(Rules: RULES): sig
-    type token = Rules.token
-
-    val is_invalid : token -> bool
-    val is_whitespace : token -> bool
-
-    val lex : Input.t -> token Stream.t
-  end = struct
-    type token = Rules.token
-
-    type lexer_error = [
-      | `Unexpected_character of Loc.t
-    ]
-
-    let is_invalid = Rules.is_invalid
-    let is_whitespace = Rules.is_whitespace
-
-    let read_invalid_token =
-      let regexps =
-        List.map
-          (fun rule ->
-            let str, constr =
-              match rule with
-              | Re (str, constr) -> (str, constr)
-              | Lit (str, constr) -> (Str.quote str, constr)
-            in
-            Printf.sprintf "(?:%s)" str)
-          Rules.rules
-      in
-      let token_regexp = String.concat "|" regexps in
-      let regexp = Str.regexp @@ Printf.sprintf "(.+)(?:%s)?" token_regexp in
-      fun input -> begin
-          match Input.match_regexp input regexp with
-          | Some { groups = [noise] } ->
-             let span = Span.from (Input.loc input) (Input.end_loc input (String.length noise)) in
-             Some (span, Rules.invalid span { string = noise; groups = [] })
-          | _ -> None
-        end      
-
-    let rule_to_matcher rule =
-      let str, constr =
-        match rule with
-        | Re (str, constr) -> (str, constr)
-        | Lit (str, constr) -> (Str.quote str, constr)
-      in
-      let re = Str.regexp ("^" ^ str) in
-      let lex input = begin
-          match Input.match_regexp input re with
-          | Some { string; groups } -> begin
-              let start = Input.loc input in
-              let finish = Input.end_loc input (String.length string) in
-              let span = (Span.from start finish) in
-              Some (span, constr span { string; groups })
-            end
-          | None -> None
-        end
-      in
-      lex
-
-    let matchers = List.map rule_to_matcher Rules.rules
-
-    let rec read_token_from input matchers =
-      match matchers with
-      | [] -> None
-      | m :: rest ->
-         match m input with
-         | Some result -> Some result
-         | None -> read_token_from input rest
-
-    let rec read_token input =
-      if Input.is_empty input then
-        None
-      else begin
-          match read_token_from input matchers with
-          | Some tok -> Some tok
-          | None -> begin
-              match read_invalid_token input with
-              | Some n -> Some n
-              | None -> raise Not_found
-            end
-        end
-
-    let lex_token input =
-      if Input.is_empty !input then
-        None
-      else
-        let tok = read_token !input in
-        match tok with
-        | Some (span, token) -> begin
-            let len = (Loc.offset (Span.finish span)) - (Loc.offset (Span.start span)) in
-            input := Input.advance_by !input len;
-            Some token
-          end
-        | None -> None
-
-    let lex input =
-      let iref = ref input in
-      Stream.from (fun idex -> lex_token iref)
-
-  end
-end
-
-module SourceParser = struct
+module Token = struct
   type token_type =
+    | Whitespace of string
     | Left_brace
     | Right_brace
     | Left_paren
     | Right_paren
     | Left_bracket
     | Right_bracket
+    | Less_than
+    | Greater_than
+    | Arrow
+    | Back_arrow
     | Colon
     | Equal
     | Semicolon
@@ -691,10 +467,287 @@ module SourceParser = struct
     | Namespace
     | Module
     | Let
+    | True
+    | False
     | Ident of Ident.t
     | Path of Path.t
+    | Invalid of string
 
-  type token = Span.t * token_type
+  type t = Span.t * token_type
+
+  let to_string token =
+    let open Printf in
+    let span, tok = token in
+    let tok_str = match tok with
+      | Whitespace string -> sprintf "Whitespace \"%s\"" string
+      | Left_brace -> "{"
+      | Right_brace -> "}"
+      | Left_paren -> "("
+      | Right_paren -> ")"
+      | Left_bracket -> "["
+      | Right_bracket -> "]"
+      | Less_than -> "<"
+      | Greater_than -> ">"
+      | Arrow -> "->"
+      | Back_arrow -> "<-"
+      | Colon -> ":"
+      | Equal -> "="
+      | Semicolon -> ";"
+      | Dot -> "."
+      | Pipe -> "|"
+      | Plus -> "+"
+      | Dash -> "-"
+      | Asterisk -> "*"
+      | Slash -> "/"
+      | Type -> "type"
+      | Namespace -> "namespace"
+      | Module -> "module"
+      | Let -> "let"
+      | Ident ident -> sprintf "Ident %s" (Ident.to_string ident)
+      | True -> "true"
+      | False -> "false"
+      | Path path -> sprintf "Path %s" (Path.to_string path)
+      | Invalid string -> sprintf "Invalid \"%s\"" string
+    in
+    sprintf "%s: %s" (Span.to_string span) tok_str
+
+  let is_invalid token =
+    let span, tok = token in
+    match tok with
+    | Invalid _ -> true
+    | _ -> false
+
+  let is_whitespace token =
+    let span, tok = token in
+    match tok with
+    | Whitespace _ -> true
+    | _ -> false
+
+end
+
+module Lexer: sig
+  val lex : Input.t -> Token.t Stream.t
+end = struct
+  open Token
+
+  let parse_path span str =
+    let (namespace, tail) =
+      match String.split_on_char '/' str with
+      | [namespace; tail] -> (Some namespace, tail)
+      | [tail] -> (None, tail)
+      | _ -> raise (Failure "Invalid path text")
+    in
+    match String.split_on_char '.' tail with
+    | ident :: names ->
+       let ident_name = Name.input ident in
+       let start = match namespace with
+         | Some str -> Loc.inc_column (Span.start span) @@ (String.length str) + 1
+         | None -> Span.start span in
+       let finish = Loc.inc_column start (String.length ident) in
+       let ident = Ident.create ident_name (Span.from start finish) in
+       let name_list = List.map Name.input names in
+       let path = match namespace with
+         | Some ns -> Path.create_ns (Name.input ns) ident name_list
+         | None -> Path.create ident name_list in
+       if (Option.is_none namespace) && (List.length name_list) <= 0 then
+         match Name.to_string (Ident.name ident) with
+         | "type" -> (span, Type)
+         | "namespace" -> (span, Namespace)
+         | "module" -> (span, Module)
+         | "let" -> (span, Let)
+         | "true" -> (span, True)
+         | "false" -> (span, False)
+         | _ -> (span, Ident ident)
+       else
+         (span, Path (Path.with_loc path span))
+    | [] -> raise (Failure "no name parts")
+
+  let is_name_start chr =
+    (chr >= 'a' && chr <= 'z')
+    || (chr >= 'A' && chr <= 'Z')
+    || chr = '_'
+
+  let is_name_body chr =
+    (chr >= 'a' && chr <= 'z')
+    || (chr >= 'A' && chr <= 'Z')
+    || chr = '_'
+    || (chr >= '0' && chr <= '9')
+
+  let handle_simple input length token_type = begin
+      let start = Input.loc !input in
+      input := Input.advance_by !input length;
+      Some (Span.from start (Input.loc !input), token_type)
+  end
+
+  let in_bounds text idx = idx < (String.length text)
+
+  let rec read_simple_name text curr cont =
+    if in_bounds text curr then
+      match String.get text curr with
+      | c when is_name_body c -> read_simple_name text (curr + 1) cont
+      | _ -> cont text curr
+    else
+      cont text curr
+
+  let rec read_dotted_path text curr cont =
+    if in_bounds text curr then
+      let new_cont text curr = read_dotted_path text curr cont in
+      match String.get text curr with
+      | '.' -> if in_bounds text (curr + 1) then
+                 if is_name_start (String.get text (curr + 1)) then
+                   read_simple_name text (curr + 2) new_cont
+                 else
+                   (curr + 1, false)
+               else
+                 (curr + 1, false)
+      | c when is_name_start c -> read_simple_name text (curr + 1)  new_cont
+      | _ -> cont text curr
+    else
+      cont text curr
+
+  let rec read_path_after_slash text curr cont =
+    if in_bounds text curr then
+      match String.get text curr with
+      | c when is_name_start c -> read_dotted_path text curr cont
+      | _ -> (curr, false)
+    else
+      (curr, false)
+
+  let rec read_rest_ns_or_simple_path text curr cont =
+    if in_bounds text curr then
+      match String.get text curr with
+      | '.' -> let new_cont text curr =
+                 read_rest_ns_or_simple_path text curr cont in
+               read_simple_name text (curr + 1) new_cont
+      | '/' -> begin
+          if in_bounds text (curr + 1) then
+            match String.get text (curr + 1) with
+            | c when is_name_start c -> read_path_after_slash text (curr + 1) cont
+            | _ -> (curr + 1, false)
+          else
+            (curr + 1, false)
+        end
+      | _ -> cont text curr
+    else
+      cont text curr
+
+  let read_result text curr = (curr, true)
+
+  let lex_path input_ref =
+    let input = !input_ref in
+    let text = (Input.full_text input) in
+    let curr = (Input.offset input) in
+    let cont text curr = read_rest_ns_or_simple_path text curr read_result in
+    let (idx, successful) = read_simple_name text (curr + 1) cont in
+    let sidx = Input.offset input in
+    let len = (idx - sidx) in
+    let substr = String.sub text sidx len in
+    let start = Input.loc input in
+    input_ref := Input.advance_by input len;
+    let span = Span.from start (Input.loc input) in
+    if successful then
+      Some (parse_path span substr)
+    else
+      Some (span, Invalid substr)
+
+  let rec read_whitespace text curr =
+    if in_bounds text curr then
+      match String.get text curr with
+      | '\n' -> curr + 1
+      | '\r' -> begin
+          if in_bounds text (curr + 1) then
+            match String.get text (curr + 1) with
+            | '\n' -> curr + 2
+            | _ -> read_whitespace text (curr + 1)
+          else
+            curr + 1
+        end
+      | ' ' | '\t'| '\b' -> read_whitespace text (curr + 1)
+      | _ -> curr
+    else
+      curr
+
+  let lex_whitespace input =
+    let text = Input.full_text !input in
+    let start = Input.loc !input in
+    let start_idx = Loc.offset start in
+    let end_idx = read_whitespace text (start_idx + 1) in
+    let len = end_idx - start_idx in
+    input := Input.advance_by !input len;
+    let finish = Input.loc !input in
+    let span = Span.from start finish in
+    Some (span, Whitespace (String.sub text start_idx len))
+
+  let is_valid_token_start chr =
+    match chr with
+    | ' ' | '\t' | '\r' | '\n' | '\b' -> true
+    | '{' | '}' | '(' | ')' | '[' | ']' | ':' | '=' | ';'
+      | '.' | '|' | '+' | '-' | '*' | '/' | '<' | '>' -> true
+    | c when is_name_start c -> true
+    | _ -> false
+
+  let rec read_invalid text curr =
+    if in_bounds text curr then
+      if is_valid_token_start (String.get text curr) then
+        curr
+      else
+        read_invalid text (curr + 1)
+    else
+      curr
+
+  let lex_invalid input =
+    let text = Input.full_text !input in
+    let start = Input.loc !input in
+    let start_idx = Loc.offset start in
+    let end_idx = read_invalid text (start_idx + 1) in
+    let len = end_idx - start_idx in
+    input := Input.advance_by !input len;
+    let finish = Input.loc !input in
+    let span = Span.from start finish in
+    Some (span, Invalid (String.sub text start_idx len))    
+
+  let lex_token input =
+    let single token_type = handle_simple input 1 token_type in
+    match Input.current_char !input with
+    | ' ' | '\t' | '\r' | '\n' | '\b' -> lex_whitespace input
+    | '{' -> single Left_brace
+    | '}' -> single Right_brace
+    | '(' -> single Left_paren
+    | ')' -> single Right_paren
+    | '[' -> single Left_bracket
+    | ']' -> single Right_bracket
+    | '<' -> if Input.starts_with !input "<-" then
+               handle_simple input 2 Back_arrow
+             else
+               single Less_than
+    | '>' -> single Greater_than
+    | ':' -> single Colon
+    | '=' -> single Equal
+    | ';' -> single Semicolon
+    | '.' -> single Dot
+    | '|' -> single Pipe
+    | '+' -> single Plus
+    | '-' -> if Input.starts_with !input "->" then
+               handle_simple input 2 Arrow
+             else
+               single Dash
+    | '*' -> single Asterisk
+    | '/' -> single Slash
+    | c when is_name_start c -> lex_path input
+    | _ -> lex_invalid input
+
+  let lex input =
+    let iref = ref input in
+    Stream.from (fun idex -> if Input.is_empty !iref then
+                               None
+                             else
+                               lex_token iref)
+
+end
+
+(* module SourceLexer = Lexer.Make(Tokens) *)
+
+module SourceParser = struct
 
   type parse_error = [
     | `Unexpected_character of Loc.t
