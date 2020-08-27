@@ -442,8 +442,10 @@ end
 type source = Source.t
 
 module Token = struct
+  type comment_type = Line | Multiline
+
   type token_type =
-    | Whitespace of string
+    | Whitespace
     | Left_brace
     | Right_brace
     | Left_paren
@@ -469,9 +471,10 @@ module Token = struct
     | Let
     | True
     | False
+    | Comment of comment_type
     | Ident of Ident.t
     | Path of Path.t
-    | Invalid of string
+    | Invalid
 
   type t = Span.t * token_type
 
@@ -479,7 +482,7 @@ module Token = struct
     let open Printf in
     let span, tok = token in
     let tok_str = match tok with
-      | Whitespace string -> sprintf "Whitespace \"%s\"" string
+      | Whitespace -> "Whitespace"
       | Left_brace -> "{"
       | Right_brace -> "}"
       | Left_paren -> "("
@@ -506,21 +509,23 @@ module Token = struct
       | Ident ident -> sprintf "Ident %s" (Ident.to_string ident)
       | True -> "true"
       | False -> "false"
+      | Comment Line -> "Line Comment"
+      | Comment Multiline -> "Multiline Comment"
       | Path path -> sprintf "Path %s" (Path.to_string path)
-      | Invalid string -> sprintf "Invalid \"%s\"" string
+      | Invalid -> "Invalid"
     in
     sprintf "%s: %s" (Span.to_string span) tok_str
 
   let is_invalid token =
     let span, tok = token in
     match tok with
-    | Invalid _ -> true
+    | Invalid -> true
     | _ -> false
 
   let is_whitespace token =
     let span, tok = token in
     match tok with
-    | Whitespace _ -> true
+    | Whitespace -> true
     | _ -> false
 
 end
@@ -641,14 +646,69 @@ end = struct
     let (idx, successful) = read_simple_name text (curr + 1) cont in
     let sidx = Input.offset input in
     let len = (idx - sidx) in
-    let substr = String.sub text sidx len in
     let start = Input.loc input in
     input_ref := Input.advance_by input len;
     let span = Span.from start (Input.loc input) in
     if successful then
+      let substr = String.sub text sidx len in
       Some (parse_path span substr)
     else
-      Some (span, Invalid substr)
+      Some (span, Invalid)
+
+  let rec read_multiline_comment text curr nesting =
+    if in_bounds text curr then
+      match String.get text curr with
+      | '*' -> if in_bounds text (curr + 1) then
+                 match String.get text (curr + 1) with
+                 | '/' -> if nesting = 1 then
+                            (curr + 2, true)
+                          else
+                            read_multiline_comment text (curr + 2) (nesting - 1)
+                 | _ -> read_multiline_comment text (curr + 2) nesting
+               else
+                 (curr + 1, false)
+      | '/' -> if in_bounds text (curr + 1) then
+                 match String.get text (curr + 1) with
+                 | '*' -> read_multiline_comment text (curr + 2) (nesting + 1)
+                 | _ -> read_multiline_comment text (curr + 1) nesting
+               else
+                 read_multiline_comment text (curr + 1) nesting
+      | _ -> read_multiline_comment text (curr + 1) nesting
+    else
+      (curr, false)
+
+  let lex_multiline_comment input =
+    let text = Input.full_text !input in
+    let start = Input.loc !input in
+    let start_idx = Loc.offset start in
+    let end_idx, successful = read_multiline_comment text start_idx 0 in
+    let len = end_idx - start_idx in
+    input := Input.advance_by !input len;
+    let finish = Input.loc !input in
+    let span = Span.from start finish in
+    if successful then
+      Some (span, Comment Multiline)
+    else
+      Some (span, Invalid)
+
+  let rec read_line_comment text curr =
+    if in_bounds text curr then
+      match String.get text curr with
+      | '\n' -> curr
+      | _ -> read_line_comment text (curr + 1)
+    else
+      curr
+
+  let lex_line_comment input =
+    let text = Input.full_text !input in
+    let start = Input.loc !input in
+    let start_idx = Loc.offset start in
+    let end_idx = read_line_comment text (start_idx + 2) in
+    let len = end_idx - start_idx in
+    input := Input.advance_by !input len;
+    let finish = Input.loc !input in
+    let span = Span.from start finish in
+    Some (span, Comment Line)
 
   let rec read_whitespace text curr =
     if in_bounds text curr then
@@ -676,7 +736,7 @@ end = struct
     input := Input.advance_by !input len;
     let finish = Input.loc !input in
     let span = Span.from start finish in
-    Some (span, Whitespace (String.sub text start_idx len))
+    Some (span, Whitespace)
 
   let is_valid_token_start chr =
     match chr with
@@ -704,7 +764,7 @@ end = struct
     input := Input.advance_by !input len;
     let finish = Input.loc !input in
     let span = Span.from start finish in
-    Some (span, Invalid (String.sub text start_idx len))    
+    Some (span, Invalid)
 
   let lex_token input =
     let single token_type = handle_simple input 1 token_type in
@@ -732,7 +792,12 @@ end = struct
              else
                single Dash
     | '*' -> single Asterisk
-    | '/' -> single Slash
+    | '/' -> if Input.starts_with !input "//" then
+               lex_line_comment input
+             else if Input.starts_with !input "/*" then
+               lex_multiline_comment input
+             else
+               single Slash
     | c when is_name_start c -> lex_path input
     | _ -> lex_invalid input
 
