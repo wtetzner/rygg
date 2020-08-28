@@ -443,6 +443,7 @@ type source = Source.t
 
 module Token = struct
   type comment_type = Line | Multiline
+  type raw_string_prefix_count = int
 
   type token_type =
     | Whitespace
@@ -465,16 +466,20 @@ module Token = struct
     | Dash
     | Asterisk
     | Slash
+    | Comma
     | Type
     | Namespace
     | Module
     | Let
     | True
     | False
+    | Backtick
+    | String
+    | Raw_string of raw_string_prefix_count
     | Comment of comment_type
     | Ident of Ident.t
     | Path of Path.t
-    | Invalid
+    | Invalid of string
 
   type t = Span.t * token_type
 
@@ -502,6 +507,7 @@ module Token = struct
       | Dash -> "-"
       | Asterisk -> "*"
       | Slash -> "/"
+      | Comma -> ","
       | Type -> "type"
       | Namespace -> "namespace"
       | Module -> "module"
@@ -509,17 +515,22 @@ module Token = struct
       | Ident ident -> sprintf "Ident %s" (Ident.to_string ident)
       | True -> "true"
       | False -> "false"
+      | Backtick -> "`"
+      | String -> "String"
+      | Raw_string prefix_count ->
+         let prefix = String.make prefix_count '#' in
+         sprintf "r%s\"...\"%s" prefix prefix
       | Comment Line -> "Line Comment"
       | Comment Multiline -> "Multiline Comment"
       | Path path -> sprintf "Path %s" (Path.to_string path)
-      | Invalid -> "Invalid"
+      | Invalid message -> sprintf "Invalid \"%s\"" message
     in
     sprintf "%s: %s" (Span.to_string span) tok_str
 
   let is_invalid token =
     let span, tok = token in
     match tok with
-    | Invalid -> true
+    | Invalid _ -> true
     | _ -> false
 
   let is_whitespace token =
@@ -575,8 +586,8 @@ end = struct
   let is_name_body chr =
     (chr >= 'a' && chr <= 'z')
     || (chr >= 'A' && chr <= 'Z')
-    || chr = '_'
     || (chr >= '0' && chr <= '9')
+    || chr = '_' || chr = '-'
 
   let handle_simple input length token_type = begin
       let start = Input.loc !input in
@@ -653,7 +664,7 @@ end = struct
       let substr = String.sub text sidx len in
       Some (parse_path span substr)
     else
-      Some (span, Invalid)
+      Some (span, Invalid "Invalid path")
 
   let rec read_multiline_comment text curr nesting =
     if in_bounds text curr then
@@ -689,7 +700,7 @@ end = struct
     if successful then
       Some (span, Comment Multiline)
     else
-      Some (span, Invalid)
+      Some (span, Invalid "Invalid multiline comment")
 
   let rec read_line_comment text curr =
     if in_bounds text curr then
@@ -742,7 +753,8 @@ end = struct
     match chr with
     | ' ' | '\t' | '\r' | '\n' | '\b' -> true
     | '{' | '}' | '(' | ')' | '[' | ']' | ':' | '=' | ';'
-      | '.' | '|' | '+' | '-' | '*' | '/' | '<' | '>' -> true
+      | '.' | '|' | '+' | '-' | '*' | '/' | '<' | '>' | '`'
+      | ',' | '"' -> true
     | c when is_name_start c -> true
     | _ -> false
 
@@ -755,6 +767,103 @@ end = struct
     else
       curr
 
+  let rec read_raw_prefix text curr =
+    if in_bounds text curr then
+      match String.get text curr with
+      | '#' -> read_raw_prefix text (curr + 1)
+      | '"' -> (curr + 1, true)
+      | _ -> (curr, false)
+    else
+      (curr, false)
+
+  let rec matches_suffix text curr len =
+    if len = 0 then
+      true
+    else
+      if in_bounds text curr then
+        match String.get text curr with
+        | '#' -> matches_suffix text (curr + 1) (len - 1)
+        | _ -> false
+      else
+        false
+
+  let rec read_raw_body text curr suffix =
+    if in_bounds text curr then
+      match String.get text curr with
+      | '"' -> if matches_suffix text (curr + 1) suffix then
+                 (curr, true)
+               else
+                 read_raw_body text (curr + 1) suffix
+      | _ -> read_raw_body text (curr + 1) suffix
+    else
+      (curr, false)
+
+  let lex_raw_string input =
+    let text = Input.full_text !input in
+    let start_idx = Input.offset !input in
+    let (pos, successful_prefix) = read_raw_prefix text (start_idx + 1) in
+    let start = Input.loc !input in
+    if successful_prefix then
+      begin
+        let suffix = (pos - start_idx - 2) in
+        let (end_pos, successful) = read_raw_body text pos suffix in
+        if successful then
+          begin
+            let len = (end_pos + suffix + 1) - start_idx in
+            input := Input.advance_by !input len;
+            let span = Span.from start (Input.loc !input) in
+            Some (span, Raw_string suffix)
+          end
+        else
+          begin
+            let len = end_pos - start_idx in
+            input := Input.advance_by !input len;
+            let span = Span.from start (Input.loc !input) in
+            Some (span, Invalid "Invalid raw string")
+          end
+      end
+    else
+      begin
+        input := Input.advance_by !input (pos - start_idx);
+        let span = Span.from start (Input.loc !input) in
+        Some (span, Invalid "Expected \"")
+      end
+
+  let rec read_string text curr =
+    if in_bounds text curr then
+      match String.get text curr with
+      | '\\' ->
+         begin
+           if in_bounds text curr then
+             read_string text (curr + 2)
+           else
+             (curr + 1, false)
+         end
+      | '"' -> (curr, true)
+      | _ -> read_string text (curr + 1)
+    else
+      (curr, false)    
+
+  let lex_string input =
+    let text = Input.full_text !input in
+    let start_idx = Input.offset !input in
+    let finish, successful = read_string text (start_idx + 1) in
+    let start = Input.loc !input in
+    if successful then
+      begin
+        let len = (finish + 1) - start_idx in
+        input := Input.advance_by !input len;
+        let span = Span.from start (Input.loc !input) in
+        Some (span, String)
+      end
+    else
+      begin
+        let len = finish - start_idx in
+        input := Input.advance_by !input len;
+        let span = Span.from start (Input.loc !input) in
+        Some (span, Invalid "Expected \"")
+      end
+
   let lex_invalid input =
     let text = Input.full_text !input in
     let start = Input.loc !input in
@@ -764,7 +873,7 @@ end = struct
     input := Input.advance_by !input len;
     let finish = Input.loc !input in
     let span = Span.from start finish in
-    Some (span, Invalid)
+    Some (span, Invalid "Unknown token")
 
   let lex_token input =
     let single token_type = handle_simple input 1 token_type in
@@ -787,6 +896,7 @@ end = struct
     | '.' -> single Dot
     | '|' -> single Pipe
     | '+' -> single Plus
+    | '`' -> single Backtick
     | '-' -> if Input.starts_with !input "->" then
                handle_simple input 2 Arrow
              else
@@ -798,6 +908,12 @@ end = struct
                lex_multiline_comment input
              else
                single Slash
+    | ',' -> single Comma
+    | '"' -> lex_string input
+    | 'r' -> if Input.starts_with !input "r\"" || Input.starts_with !input "r#" then
+               lex_raw_string input
+             else
+               lex_path input
     | c when is_name_start c -> lex_path input
     | _ -> lex_invalid input
 
