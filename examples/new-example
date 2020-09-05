@@ -1,0 +1,24 @@
+
+module org.bovinegenius.wombat::Main
+
+main args = {
+    println s"$d{args}" // Prints:  args: ["foo", "bar"]
+}
+
+signature Functor = {
+  type 'a t
+  map : ('a -> 'b) -> 'a t -> 'b t
+  wrap : 'a -> 'a t
+}
+
+module list: Functor {
+  type 'a t =
+    | Nil
+    | Cons 'a ('a t)
+  map f l = match l
+    | Nil -> Nil
+    | Cons first rest -> Cons (f rest) (map f rest)
+}
+                  
+wrap : () 'a -> 'a t
+

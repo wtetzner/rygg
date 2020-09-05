@@ -58,8 +58,7 @@ let () =
   let span2 = Span.from loc (Loc.create "foo.cmp" 7 4 25) in
   let span3 = Span.from loc (Loc.create "some-file.cmp" 4 15 25) in
   let name = Name.internal "foo" in
-  let some_ident = Ident.create (Name.input "some_ident") Span.unknown in
-  let path = Path.create_ns (Name.input "org.bovinegenius") (Ident.create (Name.input "org.bovinegenius") Span.unknown) (List.map Name.input ["Foo"; "abc"; "xyz"; "baz"]) in
+  let path = Path.create_ns (Name.input "org.bovinegenius") (List.map Name.input ["Foo"; "abc"; "xyz"; "baz"]) in
   Printf.printf "%s\n" (Loc.to_string loc);
   Printf.printf "%s\n" (Span.to_string span);
   Printf.printf "%s\n" (Span.to_string span2);
@@ -84,12 +83,14 @@ let read_whole_file filename =
  *    *   tokens *\)
  *   Stream.iter (fun tok -> ()) tokens *)
 
+
 let () =
   let filename = Array.get Sys.argv 1 in
   let text = read_whole_file filename in
   let input = Input.from_string filename text in
   Printf.printf "\n**fast lexer**\n";
+  let substr token = Wombat.Token.substr text token in
   let tokens = Wombat.Lexer.lex input in
-  Stream.iter (fun tok -> Printf.printf "%s\n" (Wombat.Token.to_string tok))
+  Stream.iter (fun tok -> Printf.printf "%s \"%s\"\n" (Wombat.Token.to_string tok) (String.escaped (substr tok)))
     tokens
   (* Stream.iter (fun tok -> ()) tokens *)

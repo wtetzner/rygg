@@ -22,86 +22,36 @@ module type NAME = sig
   val debug_string : t -> string
 end
 
-module type IDENT = sig
-  type t
-  type name
-  type loc
-
-  val create : name -> loc -> t
-  val loc : t -> loc
-  val name : t -> name
-  val compare : t -> t -> int
-  val equal : t -> t -> bool
-  val to_string : t -> string
-  val debug_string : t -> string
-end
-
 module type PATH = sig
   type t
   type loc
-  type ident
   type name
 
-  val from_ident : ident -> t
-  val create : ident -> name list -> t
-  val create_ns : name -> ident -> name list -> t
+  val create : name list -> t
+  val create_ns : name -> name list -> t
   val namespace : t -> name option
-  val ident : t -> ident
   val loc : t -> loc option
   val with_loc : t -> loc -> t
   val without_loc : t -> t
-  val with_local : t -> t -> t
-  val without_local : t -> t
   val plus : t -> name -> t
-  val subst : t -> (ident * t) -> t
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val to_string : t -> string
   val debug_string : t -> string
 end
 
-module Make_ident(Name: NAME)(Loc: LOC): IDENT
+module Make_path
+         (Name: NAME)
+         (Loc: LOC): PATH
        with type name = Name.t
        with type loc = Loc.t = struct
-  let curr_timestamp = ref 0
   type name = Name.t
   type loc = Loc.t
-  type t = { timestamp: int; name: name; loc: loc }
-
-  let create name loc =
-    let timestamp = !curr_timestamp in
-    curr_timestamp := !curr_timestamp + 1;
-    { timestamp; name; loc }
-
-  let loc ident = ident.loc
-  let name ident = ident.name
-  let compare id1 id2 = Int.compare id1.timestamp id2.timestamp
-  let equal id1 id2 = id1.timestamp = id2.timestamp
-  let to_string ident = Name.to_string ident.name
-  let debug_string ident =
-    Printf.sprintf "{ timestamp = %d; name = %s; loc = %s }"
-      ident.timestamp
-      (Name.debug_string ident.name)
-      (Loc.debug_string ident.loc)
-end
-
-module Make_path(Ident: IDENT)
-         (Name: NAME with type t = Ident.name)
-         (Loc: LOC with type t = Ident.loc): PATH
-       with type name = Name.t
-       with type loc = Loc.t
-       with type name = Ident.name
-       with type ident = Ident.t = struct
-  type ident = Ident.t
-  type name = Name.t
-  type loc = Ident.loc
 
   type t = {
       namespace: Name.t option;
-      ident: Ident.t;
       parts: name array;
-      loc: loc option;
-      local: t option
+      loc: loc option
   }
 
   let has_ns path =
@@ -113,26 +63,16 @@ module Make_path(Ident: IDENT)
     match path.loc with
     | Some _ -> true
     | None -> false
-
-  let from_ident ident = {
-      namespace = None;
-      ident = ident;
-      parts = [||];
-      loc = Some (Ident.loc ident);
-      local = None
-  }
                        
-  let create ident names =
+  let create names =
     let parts = Array.of_list names in
-    { namespace = None; ident = ident; loc = None; parts; local = None }
+    { namespace = None; loc = None; parts }
 
-  let create_ns namespace ident names =
-    let intermediate = create ident names in
+  let create_ns namespace names =
+    let intermediate = create names in
     { intermediate with namespace = Some namespace }
     
   let loc path = path.loc
-
-  let ident path = path.ident
 
   let namespace path = path.namespace
 
@@ -147,29 +87,11 @@ module Make_path(Ident: IDENT)
   let without_loc path =
     { path with loc = None }
 
-  let with_local path local =
-    { path with local = Some local }
-
-  let without_local path =
-    { path with local = None }
-
-  let subst path s =
-    if has_ns path then
-      path
-    else
-      let (ident, p) = s in
-      let new_parts = Array.append p.parts path.parts in
-      let new_path = { path with ident = ident; parts = new_parts } in
-      let new_path = match path.loc with
-        | Some l -> with_loc new_path l
-        | None -> without_loc new_path in
-      with_local new_path path
-
-      let ns_equal ns1 ns2 =
-        match (ns1, ns2) with
-        | (Some n1, Some n2) -> Name.equal n1 n2
-        | (None, None) -> true
-        | _ -> false
+  let ns_equal ns1 ns2 =
+    match (ns1, ns2) with
+    | (Some n1, Some n2) -> Name.equal n1 n2
+    | (None, None) -> true
+    | _ -> false
 
   let ns_compare ns1 ns2 =
     match (ns1, ns2) with
@@ -180,7 +102,6 @@ module Make_path(Ident: IDENT)
 
   let equal left right =
     if (ns_equal left.namespace right.namespace)
-       && Ident.equal left.ident right.ident
        && (Array.length left.parts) = (Array.length right.parts) then
       let still_equal = ref true in
       let pos = ref 0 in
@@ -197,35 +118,37 @@ module Make_path(Ident: IDENT)
   let compare left right =
     let namespace_cmp = ns_compare left.namespace right.namespace in
     if namespace_cmp = 0 then
-      let ident_cmp = Ident.compare left.ident right.ident in
-      if ident_cmp = 0 then
-        let llen = Array.length left.parts in
-        let rlen = Array.length right.parts in
-        let pos = ref 0 in
-        let cmp_result = ref 0 in
-        while !cmp_result = 0 do
-          if !pos >= llen && !pos < rlen then
-            cmp_result := -1
-          else if !pos >= rlen && !pos < llen then
-            cmp_result := 1
-          else if !pos < llen && !pos < rlen then
-            cmp_result := Name.compare (Array.get left.parts !pos) (Array.get right.parts !pos)
-          else ();
-          pos := !pos + 1
-        done;
-        !cmp_result
-      else
-        ident_cmp
+      let llen = Array.length left.parts in
+      let rlen = Array.length right.parts in
+      let pos = ref 0 in
+      let cmp_result = ref 0 in
+      while !cmp_result = 0 do
+        if !pos >= llen && !pos < rlen then
+          cmp_result := -1
+        else if !pos >= rlen && !pos < llen then
+          cmp_result := 1
+        else if !pos < llen && !pos < rlen then
+          cmp_result := Name.compare (Array.get left.parts !pos) (Array.get right.parts !pos)
+        else ();
+        pos := !pos + 1
+      done;
+      !cmp_result
     else
       namespace_cmp
 
   let to_string path =
     let output = match path.namespace with
       | None -> ref ""
-      | Some ns -> ref ((Name.to_string ns) ^ "/") in
-    output := !output ^ (Name.to_string (Ident.name path.ident));
+      | Some ns -> ref ((Name.to_string ns) ^ "::") in
+    let first = ref true in
     Array.iter
-      (fun name -> output := !output ^ "." ^ Name.to_string name)
+      (fun name -> begin
+           if !first then
+             first := false
+           else 
+             output := !output ^ ".";
+         end;
+                   output := !output ^ Name.to_string name)
       path.parts;
     !output
 
@@ -234,7 +157,6 @@ module Make_path(Ident: IDENT)
     (match path.namespace with
      | None -> output := !output ^ "None"
      | Some ns -> output := !output ^ ("Some " ^ (Name.debug_string ns)));
-    output := !output ^ ", ident = " ^ (Ident.debug_string path.ident);
     output := !output ^ ", parts = [";
     let first = ref true in
     Array.iter (fun name -> (if !first then
@@ -299,71 +221,115 @@ end = struct
   let debug_string name = Printf.sprintf "{ tag = %d; name = %s }" name.tag name.name
 end
 
-module Ident = Make_ident(Name)(Span)
-module Path = Make_path(Ident)(Name)(Span)
+module Path = Make_path(Name)(Span)
 
-module type SUBST = sig
-  type t
-  type ident
-  type path
+module Token = struct
+  type comment_type = Line | Multiline
+  type raw_string_prefix_count = int
 
-  val identity : t
-  val plus : t -> ident -> path -> t
-  val path : t -> path -> path
-  val to_string : t -> string
-  val debug_string : t -> string
+  type token_type =
+    | Whitespace
+    | Left_brace
+    | Right_brace
+    | Left_paren
+    | Right_paren
+    | Left_bracket
+    | Right_bracket
+    | Less_than
+    | Greater_than
+    | Arrow
+    | Back_arrow
+    | Colon
+    | Double_colon
+    | Equal
+    | Semicolon
+    | Dot
+    | Pipe
+    | Plus
+    | Dash
+    | Asterisk
+    | Slash
+    | Comma
+    | Type
+    | Namespace
+    | Module
+    | Let
+    | True
+    | False
+    | Backtick
+    | String
+    | Raw_string of raw_string_prefix_count
+    | Number
+    | Comment of comment_type
+    | Name
+    | Invalid of string
+
+  type t = Span.t * token_type
+
+  let to_string token =
+    let open Printf in
+    let span, tok = token in
+    let tok_str = match tok with
+      | Whitespace -> "Whitespace"
+      | Left_brace -> "{"
+      | Right_brace -> "}"
+      | Left_paren -> "("
+      | Right_paren -> ")"
+      | Left_bracket -> "["
+      | Right_bracket -> "]"
+      | Less_than -> "<"
+      | Greater_than -> ">"
+      | Arrow -> "->"
+      | Back_arrow -> "<-"
+      | Colon -> ":"
+      | Double_colon -> "::"
+      | Equal -> "="
+      | Semicolon -> ";"
+      | Dot -> "."
+      | Pipe -> "|"
+      | Plus -> "+"
+      | Dash -> "-"
+      | Asterisk -> "*"
+      | Slash -> "/"
+      | Comma -> ","
+      | Type -> "type"
+      | Namespace -> "namespace"
+      | Module -> "module"
+      | Let -> "let"
+      | True -> "true"
+      | False -> "false"
+      | Backtick -> "`"
+      | String -> "String"
+      | Raw_string prefix_count ->
+         let prefix = String.make prefix_count '#' in
+         sprintf "r%s\"...\"%s" prefix prefix
+      | Number -> "Number"
+      | Comment Line -> "Line Comment"
+      | Comment Multiline -> "Multiline Comment"
+      | Name -> "Name"
+      | Invalid message -> sprintf "Invalid \"%s\"" message
+    in
+    sprintf "%s: %s" (Span.to_string span) tok_str
+
+  let is_invalid token =
+    let span, tok = token in
+    match tok with
+    | Invalid _ -> true
+    | _ -> false
+
+  let is_whitespace token =
+    let span, tok = token in
+    match tok with
+    | Whitespace -> true
+    | _ -> false
+
+  let substr text token =
+    let (span, tok) = token in
+    let start = Loc.offset (Span.start span) in
+    let finish = Loc.offset (Span.finish span) in
+    String.sub text start (finish - start)
+
 end
-
-module Make_subst(Ident: IDENT)
-         (Path: PATH
-          with type ident = Ident.t
-          with type name = Ident.name): SUBST
-       with type ident = Ident.t
-       with type path = Path.t = struct
-  module IdentMap = Map.Make(Ident)
-
-  type ident = Ident.t
-  type path = Path.t
-  type t = Path.t IdentMap.t
-
-  let identity = IdentMap.empty
-  let plus map ident path = IdentMap.add ident path map
-  let path map path =
-    let ident = Path.ident path in
-    match IdentMap.find_opt ident map with
-    | Some p -> Path.subst path (ident, p)
-    | None -> path
-
-  let to_string subst =
-    let output = ref "{ " in
-    let first = ref true in
-    Seq.iter
-      (fun entry ->
-        (if !first then
-           first := false
-         else
-           output := !output ^ ", ");
-        let (ident, path) = entry in
-        output := !output ^ (Ident.to_string ident) ^ " -> " ^ (Path.to_string path))
-      (IdentMap.to_seq subst);
-    !output ^ " }"
-
-  let debug_string subst =
-    let output = ref "{ " in
-    let first = ref true in
-    Seq.iter
-      (fun entry ->
-        (if !first then
-           first := false
-         else
-           output := !output ^ ", ");
-        let (ident, path) = entry in
-        output := !output ^ (Ident.debug_string ident) ^ " -> " ^ (Path.debug_string path))
-      (IdentMap.to_seq subst);
-    !output ^ " }"
-end
-
-module Subst = Make_subst(Ident)(Path)
 
 module Source = struct
   type deftype = unit
@@ -378,6 +344,13 @@ module Source = struct
   }
   type value_type = unit
   type module_decl = unit
+
+  type ident = Span.t * Name.t
+
+  type expr_node =
+    | 
+  and expr = Span.t * expr_node
+
   type term = unit
 
   type import_entry = [
@@ -400,10 +373,10 @@ module Source = struct
       namespace_entries: namespace_entry list
   }
   and signature_entry = [
-    | `Type_decl of Ident.t * type_decl
-    | `Value_type of Ident.t * value_type
-    | `Module_type of Ident.t * module_type
-    | `Module_decl of Ident.t * module_decl
+    | `Type_decl of ident * type_decl
+    | `Value_type of ident * value_type
+    | `Module_type of ident * module_type
+    | `Module_decl of ident * module_decl
     | `Module_open of module_term * open_mask option
   ]
 
@@ -411,29 +384,30 @@ module Source = struct
 
   and module_type = [
     | `Signature of Span.t * signature
-    | `Functor_type of Span.t * Ident.t * module_type * module_type
+    | `Functor_type of Span.t * ident * module_type * module_type
+    | `Signature_union of module_type * module_type
   ]
 
   and module_entry = [
-    | `Type_def of Ident.t * type_def
-    | `Term of Ident.t * term
-    | `Module_type of Ident.t * module_type
-    | `Module_term of Ident.t * module_term
+    | `Type_def of ident * type_def
+    | `Term of ident * term
+    | `Module_type of ident * module_type
+    | `Module_term of ident * module_term
     | `Module_open of module_term * open_mask option
   ]
 
   and module_term = [
     | `Path of Path.t
     | `Structure of Span.t * structure
-    | `Functor of Ident.t * module_type * module_term
+    | `Functor of ident * module_type * module_term
     | `Apply of module_term * module_term
     | `Constraint of module_term * module_term
   ]
 
   and structure = module_entry list
   and namespace_entry = [
-    | `Module_type of Ident.t * module_type
-    | `Module_term of Ident.t * module_term
+    | `Module_type of ident * module_type
+    | `Module_term of ident * module_term
     | `Module_open of module_term * open_mask option
   ]
 
@@ -441,142 +415,10 @@ end
 
 type source = Source.t
 
-module Token = struct
-  type comment_type = Line | Multiline
-  type raw_string_prefix_count = int
-
-  type token_type =
-    | Whitespace
-    | Left_brace
-    | Right_brace
-    | Left_paren
-    | Right_paren
-    | Left_bracket
-    | Right_bracket
-    | Less_than
-    | Greater_than
-    | Arrow
-    | Back_arrow
-    | Colon
-    | Equal
-    | Semicolon
-    | Dot
-    | Pipe
-    | Plus
-    | Dash
-    | Asterisk
-    | Slash
-    | Comma
-    | Type
-    | Namespace
-    | Module
-    | Let
-    | True
-    | False
-    | Backtick
-    | String
-    | Raw_string of raw_string_prefix_count
-    | Comment of comment_type
-    | Ident of Ident.t
-    | Path of Path.t
-    | Invalid of string
-
-  type t = Span.t * token_type
-
-  let to_string token =
-    let open Printf in
-    let span, tok = token in
-    let tok_str = match tok with
-      | Whitespace -> "Whitespace"
-      | Left_brace -> "{"
-      | Right_brace -> "}"
-      | Left_paren -> "("
-      | Right_paren -> ")"
-      | Left_bracket -> "["
-      | Right_bracket -> "]"
-      | Less_than -> "<"
-      | Greater_than -> ">"
-      | Arrow -> "->"
-      | Back_arrow -> "<-"
-      | Colon -> ":"
-      | Equal -> "="
-      | Semicolon -> ";"
-      | Dot -> "."
-      | Pipe -> "|"
-      | Plus -> "+"
-      | Dash -> "-"
-      | Asterisk -> "*"
-      | Slash -> "/"
-      | Comma -> ","
-      | Type -> "type"
-      | Namespace -> "namespace"
-      | Module -> "module"
-      | Let -> "let"
-      | Ident ident -> sprintf "Ident %s" (Ident.to_string ident)
-      | True -> "true"
-      | False -> "false"
-      | Backtick -> "`"
-      | String -> "String"
-      | Raw_string prefix_count ->
-         let prefix = String.make prefix_count '#' in
-         sprintf "r%s\"...\"%s" prefix prefix
-      | Comment Line -> "Line Comment"
-      | Comment Multiline -> "Multiline Comment"
-      | Path path -> sprintf "Path %s" (Path.to_string path)
-      | Invalid message -> sprintf "Invalid \"%s\"" message
-    in
-    sprintf "%s: %s" (Span.to_string span) tok_str
-
-  let is_invalid token =
-    let span, tok = token in
-    match tok with
-    | Invalid _ -> true
-    | _ -> false
-
-  let is_whitespace token =
-    let span, tok = token in
-    match tok with
-    | Whitespace -> true
-    | _ -> false
-
-end
-
 module Lexer: sig
   val lex : Input.t -> Token.t Stream.t
 end = struct
   open Token
-
-  let parse_path span str =
-    let (namespace, tail) =
-      match String.split_on_char '/' str with
-      | [namespace; tail] -> (Some namespace, tail)
-      | [tail] -> (None, tail)
-      | _ -> raise (Failure "Invalid path text")
-    in
-    match String.split_on_char '.' tail with
-    | ident :: names ->
-       let ident_name = Name.input ident in
-       let start = match namespace with
-         | Some str -> Loc.inc_column (Span.start span) @@ (String.length str) + 1
-         | None -> Span.start span in
-       let finish = Loc.inc_column start (String.length ident) in
-       let ident = Ident.create ident_name (Span.from start finish) in
-       let name_list = List.map Name.input names in
-       let path = match namespace with
-         | Some ns -> Path.create_ns (Name.input ns) ident name_list
-         | None -> Path.create ident name_list in
-       if (Option.is_none namespace) && (List.length name_list) <= 0 then
-         match Name.to_string (Ident.name ident) with
-         | "type" -> (span, Type)
-         | "namespace" -> (span, Namespace)
-         | "module" -> (span, Module)
-         | "let" -> (span, Let)
-         | "true" -> (span, True)
-         | "false" -> (span, False)
-         | _ -> (span, Ident ident)
-       else
-         (span, Path (Path.with_loc path span))
-    | [] -> raise (Failure "no name parts")
 
   let is_name_start chr =
     (chr >= 'a' && chr <= 'z')
@@ -597,74 +439,34 @@ end = struct
 
   let in_bounds text idx = idx < (String.length text)
 
-  let rec read_simple_name text curr cont =
+  let rec read_name text curr =
     if in_bounds text curr then
       match String.get text curr with
-      | c when is_name_body c -> read_simple_name text (curr + 1) cont
-      | _ -> cont text curr
+      | c when is_name_body c -> read_name text (curr + 1)
+      | _ -> curr
     else
-      cont text curr
+      curr
 
-  let rec read_dotted_path text curr cont =
-    if in_bounds text curr then
-      let new_cont text curr = read_dotted_path text curr cont in
-      match String.get text curr with
-      | '.' -> if in_bounds text (curr + 1) then
-                 if is_name_start (String.get text (curr + 1)) then
-                   read_simple_name text (curr + 2) new_cont
-                 else
-                   (curr + 1, false)
-               else
-                 (curr + 1, false)
-      | c when is_name_start c -> read_simple_name text (curr + 1)  new_cont
-      | _ -> cont text curr
-    else
-      cont text curr
-
-  let rec read_path_after_slash text curr cont =
-    if in_bounds text curr then
-      match String.get text curr with
-      | c when is_name_start c -> read_dotted_path text curr cont
-      | _ -> (curr, false)
-    else
-      (curr, false)
-
-  let rec read_rest_ns_or_simple_path text curr cont =
-    if in_bounds text curr then
-      match String.get text curr with
-      | '.' -> let new_cont text curr =
-                 read_rest_ns_or_simple_path text curr cont in
-               read_simple_name text (curr + 1) new_cont
-      | '/' -> begin
-          if in_bounds text (curr + 1) then
-            match String.get text (curr + 1) with
-            | c when is_name_start c -> read_path_after_slash text (curr + 1) cont
-            | _ -> (curr + 1, false)
-          else
-            (curr + 1, false)
-        end
-      | _ -> cont text curr
-    else
-      cont text curr
-
-  let read_result text curr = (curr, true)
-
-  let lex_path input_ref =
-    let input = !input_ref in
-    let text = (Input.full_text input) in
-    let curr = (Input.offset input) in
-    let cont text curr = read_rest_ns_or_simple_path text curr read_result in
-    let (idx, successful) = read_simple_name text (curr + 1) cont in
-    let sidx = Input.offset input in
-    let len = (idx - sidx) in
-    let start = Input.loc input in
-    input_ref := Input.advance_by input len;
-    let span = Span.from start (Input.loc input) in
-    if successful then
-      let substr = String.sub text sidx len in
-      Some (parse_path span substr)
-    else
-      Some (span, Invalid "Invalid path")
+  let lex_name input =
+    let text = (Input.full_text !input) in
+    let curr = (Input.offset !input) in
+    let start = Input.loc !input in
+    let end_idx = read_name text curr in
+    let old_input = !input in
+    let len = (end_idx - (Loc.offset start)) in
+    input := Input.advance_by !input len;
+    let span = Span.from start (Input.loc !input) in
+    let matches str = len = (String.length str) && Input.starts_with old_input str in
+    let tok = match len with
+      | _ when matches "type" -> Type
+      | _ when matches "namespace" -> Namespace
+      | _ when matches "module" -> Module
+      | _ when matches "let" -> Let
+      | _ when matches "true" -> True
+      | _ when matches "false" -> False
+      | _ -> Name
+    in
+    Some (span, tok)
 
   let rec read_multiline_comment text curr nesting =
     if in_bounds text curr then
@@ -748,24 +550,6 @@ end = struct
     let finish = Input.loc !input in
     let span = Span.from start finish in
     Some (span, Whitespace)
-
-  let is_valid_token_start chr =
-    match chr with
-    | ' ' | '\t' | '\r' | '\n' | '\b' -> true
-    | '{' | '}' | '(' | ')' | '[' | ']' | ':' | '=' | ';'
-      | '.' | '|' | '+' | '-' | '*' | '/' | '<' | '>' | '`'
-      | ',' | '"' -> true
-    | c when is_name_start c -> true
-    | _ -> false
-
-  let rec read_invalid text curr =
-    if in_bounds text curr then
-      if is_valid_token_start (String.get text curr) then
-        curr
-      else
-        read_invalid text (curr + 1)
-    else
-      curr
 
   let rec read_raw_prefix text curr =
     if in_bounds text curr then
@@ -864,6 +648,70 @@ end = struct
         Some (span, Invalid "Expected \"")
       end
 
+  let is_decimal_digit chr = chr >= '0' && chr <= '9'
+  let is_hex_digit chr = (chr >= '0' && chr <= '9')
+                         || (chr >= 'a' && chr <= 'f')
+                         || (chr >= 'A' && chr <= 'F')
+  let is_octal_digit chr = chr >= '0' && chr <= '7'
+  let is_binary_digit chr = chr = '0' || chr = '1'
+
+  let rec read_digits is_digit text curr =
+    if in_bounds text curr then
+      match String.get text curr with
+      | c when is_digit c -> read_digits is_digit text (curr + 1)
+      | _ -> curr
+    else
+      curr
+
+  let read_decimal_digits text curr =
+    if in_bounds text curr then
+      let end_digits = read_digits is_decimal_digit text curr in
+      if in_bounds text end_digits then
+        match String.get text end_digits with
+        | '.' -> if in_bounds text (end_digits + 1) then
+                   match String.get text (end_digits + 1) with
+                   | c when is_decimal_digit c ->
+                      read_digits is_decimal_digit text (end_digits + 1)
+                   | _ -> end_digits
+                 else
+                   end_digits
+        | _ -> end_digits
+      else
+        end_digits
+    else
+      curr
+
+  let lex_number input prefix_len read_digits =
+    let text = Input.full_text !input in
+    let start_idx = Input.offset !input in
+    let start = Input.loc !input in
+    let end_idx = read_digits text (start_idx + prefix_len) in
+    let len = end_idx - start_idx in
+    input := Input.advance_by !input len;
+    let span = Span.from start (Input.loc !input) in
+    if len = prefix_len then
+      Some (span, Invalid "Invalid number")
+    else
+      Some (span, Number)
+
+  let is_valid_token_start chr =
+    match chr with
+    | ' ' | '\t' | '\r' | '\n' | '\b' -> true
+    | '{' | '}' | '(' | ')' | '[' | ']' | ':' | '=' | ';'
+      | '.' | '|' | '+' | '-' | '*' | '/' | '<' | '>' | '`'
+      | ',' | '"' -> true
+    | c when is_name_start c -> true
+    | _ -> false
+
+  let rec read_invalid text curr =
+    if in_bounds text curr then
+      if is_valid_token_start (String.get text curr) then
+        curr
+      else
+        read_invalid text (curr + 1)
+    else
+      curr
+
   let lex_invalid input =
     let text = Input.full_text !input in
     let start = Input.loc !input in
@@ -890,7 +738,10 @@ end = struct
              else
                single Less_than
     | '>' -> single Greater_than
-    | ':' -> single Colon
+    | ':' -> if Input.starts_with !input "::" then
+               handle_simple input 2 Double_colon
+             else
+               single Colon
     | '=' -> single Equal
     | ';' -> single Semicolon
     | '.' -> single Dot
@@ -913,8 +764,17 @@ end = struct
     | 'r' -> if Input.starts_with !input "r\"" || Input.starts_with !input "r#" then
                lex_raw_string input
              else
-               lex_path input
-    | c when is_name_start c -> lex_path input
+               lex_name input
+    | '0' -> if Input.starts_with !input "0x" then
+               lex_number input 2 (read_digits is_hex_digit)
+             else if Input.starts_with !input "0b" then
+               lex_number input 2 (read_digits is_binary_digit)
+             else if Input.starts_with !input "0o" then
+               lex_number input 2 (read_digits is_octal_digit)
+             else
+               lex_number input 0 read_decimal_digits
+    | c when is_decimal_digit c -> lex_number input 0 read_decimal_digits
+    | c when is_name_start c -> lex_name input
     | _ -> lex_invalid input
 
   let lex input =
@@ -932,6 +792,10 @@ module SourceParser = struct
     | `Unexpected_character of Loc.t
     | `Unexpected_token of Span.t * string
   ]
+
+  type 'a parser = Token.t Stream.t -> ('a, parse_error) result
+
+  
 end
 
 module type SIGNATURE = sig
