@@ -1130,7 +1130,6 @@ end = struct
     | c -> raise (Failure (Printf.sprintf "Invalid Unicode codepoint: %d" codepoint))
 
   let rec read_string_contents span text idx max buffer errors =
-    let () = Printf.printf "read_string_contents %s ... %d %d \"%s\" ...\n" (Span.to_string span) idx max (Buffer.contents buffer) in
     if idx < max then
       let sub_span len =
         let start_loc = Loc.advance_to (Span.start span) text idx in
@@ -1171,7 +1170,6 @@ end = struct
                 else
                   cont char 4
               else if (idx + 2) < max && is_hex_digit (String.get text (idx + 2)) then
-                let () = Printf.printf "!!! idx: %d; max: %d\n" idx max in
                 let esc_span = sub_span 3 in
                 error_str (Span.length esc_span) (`Invalid_escape_sequence esc_span)
               else
@@ -1180,10 +1178,8 @@ end = struct
            | 'u' ->
               if (idx + 2) < max && (String.get text (idx + 2)) = '{' then
                 let end_idx = read_hex_digits text (idx + 3) max in
-                let () = Printf.printf "end_idx: %d\n" end_idx in
                 if end_idx < max then
                   if (String.get text end_idx) = '}' then
-                    let () = Printf.printf "Found }\n" in
                     let len = end_idx - (idx + 3) in
                     if len < 1 || len > 6 then
                         let len = (end_idx + 1) - idx in
@@ -1192,7 +1188,6 @@ end = struct
                       let value = int_of_string ("0x" ^ (String.sub text (idx + 3) len)) in
                       if value > 0x10FFFF then
                         let len = (end_idx + 1) - idx in
-                        let () = Printf.printf "len: %d\n" len in
                         error_str len (`Unicode_value_out_of_range (sub_span len))
                       else if value >= 0xD800 && value <= 0xDFFF then
                         let len = (end_idx + 1) - idx in
