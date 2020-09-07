@@ -1,13 +1,4 @@
 
-module StringName = struct
-  type t = string
-
-  let equal = String.equal
-  let compare = String.compare
-  let to_string str = str
-  let debug_string str = "\"" ^ str ^ "\""
-end
-
 module Loc: sig
   type t
   type source = string
@@ -23,6 +14,7 @@ module Loc: sig
   val offset : t -> int
 
   val inc_column : t -> int -> t
+  val advance_to : t -> string -> int -> t
 
   val equal : t -> t -> bool
   val compare : t -> t -> int
@@ -62,6 +54,23 @@ end = struct
     { loc with column = loc.column + amount;
                offset = loc.offset + amount }
 
+  let advance_to loc str end_pos =
+    let line = ref (line loc) in
+    let column = ref (column loc) in
+    let pos = ref (offset loc) in
+    let str_len = (String.length str) in
+    while !pos < end_pos && !pos < str_len do
+      let chr = String.get str !pos in
+      match chr with
+      | '\n' -> (line := !line + 1; column := 0; pos := !pos + 1)
+      | '\r' -> if !pos < end_pos - 1 && String.get str (!pos + 1) = '\n' then
+                  (line := !line + 1; column := 0; pos := !pos + 2)
+                else
+                  (column := !column + 1; pos := !pos + 1)
+      | _ -> (column := !column + 1; pos := !pos + 1)
+    done;
+    create (filename loc) !line !column !pos
+
   let equal loc1 loc2 =
     String.equal loc1.filename loc2.filename
     && loc1.line = loc2.line
@@ -100,6 +109,12 @@ module Span: sig
 
   val is_singular : t -> bool
 
+  (* span -> offset * length *)
+  val slice : t -> int * int
+  val substr : t -> string -> string
+
+  val length : t -> int
+
   val equal : t -> t -> bool
   val compare : t -> t -> int
   val merge : t -> t -> t
@@ -119,6 +134,17 @@ end = struct
   let sources span = [Loc.filename span.start; Loc.filename span.finish]
 
   let is_singular span = Loc.equal span.start span.finish
+
+  let slice span =
+    let start_idx = Loc.offset (start span) in
+    (start_idx, (Loc.offset (finish span)) - start_idx)
+
+  let substr span text =
+    let (start, length) = slice span in
+    String.sub text start length
+
+  let length span =
+    (Loc.offset span.finish) - (Loc.offset span.start)
 
   let equal span1 span2 =
     Loc.equal span1.start span2.start

@@ -24,15 +24,11 @@ end
 
 module type PATH = sig
   type t
-  type loc
   type name
 
   val create : name list -> t
   val create_ns : name -> name list -> t
   val namespace : t -> name option
-  val loc : t -> loc option
-  val with_loc : t -> loc -> t
-  val without_loc : t -> t
   val plus : t -> name -> t
   val equal : t -> t -> bool
   val compare : t -> t -> int
@@ -41,51 +37,33 @@ module type PATH = sig
 end
 
 module Make_path
-         (Name: NAME)
-         (Loc: LOC): PATH
-       with type name = Name.t
-       with type loc = Loc.t = struct
+         (Name: NAME): PATH
+       with type name = Name.t = struct
   type name = Name.t
-  type loc = Loc.t
 
   type t = {
       namespace: Name.t option;
-      parts: name array;
-      loc: loc option
+      parts: name array
   }
 
   let has_ns path =
     match path.namespace with
     | Some _ -> true
     | None -> false
-
-  let has_loc path =
-    match path.loc with
-    | Some _ -> true
-    | None -> false
                        
   let create names =
     let parts = Array.of_list names in
-    { namespace = None; loc = None; parts }
+    { namespace = None; parts }
 
   let create_ns namespace names =
     let intermediate = create names in
     { intermediate with namespace = Some namespace }
-    
-  let loc path = path.loc
 
   let namespace path = path.namespace
 
   let plus path part =
     let { parts } = path in
-    { path with parts = Array.append parts [| part |];
-                loc = None}
-
-  let with_loc path loc =
-    { path with loc = Some loc }
-
-  let without_loc path =
-    { path with loc = None }
+    { path with parts = Array.append parts [| part |] }
 
   let ns_equal ns1 ns2 =
     match (ns1, ns2) with
@@ -142,13 +120,14 @@ module Make_path
       | Some ns -> ref ((Name.to_string ns) ^ "::") in
     let first = ref true in
     Array.iter
-      (fun name -> begin
-           if !first then
-             first := false
-           else 
-             output := !output ^ ".";
-         end;
-                   output := !output ^ Name.to_string name)
+      (fun name ->
+        begin
+          if !first then
+            first := false
+          else 
+            output := !output ^ ".";
+        end;
+        output := !output ^ Name.to_string name)
       path.parts;
     !output
 
@@ -165,9 +144,6 @@ module Make_path
                       output := !output ^ ", ");
                     output := !output ^ (Name.debug_string name)) path.parts;
     output := !output ^ "]";
-    (match path.loc with
-     | Some loc -> output := !output ^ ", loc = " ^ (Loc.debug_string loc)
-     | None -> ());
     output := !output ^ " }";
     !output
 end
@@ -221,9 +197,62 @@ end = struct
   let debug_string name = Printf.sprintf "{ tag = %d; name = %s }" name.tag name.name
 end
 
-module Path = Make_path(Name)(Span)
+module Path = Make_path(Name)
 
-module Token = struct
+module Token: sig
+  type comment_type = Line | Multiline
+  type raw_string_prefix_count = int
+
+  type token_type =
+    | Whitespace
+    | Left_brace
+    | Right_brace
+    | Left_paren
+    | Right_paren
+    | Left_bracket
+    | Right_bracket
+    | Less_than
+    | Greater_than
+    | Arrow
+    | Back_arrow
+    | Colon
+    | Double_colon
+    | Equal
+    | Semicolon
+    | Dot
+    | Pipe
+    | Plus
+    | Dash
+    | Asterisk
+    | Slash
+    | Comma
+    | Type
+    | Namespace
+    | Module
+    | Let
+    | True
+    | False
+    | Backtick
+    | String
+    | Raw_string of raw_string_prefix_count
+    | Number
+    | Comment of comment_type
+    | Name
+    | Invalid of string
+
+  type t = Span.t * token_type
+
+  val is_whitespace : t -> bool
+  val is_invalid : t -> bool
+
+  val is_raw_string : t -> bool
+  val is_any_string : t -> bool
+
+  val is_comment : t -> bool
+
+  val substr : string -> t -> string
+  val to_string : t -> string
+end = struct
   type comment_type = Line | Multiline
   type raw_string_prefix_count = int
 
@@ -311,17 +340,16 @@ module Token = struct
     in
     sprintf "%s: %s" (Span.to_string span) tok_str
 
-  let is_invalid token =
-    let span, tok = token in
-    match tok with
-    | Invalid _ -> true
-    | _ -> false
+  let is_whitespace = function (_, Whitespace) -> true | _ -> false
 
-  let is_whitespace token =
-    let span, tok = token in
-    match tok with
-    | Whitespace -> true
-    | _ -> false
+  let is_invalid = function (_, Invalid _) -> true | _ -> false
+
+  let is_raw_string = function (_, Raw_string _) -> true | _ -> false
+  let is_any_string = function (_, String)
+                             | (_, Raw_string _) -> true
+                             | _ -> false
+
+  let is_comment = function (_, Comment _) -> true | _ -> false
 
   let substr text token =
     let (span, tok) = token in
@@ -332,38 +360,108 @@ module Token = struct
 end
 
 module Source = struct
+  module Metadata: sig
+    type t = {
+        span: Span.t;
+        full_span: Span.t;
+        tokens: Token.t list;
+        leading_tokens: Token.t list;
+        trailing_tokens: Token.t list
+    }
+
+    val span : t -> Span.t
+    val full_span : t -> Span.t
+    val tokens : t -> Token.t list
+    val leading_tokens : t -> Token.t list
+    val trailing_tokens : t -> Token.t list
+  end = struct
+    type t = {
+        span: Span.t;
+        full_span: Span.t;
+        tokens: Token.t list;
+        leading_tokens: Token.t list;
+        trailing_tokens: Token.t list
+    }
+
+    let span md = md.span
+    let full_span md = md.full_span
+    let tokens md = md.tokens
+    let leading_tokens md = md.leading_tokens
+    let trailing_tokens md = md.trailing_tokens
+  end
+  type metadata = Metadata.t
+
   type deftype = unit
   type kind = unit
   type type_decl = {
       decl_kind: kind;
       decl_concrete: deftype option
   }
+
   type type_def = {
       def_kind: kind;
       def_concrete: deftype option
   }
-  type value_type = unit
+
+  type value_type_node = unit
+  type value_type = Metadata.t * value_type_node
   type module_decl = unit
 
-  type ident = Span.t * Name.t
+  module Expr: sig
+    type node =
+      | Path of Path.t
+      | Type_ann of t * (metadata * value_type)
+      | Binop of t * t * t
+      | Prefix_op of t * t
+      | Posfix_op of t * t
+      | Application of t * t list
+      | Number of string
+      | String of string
+      | Invalid
+    and t = metadata * node
 
-  type expr_node =
-    | 
-  and expr = Span.t * expr_node
+    val metadata : t -> metadata
+    val span : t -> Span.t
+    val full_span : t -> Span.t
+    val leading_tokens : t -> Token.t list
+    val trailing_tokens : t -> Token.t list
+  end = struct
+    type node =
+      | Path of Path.t
+      | Type_ann of t * (metadata * value_type)
+      | Binop of t * t * t
+      | Prefix_op of t * t
+      | Posfix_op of t * t
+      | Application of t * t list
+      | Number of string
+      | String of string
+      | Invalid
+    and t = metadata * node
+
+    let metadata = function (metadata, _) -> metadata
+    let span expr = Metadata.span (metadata expr)
+    let full_span expr = Metadata.full_span (metadata expr)
+    let leading_tokens expr = Metadata.leading_tokens (metadata expr)
+    let trailing_tokens expr = Metadata.trailing_tokens (metadata expr)
+  end
 
   type term = unit
 
+  type ident = metadata * Name.t
+
+  type implicitness = Implicit | Explicit
+
   type import_entry = [
-    | `Name of Span.t * Name.t
-    | `Rename of (Span.t * Name.t) * (Span.t * Name.t)
+    | `Name of ident
+    | `Rename of ident * (implicitness option * ident)
   ]
 
   type import_line = [
-    | `Type_import of Span.t * import_entry list
-    | `Value_import of Span.t * import_entry list
-    | `Module_type_import of Span.t * import_entry list
-    | `Module_import of Span.t * import_entry list
-    | `All_import of Span.t * import_entry list
+    | `Type_import of metadata * import_entry list
+    | `Value_import of metadata * import_entry list
+    | `Module_type_import of metadata * import_entry list
+    | `Module_import of metadata * import_entry list
+    | `All_import of metadata * import_entry list
   ]
 
   type open_mask = import_line list
@@ -786,1033 +884,366 @@ end = struct
 
 end
 
-module SourceParser = struct
-
-  type parse_error = [
-    | `Unexpected_character of Loc.t
-    | `Unexpected_token of Span.t * string
+module ParseError = struct
+  type t = [
+    (* | `Unexpected_token of Token.t *)
+    | `Invalid_token of Span.t
+    | `Backslash_at_end_of_string of Span.t
+    | `Invalid_escape_sequence of Span.t
+    | `Ascii_value_out_of_range of Span.t
+    | `Unicode_value_out_of_range of Span.t
+    | `Lone_surrogate_unicode_escape of Span.t
   ]
 
-  type 'a parser = Token.t Stream.t -> ('a, parse_error) result
+  let to_string error =
+    let open Printf in
+    match error with
+    | `Invalid_token span -> sprintf "Invalid_token %s" (Span.to_string span)
+    | `Backslash_at_end_of_string span -> sprintf "Backslash_at_end_of_string %s" (Span.to_string span)
+    | `Invalid_escape_sequence span -> sprintf "Invalid_escape_sequence %s" (Span.to_string span)
+    | `Ascii_value_out_of_range span -> sprintf "Ascii_value_out_of_range %s" (Span.to_string span)
+    | `Unicode_value_out_of_range span -> sprintf "Unicode_value_out_of_range %s" (Span.to_string span)
+    | `Lone_surrogate_unicode_escape span -> sprintf "Lone_surrogate_unicode_escape %s" (Span.to_string span)
 
-  
+  let string_of_errors errors =
+    let result = ref "[" in
+    let first = ref true in
+    List.iter (fun e -> begin
+                   (if !first then
+                     first := false
+                    else
+                      result := !result ^ ", ");
+                   result := !result ^ (to_string e)
+                 end) errors;
+    !result ^ "]"
 end
 
-module type SIGNATURE = sig
-  type t
-  type name
-  type ident
-  type type_decl
-  type value_type
-  type module_type
-  type module_decl
-  type module_term
-
-  val lookup_type : t -> ident -> type_decl option
-  val lookup_type_name : t -> name -> type_decl option
-  val lookup_value_type : t -> ident -> value_type option
-  val lookup_value_type_name : t -> name -> value_type option
-  val lookup_module_type : t -> ident -> module_type option
-  val lookup_module_type_name : t -> name -> module_type option
-  val lookup_module_decl : t -> ident -> module_decl option
-  val lookup_module_decl_name : t -> name -> module_decl option
-
-  val type_seq : t -> (ident * type_decl) Seq.t
-  val value_type_seq : t -> (ident * value_type) Seq.t
-  val module_type_seq : t -> (ident * module_type) Seq.t
-  val module_decl_seq : t -> (ident * module_decl) Seq.t
-end
-
-module type STRUCTURE = sig
-  type 'term t
-  type name
-  type ident
-  type type_def
-  type 'term module_term
-  type module_type
-     
-  val empty : 'term t
-  val plus_type : 'term t -> ident -> type_def -> ('term t, ident) result
-  val plus_term : 'term t -> ident -> 'term -> ('term t, ident) result
-  val plus_module : 'term t -> ident -> 'term module_term -> ('term t, ident) result
-  val plus_module_type : 'term t -> ident -> module_type -> ('term t, ident) result
-
-  val lookup_type : 'term t -> ident -> type_def option
-  val lookup_type_name : 'term t -> name -> type_def option
-  val lookup_term : 'term t -> ident -> 'term option
-  val lookup_term_name : 'term t -> name -> 'term option
-  val lookup_module : 'term t -> ident -> ('term module_term) option
-  val lookup_module_name : 'term t -> name -> ('term module_term) option
-  val lookup_module_type : 'term t -> ident -> module_type option
-  val lookup_module_type_name : 'term t -> name -> module_type option
-
-  val type_seq : 'term t -> (ident * type_def) Seq.t
-  val term_seq : 'term t -> (ident * 'term) Seq.t
-  val module_seq : 'term t -> (ident * ('term module_term)) Seq.t
-  val module_type_seq : 'term t -> (ident * module_type) Seq.t
-end
-
-module type NAMESPACE_DECLARATION = sig
-  type t
-  type loc
-  type name
-  type ident
-  type module_type
-  type module_term
-
-  type export_signifier =
-    | Module of loc * name
-    | Signature of loc * name
-
-  type export_header =
-    | Export of export_signifier list
-    | Hide of export_signifier list
-    | Export_all
-    | Hide_all
-
-  val empty : ident -> export_header -> t
-
-  val ident : t -> ident
-  val name : t -> name
-
-  val export_header : t -> export_header
-
-  val plus_sig : t -> ident -> module_type -> (t, ident) result
-  val plus_term : t -> ident -> module_term -> (t, ident) result
-
-  val lookup_sig : t -> ident -> module_type option
-  val lookup_sig_name : t -> name -> module_type option
-  val lookup_term : t -> ident -> module_term option
-  val lookup_term_name : t -> name -> module_term option
-
-  val sig_seq : t -> (ident * module_type) Seq.t
-  val term_seq : t -> (ident * module_term) Seq.t
-end
-
-module type NAMESPACE = sig
-  type 'term t
-  type name
-  type ident
-  type term
-  type module_type
-  type 'term module_term
-  type namespace_declaration
-  type error
-
-  val name : 'term t -> name
-  val idents : 'term t -> ident Seq.t
-
-  val create : name -> namespace_declaration Seq.t -> (term t, error list) result
-
-  val sig_exports : 'term t -> name Seq.t
-  val term_exports : 'term t -> name Seq.t
-
-  val lookup_sig : 'term t -> ident -> module_type option
-  val lookup_sig_name : 'term t -> name -> module_type option
-  val lookup_term : 'term t -> ident -> ('term module_term) option
-  val lookup_term_name : 'term t -> name -> ('term module_term) option
-
-  val sig_seq : 'term t -> (ident * module_type) Seq.t
-  val term_seq : 'term t -> (ident * ('term module_term)) Seq.t
-end
-
-module type ENV = sig
-  type t
-  type ident
-  type path
-  type name
-  type type_decl
-  type value_type
-  type module_type
-
-  (* val current_path : t -> path option
-   * val with_current_path : t -> path option -> t
-   * val plus_current_path : t -> name -> t *)
-
-  val find_type : t -> path -> type_decl option
-  val find_value_type : t -> path -> value_type option
-  val find_module_type : t -> path -> module_type option
-
-  (* val find_type_def : t -> path -> type_def option
-   * val find_term : t -> path -> term option
-   * val find_module_term : t -> path -> module_term option *)
-end
-                                  
-module type NAMESPACES = sig
-  type 'term t
-  type name
-  type ident
-  type term
-  type typed_term
-  type value_type
-  type type_decl
-  type 'term namespace
-  type module_type
-  type 'term module_term
-  type env
-
-  module Env : ENV
-         with type t = env
-         with type ident = ident
-         with type name = name
-         with type type_decl = type_decl
-         with type value_type = value_type
-         with type module_type = module_type
-         
-  val create : ('term namespace) list -> 'term t
-
-  val lookup_namespace : 'term t -> name -> ('term namespace) option
-
-  val to_seq : 'term t -> ('term namespace) Seq.t
-
-  val env : 'term t -> env
-end
-
-module type SOURCES = sig
-  type 'term t
-  type source_id
-  type 'term source
-  type 'term namespaces
-
-  val empty : 'term t
-
-  val plus : 'term t -> 'term source -> 'term t
-
-  val lookup_source : 'term t -> source_id -> ('term source) option
-  val namespaces : 'term t -> ('term namespaces)
-
-  val to_seq : 'term t -> ('term source) Seq.t
-end
-
-module type SOURCE_PARSER = sig
-  type source_id
-  type source_input
-  type term
-  type 'term source
-  type parse_error
-
-  val parse : source_id -> source_input -> (term source, parse_error) result
-end
-
-module type SOURCES_PARSER = sig
-  type t
-  type term
-  type source_id
-  type source_input
-  type 'term source
-  type parse_error
-     
-  val parse : source_id list -> (t, parse_error) result
-
-  (*           sources           changed sources   result *)
-  val reload : source_id list -> source_id list -> (t, parse_error) result
-end
-
-(*
-module type MODULE_SYNTAX = sig
-  module Name : NAME
-  module Loc : LOC
-  module Ident : IDENT
-         with type name = Name.t
-         with type loc = Loc.t
-  module Path : PATH
-         with type ident = Ident.t
-         with type name = Ident.name
-         with type name = Name.t
-  module SourceId : NAME
-
-  type value_type
-  type typ
-  type kind
-  type term
-  type typed_term
-
-  type type_decl = {
-      kind: kind;
-      concrete: typ option
-  }
-
-  type type_def = {
-      def_kind: kind;
-      concrete_def: typ
-  }
-
-  type module_decl
-
-  type signature
-  type module_type = Signature of signature
-                   | Functor_type of Ident.t * module_type * module_type
-
-  type 'term structure
-  type 'term module_term = Path of Path.t
-                         | Structure of ('term structure)
-                         | Functor of Ident.t * module_type * ('term module_term)
-                         | Apply of ('term module_term) * ('term module_term)
-                         | Constraint of ('term module_term) * module_type
-
-  module Signature : SIGNATURE
-         with type t = signature
-         with type name = Name.t
-         with type ident = Ident.t
-         with type type_decl = type_decl
-         with type value_type = value_type
-         with type module_type = module_type
-         with type module_decl = module_decl
-
-  module Structure : STRUCTURE
-         with type 'term t = 'term structure
-         with type name = Name.t
-         with type ident = Ident.t
-         with type type_def = type_def
-         with type 'term module_term = 'term module_term
-         with type module_type = module_type
-
-  module NamespaceDeclaration : NAMESPACE_DECLARATION
-         with type loc = Loc.t
-         with type name = Name.t
-         with type ident = Ident.t
-         with type module_type = module_type
-         with type module_term = term module_term
-
-  module Source : SOURCE
-         with type source_id = SourceId.t
-         with type name = Name.t
-         with type ident = Ident.t
-         with type term = term
-         with type module_type = module_type
-         with type module_term = term module_term
-         with type namespace_declaration = NamespaceDeclaration.t
-
-  module Namespace : NAMESPACE
-         with type name = Name.t
-         with type ident = Ident.t
-         with type module_type = module_type
-         with type 'term module_term = 'term module_term
-         with type namespace_declaration = NamespaceDeclaration.t
-
-  (* module Env : ENV
-   *        with type ident = Ident.t
-   *        with type type_decl = type_decl
-   *        with type value_type = value_type
-   *        with type module_type = module_type
-   *        with type type_def = type_def
-   *        with type term = term
-   *        with type module_term = module_term
-   * 
-   * module Namespaces : NAMESPACES
-   *        with type name = Name.t
-   *        with type ident = Ident.t
-   *        with type namespace = Namespace.t
-   *        with type module_type = module_type
-   *        with type module_term = module_term
-   *        with type env = Env.t *)
-end
-
-module type LANG = sig
-  module Name : NAME
-  module SourceId : NAME
-  module Loc : LOC with type source = SourceId.t
-  module Ident : IDENT
-         with type name = Name.t
-         with type loc = Loc.t
-  module Path : PATH
-         with type ident = Ident.t
-         with type name = Ident.name
-         with type name = Name.t
-  module Subst : SUBST
-         with type ident = Ident.t
-         with type path = Path.t
-
-  type value_type
-  type typ
-  type kind
-  type term
-  type typed_term
-
-  val subst_value_type: value_type -> Subst.t -> value_type
-  val subst_typ: typ -> Subst.t -> typ
-  val subst_kind: kind -> Subst.t -> kind
-
-  module TypeChecker
-           (Module_syntax: MODULE_SYNTAX
-            with type value_type = value_type
-            with type typ = typ
-            with type kind = kind
-            with type term = term
-            with module Name = Name
-            with module Loc = Loc
-            with module Ident = Ident
-            with module Path = Path)
-           (Env: ENV
-            with type ident = Ident.t
-            with type path = Path.t
-            with type name = Name.t
-            with type type_decl = Module_syntax.type_decl
-            with type module_type = Module_syntax.module_type
-            with type value_type = value_type): sig
-    type env
-    type ident
-    type name
-    type value_type
-    type typ
-    type kind
-    type term
-    type type_decl
-    type module_type
-    type type_error
-
-    (* Typing functions *)
-    val type_term : Env.t -> term -> (value_type, type_error list) result
-    val kind_deftype : Env.t -> typ -> (kind, type_error list) result
-    val check_valtype : Env.t -> value_type -> (value_type, type_error list) result
-
-    (* Type matching functions *)
-    val valtype_match : Env.t -> value_type -> value_type -> bool
-    val deftype_equiv : Env.t -> kind -> typ -> typ -> bool
-    val kind_match : Env.t -> kind -> kind -> bool
-    val deftype_of_path : Path.t -> kind -> typ
-  end
-         with type env = Env.t
-         with type ident = Ident.t
-         with type name = Name.t
-         with type value_type = value_type
-         with type typ = typ
-         with type kind = kind
-         with type term = term
-end
-
-module Modularize(Lang: LANG): MODULE_SYNTAX
-       with type value_type = Lang.value_type
-       with type typ = Lang.typ
-       with type kind = Lang.kind
-       with type term = Lang.term
-       with type typed_term = Lang.typed_term
-  = struct
-
-  type value_type = Lang.value_type
-  type typ = Lang.typ
-  type kind = Lang.kind
-  type term = Lang.term
-  type typed_term = Lang.typed_term
-
-  module Loc = Lang.Loc
-  module Name = Lang.Name
-  module Ident = Lang.Ident
-  module Path = Lang.Path
-  module SourceId = Lang.SourceId
-
-  type type_decl = {
-      kind: kind;
-      concrete: typ option
-  }
-
-  type type_def = {
-      def_kind: kind;
-      concrete_def: typ
-  }
-
-  type type_decl_alias = type_decl
-  type type_def_alias = type_def
-
-  module IdentMap : sig
-    type 'a t
-    type ident = Ident.t
-    type name = Name.t
-
-    val empty : 'a t
-    val contains_ident : 'a t -> ident -> bool
-    val contains_name : 'a t -> name -> bool
-
-    val lookup_ident : 'a t -> ident -> 'a option
-    val lookup_name : 'a t -> name -> 'a option
-
-    val plus : 'a t -> ident -> 'a -> ('a t, ident) result
-
-    val ident_seq : 'a t -> (Ident.t * 'a) Seq.t
-    val name_seq : 'a t -> (Name.t * 'a) Seq.t
-  end = struct
-    type ident = Ident.t
-    type name = Name.t
-
-    module IdMap = Map.Make(Ident)
-    module NameMap = Map.Make(Name)
-    type 'a t = {
-        ident_map: 'a IdMap.t;
-        name_map: 'a NameMap.t;
-        idents: Ident.t NameMap.t
+module SourceParser: sig
+  type parse_error = ParseError.t
+
+  module ParserState: sig
+    type t
+    type tnode = {
+        token: Token.t;
+        leading_tokens: Token.t list;
+        trailing_tokens: Token.t list
     }
 
-    let empty = {
-        ident_map = IdMap.empty;
-        name_map = NameMap.empty;
-        idents = NameMap.empty
-    }
-
-    let contains_ident map ident = IdMap.mem ident map.ident_map
-    let contains_name map name = NameMap.mem name map.name_map
-
-    let lookup_ident map ident = IdMap.find_opt ident map.ident_map
-    let lookup_name map name = NameMap.find_opt name map.name_map
-
-    let plus map ident value =
-      match NameMap.find_opt (Ident.name ident) map.idents with
-      | Some existing -> Error(existing)
-      | None -> Ok({
-                      ident_map = IdMap.add ident value map.ident_map;
-                      name_map = NameMap.add (Ident.name ident) value map.name_map;
-                      idents = NameMap.add (Ident.name ident) ident map.idents
-                  })
-
-    let ident_seq map = IdMap.to_seq map.ident_map
-    let name_seq map = NameMap.to_seq map.name_map
+    val create : string -> string -> t
+    val text : t -> string
+    val tokens : t -> tnode Stream.t
+    val span : tnode -> Span.t
+    val full_span : tnode -> Span.t
+    val substr : t -> tnode -> string
+    val full_substr : t -> tnode -> string
   end
 
-  type signature = {
-      type_decls: type_decl IdentMap.t;
-      values: value_type IdentMap.t;
-      sig_module_types: module_type IdentMap.t;
-      module_decls: module_decl IdentMap.t
-  }
-  and module_type = Signature of signature
-                  | Functor_type of Ident.t * module_type * module_type
-  and module_decl = module_type
+  val parse_expr : ParserState.t -> (parse_error list) * Source.Expr.t
+end = struct
+  type parse_error = ParseError.t
 
-  type 'term structure = {
-        types: type_def IdentMap.t;
-        terms: 'term IdentMap.t;
-        modules: ('term module_term) IdentMap.t;
-        module_types: module_type IdentMap.t
-  }
-  and 'term module_term = Path of Path.t
-              | Structure of 'term structure
-              | Functor of Ident.t * module_type * ('term module_term)
-              | Apply of ('term module_term) * ('term module_term)
-              | Constraint of ('term module_term) * module_type
+  module TokenMatchers = struct
+    open Token
+    let whitespace = function (_, Whitespace) -> true | _ -> false
+    let left_brace = function (_, Left_brace) -> true | _ -> false
+    let right_brace = function (_, Right_brace) -> true | _ -> false
+    let left_paren = function (_, Left_paren) -> true | _ -> false
+    let right_paren = function (_, Right_paren) -> true | _ -> false
+    let left_bracket = function (_, Left_bracket) -> true | _ -> false
+    let right_bracket = function (_, Right_bracket) -> true | _ -> false
+    let less_than = function (_, Less_than) -> true | _ -> false
+    let greater_than = function (_, Greater_than) -> true | _ -> false
+    let arrow = function (_, Arrow) -> true | _ -> false
+    let back_arrow = function (_, Back_arrow) -> true | _ -> false
+    let colon = function (_, Colon) -> true | _ -> false
+    let double_colon = function (_, Double_colon) -> true | _ -> false
+    let equal = function (_, Equal) -> true | _ -> false
+    let semicolon = function (_, Semicolon) -> true | _ -> false
+    let dot = function (_, Dot) -> true | _ -> false
+    let pipe = function (_, Pipe) -> true | _ -> false
+    let plus = function (_, Plus) -> true | _ -> false
+    let dash = function (_, Dash) -> true | _ -> false
+    let asterisk = function (_, Asterisk) -> true | _ -> false
+    let slash = function (_, Slash) -> true | _ -> false
+    let comma = function (_, Comma) -> true | _ -> false
+    let is_type = function (_, Type) -> true | _ -> false
+    let namespace = function (_, Namespace) -> true | _ -> false
+    let is_module = function (_, Module) -> true | _ -> false
+    let is_let = function (_, Let) -> true | _ -> false
+    let is_true = function (_, True) -> true | _ -> false
+    let is_false = function (_, False) -> true | _ -> false
+    let backtick = function (_, Backtick) -> true | _ -> false
+    let string = function (_, String) -> true | _ -> false
+    let raw_string = function (_, Raw_string _) -> true | _ -> false
+    let number = function (_, Number) -> true | _ -> false
+    let comment = function (_, Comment _) -> true | _ -> false
+    let name = function (_, Name) -> true | _ -> false
+    let invalid = function (_, Invalid _) -> true | _ -> false
 
-  type module_type_alias = module_type
-  type 'term module_term_alias = 'term module_term
-  type module_decl_alias = module_decl
+    let any_string = Token.is_any_string
 
-  module Signature : SIGNATURE
-         with type t = signature
-         with type name = Name.t
-         with type ident = Ident.t
-         with type type_decl = type_decl
-         with type value_type = value_type
-         with type module_type = module_type
-         with type module_decl = module_decl = struct
-    type name = Name.t
-    type ident = Ident.t
-    type type_decl = type_decl_alias
-    type value_type = Lang.value_type
-    type module_type = module_type_alias
-    type module_decl = module_decl_alias
-    type t = signature
-
-    let empty = {
-        type_decls = IdentMap.empty;
-        values = IdentMap.empty;
-        sig_module_types = IdentMap.empty;
-        module_decls = IdentMap.empty
-    }
-
-    let plus_type signature ident typ =
-      match IdentMap.plus signature.type_decls ident typ with
-      | Ok new_tbl -> Ok { signature with type_decls = new_tbl }
-      | Error old_ident -> Error old_ident
-
-    let plus_value_type signature ident value =
-      match IdentMap.plus signature.values ident value with
-      | Ok new_tbl -> Ok { signature with values = new_tbl }
-      | Error old_ident -> Error old_ident
-
-    let plus_module_type signature ident module_type =
-      match IdentMap.plus signature.sig_module_types ident module_type with
-      | Ok new_tbl -> Ok { signature with sig_module_types = new_tbl }
-      | Error old_ident -> Error old_ident
-
-    let plus_module_decl signature ident module_decl =
-      match IdentMap.plus signature.module_decls ident module_decl with
-      | Ok new_tbl -> Ok { signature with module_decls = new_tbl }
-      | Error old_ident -> Error old_ident
-
-    let lookup_type signature ident = IdentMap.lookup_ident signature.type_decls ident
-    let lookup_type_name signature name = IdentMap.lookup_name signature.type_decls name
-    let lookup_value_type signature ident = IdentMap.lookup_ident signature.values ident
-    let lookup_value_type_name signature name = IdentMap.lookup_name signature.values name
-    let lookup_module_type signature ident = IdentMap.lookup_ident signature.sig_module_types ident
-    let lookup_module_type_name signature name = IdentMap.lookup_name signature.sig_module_types name
-    let lookup_module_decl signature ident = IdentMap.lookup_ident signature.module_decls ident
-    let lookup_module_decl_name signature name = IdentMap.lookup_name signature.module_decls name
-
-    let type_seq signature = IdentMap.ident_seq signature.type_decls
-    let value_type_seq signature = IdentMap.ident_seq signature.values
-    let module_type_seq signature = IdentMap.ident_seq signature.sig_module_types
-    let module_decl_seq signature = IdentMap.ident_seq signature.module_decls
-  end
- 
-  module Structure: STRUCTURE
-         with type 'term t = 'term structure
-         with type name = Name.t
-         with type ident = Ident.t
-         with type type_def = type_def
-         with type 'term module_term = 'term module_term
-         with type module_type = module_type = struct
-    type name = Name.t
-    type ident = Ident.t
-    type type_def = type_def_alias
-    type 'term module_term = 'term module_term_alias
-    type module_type = module_type_alias
-
-    type 'term t = 'term structure
-
-    let empty = {
-        types = IdentMap.empty;
-        terms = IdentMap.empty;
-        modules = IdentMap.empty;
-        module_types = IdentMap.empty
-    }
-
-    let plus_type structure ident type_def =
-      match IdentMap.plus structure.types ident type_def with
-      | Ok new_tbl -> Ok { structure with types = new_tbl }
-      | Error old_ident -> Error old_ident
-
-    let plus_term structure ident term =
-      match IdentMap.plus structure.terms ident term with
-      | Ok new_tbl -> Ok { structure with terms = new_tbl }
-      | Error old_ident -> Error old_ident
-
-    let plus_module structure ident module_term =
-      match IdentMap.plus structure.modules ident module_term with
-      | Ok new_tbl -> Ok { structure with modules = new_tbl }
-      | Error old_ident -> Error old_ident
-
-    let plus_module_type structure ident module_type =
-      match IdentMap.plus structure.module_types ident module_type with
-      | Ok new_tbl -> Ok { structure with module_types = new_tbl }
-      | Error old_ident -> Error old_ident
-
-    let lookup_type structure ident = IdentMap.lookup_ident structure.types ident
-    let lookup_type_name structure name = IdentMap.lookup_name structure.types name
-    let lookup_term structure ident = IdentMap.lookup_ident structure.terms ident
-    let lookup_term_name structure name = IdentMap.lookup_name structure.terms name
-    let lookup_module structure ident = IdentMap.lookup_ident structure.modules ident
-    let lookup_module_name structure name = IdentMap.lookup_name structure.modules name
-    let lookup_module_type structure ident = IdentMap.lookup_ident structure.module_types ident
-    let lookup_module_type_name structure name = IdentMap.lookup_name structure.module_types name
-
-    let type_seq structure = IdentMap.ident_seq structure.types
-    let term_seq structure = IdentMap.ident_seq structure.terms
-    let module_seq structure = IdentMap.ident_seq structure.modules
-    let module_type_seq structure = IdentMap.ident_seq structure.module_types
+    let trivia = function (_, Whitespace)
+                        | (_, Comment _)
+                          | (_, Invalid _) -> true
+                        | _ -> false
   end
 
-  module NamespaceDeclaration : NAMESPACE_DECLARATION
-         with type loc = Loc.t
-         with type name = Name.t
-         with type ident = Ident.t
-         with type module_type = module_type
-         with type module_term = term module_term = struct
-    type loc = Loc.t
-    type name = Name.t
-    type ident = Ident.t
-    type module_type = module_type_alias
-    type module_term = Lang.term module_term_alias
-
-    type export_signifier =
-      | Module of loc * Name.t
-      | Signature of loc * Name.t
-
-    type export_header =
-      | Export of export_signifier list
-      | Hide of export_signifier list
-      | Export_all
-      | Hide_all
-
-    module NameSet = Set.Make(Name)
+  module ParserState = struct
+    type tnode = {
+        token: Token.t;
+        leading_tokens: Token.t list;
+        trailing_tokens: Token.t list
+    }
 
     type t = {
-        ident: Ident.t;
-        export_header: export_header;
-        types: module_type IdentMap.t;
-        terms: module_term IdentMap.t
+        text: string;
+        tokens: tnode Stream.t
     }
 
-    let empty ident export_header = {
-        ident = ident;
-        export_header: export_header;
-        types = IdentMap.empty;
-        terms = IdentMap.empty
-    }
+    let rec last list =
+      match list with
+      | [] -> None
+      | [item] -> Some item
+      | _ :: tail -> last tail
 
-    let ident ns = ns.ident
-    let name ns = Ident.name ns.ident
+    let span = function { token = (span, _) } -> span
+    let full_span tnode =
+      let (start_span, _) = try List.hd (tnode.leading_tokens)
+                            with Failure _ -> tnode.token in
+      let (end_span, _) = match last tnode.trailing_tokens with
+        | Some tok -> tok
+        | None -> tnode.token in
+      Span.merge start_span end_span
 
-    let export_header ns = ns.export_header
+    let substr state tnode = Span.substr (span tnode) state.text
+    let full_substr state tnode = Span.substr (full_span tnode) state.text
 
-    let plus_sig ns ident module_type =
-      match IdentMap.plus ns.types ident module_type with
-      | Ok new_tbl -> Ok { ns with types = new_tbl }
-      | Error old_ident -> Error old_ident
+    let rec read_trivia_for_line stream line so_far =
+      match Stream.peek stream with
+      | Some token ->
+         let (span, _) = token in
+         let start_line = Loc.line (Span.start span) in
+         if TokenMatchers.trivia token && start_line = line then
+           read_trivia_for_line stream line ((Stream.next stream) :: so_far)
+         else
+           List.rev so_far
+      | None -> List.rev so_far
 
-    let plus_term ns ident module_term =
-      match IdentMap.plus ns.terms ident module_term with
-      | Ok new_tbl -> Ok { ns with terms = new_tbl }
-      | Error old_ident -> Error old_ident
+    let rec read_trivia stream so_far =
+      match Stream.peek stream with
+      | Some token ->
+         if TokenMatchers.trivia token then
+           read_trivia stream ((Stream.next stream) :: so_far)
+         else
+           List.rev so_far
+      | None -> List.rev so_far
 
-    let lookup_sig ns ident = IdentMap.lookup_ident ns.types ident
-    let lookup_sig_name ns name = IdentMap.lookup_name ns.types name
-    let lookup_term ns ident = IdentMap.lookup_ident ns.terms ident
-    let lookup_term_name ns name = IdentMap.lookup_name ns.terms name
-
-    let sig_seq ns = IdentMap.ident_seq ns.types
-    let term_seq ns = IdentMap.ident_seq ns.terms
-  end
-
-  type ns_merge_error = [
-    | `Duplicate_signature of Ident.t * Ident.t
-    | `Duplicate_module of Ident.t * Ident.t
-  ]
-
-  module Namespace : NAMESPACE
-         with type name = Name.t
-         with type ident = Ident.t
-         with type term = term
-         with type module_type = module_type
-         with type 'term module_term = 'term module_term
-         with type namespace_declaration = NamespaceDeclaration.t
-         with type error = ns_merge_error = struct
-    type name = Name.t
-    type ident = Ident.t
-    type term = Lang.term
-    type module_type = module_type_alias
-    type 'term module_term = 'term module_term_alias
-    type namespace_declaration = NamespaceDeclaration.t
-    type error = ns_merge_error
-
-    module NameSet = Set.Make(Name)
-    module IdentSet = Set.Make(Ident)
-    module NsDecl = NamespaceDeclaration
-
-    type 'term t = {
-        name: Name.t;
-        idents: IdentSet.t;
-        type_exports: NameSet.t;
-        module_exports: NameSet.t;
-        types: module_type IdentMap.t;
-        terms: ('term module_term) IdentMap.t
-    }
-
-    let name ns = ns.name
-    let idents ns = IdentSet.to_seq ns.idents
-
-    let plus_decl types terms type_exports mod_exports errors decl =
-      let type_names = ref NameSet.empty in
-      let mod_names = ref NameSet.empty in
-      let plus_type mod_type =
-        let (ident, mt) = mod_type in
-        match IdentMap.plus !types ident mt with
-        | Ok new_tbl ->
-           types := new_tbl;
-           type_names := NameSet.add (Ident.name ident) !type_names
-        | Error old_ident -> errors := (`Duplicate_signature (old_ident, ident)) :: !errors
-      in
-      let plus_term mod_term =
-        let (ident, mt) = mod_term in
-        match IdentMap.plus !terms ident mt with
-        | Ok new_tbl ->
-           terms := new_tbl;
-           mod_names := NameSet.add (Ident.name ident) !mod_names
-        | Error old_ident -> errors :=  (`Duplicate_module (old_ident, ident)) :: !errors
-      in
-      let plus_export_header type_names mod_names export_header =
-        match export_header with
-        | NsDecl.Export exports ->
-           List.iter (function
-               | NsDecl.Module (loc, name) -> mod_exports := NameSet.add name !mod_exports
-               | NsDecl.Signature (loc, name) -> type_exports := NameSet.add name !type_exports)
-             exports
-        | NsDecl.Hide hidden ->
-           let hidden_types = ref NameSet.empty in
-           let hidden_mods = ref NameSet.empty in
-           List.iter (function
-               | NsDecl.Module (loc, name) -> hidden_mods := NameSet.add name !hidden_mods
-               | NsDecl.Signature (loc, name) -> hidden_types := NameSet.add name !hidden_types)
-             hidden;
-           let types = NameSet.diff type_names !hidden_types in
-           let mods = NameSet.diff mod_names !hidden_mods in
-           type_exports := types;
-           mod_exports := mods
-        | NsDecl.Export_all ->
-           mod_exports := mod_names;
-           type_exports := type_names
-        | NsDecl.Hide_all ->
-           mod_exports := NameSet.empty;
-           type_exports := NameSet.empty
-      in
-      Seq.iter plus_type @@ NsDecl.sig_seq decl;
-      Seq.iter plus_term @@ NsDecl.term_seq decl;
-      plus_export_header !type_names !mod_names (NsDecl.export_header decl)
-
-    let create name decls =
-      let errors = ref [] in
-      let idents = ref IdentSet.empty in
-      let types = ref IdentMap.empty in
-      let terms = ref IdentMap.empty in
-      let type_exports = ref NameSet.empty in
-      let module_exports = ref NameSet.empty in
-      let update decl =
-        let ident = NamespaceDeclaration.ident decl in
-        idents := IdentSet.add ident !idents;
-        plus_decl types terms type_exports module_exports errors decl in
-      Seq.iter update decls;
-      match !errors with
-      | [] -> Ok {
-          name = name;
-          idents = !idents;
-          type_exports = !type_exports;
-          module_exports = !module_exports;
-          types = !types;
-          terms = !terms
+    let read_token stream =
+      try
+        let leading_trivia = read_trivia stream [] in
+        let token = Stream.next stream in
+        let (span, _) = token in
+        let line = Loc.line (Span.finish span) in
+        let trailing_trivia = read_trivia_for_line stream line [] in
+        Some {
+            token = token;
+            leading_tokens = leading_trivia;
+            trailing_tokens = trailing_trivia
         }
-      | _ -> Error !errors
+      with Stream.Failure -> None
 
-    let sig_exports ns = NameSet.to_seq ns.type_exports
-    let term_exports ns = NameSet.to_seq ns.module_exports
+    let tnodes_of_tokens stream =
+      Stream.from (fun idx -> read_token stream)
 
-    let lookup_sig ns ident = IdentMap.lookup_ident ns.types ident
-    let lookup_sig_name ns name = IdentMap.lookup_name ns.types name
-    let lookup_term ns ident = IdentMap.lookup_ident ns.terms ident
-    let lookup_term_name ns name = IdentMap.lookup_name ns.terms name
+    let create filename text =
+      let input = Input.from_string filename text in
+      { text = text; tokens = tnodes_of_tokens (Lexer.lex input) }
 
-    let sig_seq ns = IdentMap.ident_seq ns.types
-    let term_seq ns = IdentMap.ident_seq ns.terms
+    let text state = state.text
+    let tokens state = state.tokens
+
+    let rec pred_match toks preds =
+      match (toks, preds) with
+      | ([], []) -> true
+      | (tok :: rtoks, pred :: rpreds) ->
+         if pred tok.token then
+           pred_match rtoks rpreds
+         else
+           false
+      | _ -> false
+
+    let starts_with state predicates =
+      let num_toks = List.length predicates in
+      let start_toks = Stream.npeek num_toks state.tokens in
+      if num_toks != (List.length start_toks) then
+        false
+      else
+        pred_match start_toks predicates
   end
+  type parser_state = ParserState.t
 
-  module NameMap = Map.Make(Name)
+  type 'a parser = parser_state -> ('a, parse_error) result
 
-  module Env = struct
+  let is_hex_digit chr = (chr >= '0' && chr <= '9')
+                        || (chr >= 'a' && chr <= 'f')
+                        || (chr >= 'A' && chr <= 'F')
 
-    type t = {
-        current_path: Path.t option;
-        namespace_remappings: Name.t NameMap.t;
-        namespaces: Name.t NameMap.t;
-        value_types: value_type NameMap.t;
-        type_decls: type_decl NameMap.t;
-        module_types: module_type NameMap.t;
-        type_defs: type_def NameMap.t;
-        terms: term NameMap.t;
-        module_terms: (Lang.term module_term) NameMap.t;
-        ident_paths: Path.t IdentMap.t
-    }
+  let rec read_hex_digits text idx end_idx =
+    if idx < end_idx then
+      if is_hex_digit (String.get text idx) then
+        read_hex_digits text (idx + 1) end_idx
+      else
+        idx
+    else
+      idx
 
-    (* let plus_value_type env name value =
-     *   { env with value_types = NameMap.add name value env.value_types }
-     * 
-     * let plus_type_decl env name value =
-     *   { env with type_decls = NameMap.add name value env.type_decls }
-     * 
-     * let plus_module_type env name value =
-     *   { env with module_types = NameMap.add name value env.module_types }
-     * 
-     * let plus_module_term env name value =
-     *   { env with module_terms = NameMap.add name value env.module_terms }
-     * 
-     * let plus_type_def env name value =
-     *   { env with type_defs = NameMap.add name value env.type_defs }
-     * 
-     * let lookup_value_type env name = NameMap.find_opt name env.value_types
-     * let lookup_type_decl env name = NameMap.find_opt name env.type_decls
-     * let lookup_module_type env name = NameMap.find_opt name env.module_types
-     * let lookup_module_term env name = NameMap.find_opt name env.module_terms
-     * 
-     * let curr env name =
-     *   match env.current_path with
-     *   | Some p -> Path.plus p name
-     *   | None -> Path.create [name]
-     * 
-     * let plus env_ref cont seqfn add =
-     *   Seq.iter (fun v -> begin
-     *                 let (ident, value) = v in
-     *                 let name = Ident.name ident in
-     *                 env_ref := add !env_ref name value
-     *               end)
-     *     (seqfn cont)
-     * 
-     * let plus_module env module_term =
-     *   let structure = match module_term with
-     *     | Structure structure -> structure in
-     *   let env_ref = ref env in
-     *   plus env_ref structure Structure.type_seq plus_type_def;
-     *   plus env_ref structure Structure.value_type_seq plus_value_type;
-     *   plus env_ref structure Structure.module_type_seq plus_module_type;
-     *   plus env_ref structure Structure.module_decl_seq plus_module_decl;
-     *   !env_ref
-     * 
-     * let rec find_module_nested env names =
-     *   match names with
-     *   | [] -> raise (Failure "find_module_nested called with empty list")
-     *   | [name] -> begin
-     *       match NameMap.find_opt name env.module_terms with
-     *       | Some module_term -> Ok module_term
-     *       | None -> Error (`Unbound_module (curr env name))
-     *     end
-     *   | name :: rest -> begin
-     *       match find_module_nested env [name] with
-     *       | Ok found_module ->
-     *          let new_env = plus_module env found_module in
-     *          find_module_nested new_env rest
-     *       | err -> err
-     *     end *)
+  let are_hex_digits text start_idx len =
+    let rec check_hex_digits text idx len =
+      if idx < (start_idx + len) then
+        match String.get text idx with
+        | c when is_hex_digit c -> check_hex_digits text (idx + 1) len
+        | _ -> false
+      else
+        idx > start_idx in
+    check_hex_digits text start_idx len
 
-    (* let find_type_decl_nested env names =
-     *   match names with
-     *   | [] -> raise (Failure "find_type_decl_nested called with empty list")
-     *   | [name] -> begin
-     *       match NameMap.find_opt name env.type_decls with
-     *       | Some type_decl -> Ok type_decl
-     *       | None -> Error (`Unbound_type_decl (curr env name))
-     *     end
-     *   | name :: rest -> begin
-     *       match
-     *     end *)
-  end
+  let encode_utf8 buffer codepoint =
+    let add_char chr = Buffer.add_char buffer (Char.chr chr) in
+    match codepoint with
+    | c when c >= 0x0000 && c <= 0x007F ->
+        add_char (0b0111111 land c)
+    | c when c >= 0x0080 && c <= 0x07FF -> begin
+        add_char (0b11000000 lor (0b00011111 land (c lsr 6)));
+        add_char (0b10000000 lor (0b00111111 land c))
+      end
+    | c when c >= 0x0800 && c <= 0xFFFF -> begin
+        add_char (0b11100000 lor (0b00001111 land (c lsr 12)));
+        add_char (0b10000000 lor (0b00111111 land (c lsr 6)));
+        add_char (0b10000000 lor (0b00111111 land c))
+      end
+    | c when c >= 0x10000 && c <= 0x10FFFF -> begin
+        add_char (0b11110000 lor (0b00000111 land (c lsr 18)));
+        add_char (0b10000000 lor (0b00111111 land (c lsr 12)));
+        add_char (0b10000000 lor (0b00111111 land (c lsr 6)));
+        add_char (0b10000000 lor (0b00111111 land c))
+      end
+    | c -> raise (Failure (Printf.sprintf "Invalid Unicode codepoint: %d" codepoint))
 
-  module Source : SOURCE
-         with type source_id = SourceId.t
-         with type name = Name.t
-         with type ident = Ident.t
-         with type term = Lang.term
-         with type module_type = module_type
-         with type module_term = Lang.term module_term
-         with type namespace_declaration = NamespaceDeclaration.t = struct
-    type source_id = SourceId.t
-    type name = Name.t
-    type ident = Ident.t
-    type term = Lang.term
-    type module_type = module_type_alias
-    type module_term = Lang.term module_term_alias
-    type namespace_declaration = NamespaceDeclaration.t
+  let rec read_string_contents span text idx max buffer errors =
+    let () = Printf.printf "read_string_contents %s ... %d %d \"%s\" ...\n" (Span.to_string span) idx max (Buffer.contents buffer) in
+    if idx < max then
+      let sub_span len =
+        let start_loc = Loc.advance_to (Span.start span) text idx in
+        let len = min (max - idx) len in
+        let end_idx = idx + len in
+        let end_loc = Loc.advance_to start_loc text end_idx in
+        Span.from start_loc end_loc in
+      let error chr len err =
+        Buffer.add_char buffer chr;
+        read_string_contents span text (idx + len) max buffer (err :: errors) in
+      let error_str len err =
+        let substr = String.sub text idx len in
+        Buffer.add_string buffer substr;
+        read_string_contents span text (idx + len)
+          max buffer (err :: errors) in
+      let cont chr len =
+        Buffer.add_char buffer chr;
+        read_string_contents span text (idx + len) max buffer errors in
+      match String.get text idx with
+      | '\\' ->
+         if (idx + 1) < max then
+           let chr = String.get text (idx + 1) in
+           match chr with
+           | 'n' -> cont '\n' 2
+           | 'r' -> cont '\r' 2
+           | 't' -> cont '	' 2
+           | '\\' -> cont chr 2
+           | '0' -> cont (Char.chr 0) 2
+           | '\'' -> cont chr 2
+           | '"' -> cont chr 2
+           | 'x' ->
+              if (idx + 3) < max && are_hex_digits text (idx + 2) 2 then
+                let value = int_of_string ("0" ^ (String.sub text (idx + 1) 3)) in
+                let char = (Char.chr value) in
+                if value > 127 then
+                  let esc_span = sub_span 4 in
+                  error char 4 (`Ascii_value_out_of_range esc_span)
+                else
+                  cont char 4
+              else if (idx + 2) < max && is_hex_digit (String.get text (idx + 2)) then
+                let () = Printf.printf "!!! idx: %d; max: %d\n" idx max in
+                let esc_span = sub_span 3 in
+                error_str (Span.length esc_span) (`Invalid_escape_sequence esc_span)
+              else
+                let esc_span = sub_span 2 in
+                error_str (Span.length esc_span) (`Invalid_escape_sequence esc_span)
+           | 'u' ->
+              if (idx + 2) < max && (String.get text (idx + 2)) = '{' then
+                let end_idx = read_hex_digits text (idx + 3) max in
+                let () = Printf.printf "end_idx: %d\n" end_idx in
+                if end_idx < max then
+                  if (String.get text end_idx) = '}' then
+                    let () = Printf.printf "Found }\n" in
+                    let len = end_idx - (idx + 3) in
+                    if len < 1 || len > 6 then
+                        let len = (end_idx + 1) - idx in
+                        error_str len (`Unicode_value_out_of_range (sub_span len))
+                    else
+                      let value = int_of_string ("0x" ^ (String.sub text (idx + 3) len)) in
+                      if value > 0x10FFFF then
+                        let len = (end_idx + 1) - idx in
+                        let () = Printf.printf "len: %d\n" len in
+                        error_str len (`Unicode_value_out_of_range (sub_span len))
+                      else if value >= 0xD800 && value <= 0xDFFF then
+                        let len = (end_idx + 1) - idx in
+                        error_str len (`Lone_surrogate_unicode_escape (sub_span len))
+                      else
+                        begin
+                          encode_utf8 buffer value;
+                          read_string_contents span text (end_idx + 1) max buffer errors
+                        end
+                  else
+                    let len = end_idx - idx in
+                    error_str len (`Invalid_escape_sequence (sub_span len))
+                else
+                  let len = end_idx - idx in
+                  error_str len (`Invalid_escape_sequence (sub_span len))
+              else
+                error_str 2 (`Invalid_escape_sequence (sub_span 2))
+           | c -> error c 2 (`Invalid_escape_sequence (sub_span 2))
+         else
+           error '\\' 1 (`Backslash_at_end_of_string span)
+      | c -> cont c 1
+      else
+        List.rev errors
 
-    module IdMap = Map.Make(Ident)
+  let string_contents state tnode =
+    let span = (ParserState.span tnode) in
+    let (start, length) = Span.slice span in
+    let buffer = Buffer.create length in
+    let errors = read_string_contents span (ParserState.text state) (start + 1) (start + length - 1) buffer [] in
+    (errors, Buffer.contents buffer)
 
-    type t = {
-        name : source_id;
-        declarations : namespace_declaration IdMap.t
-    }
+  let metadata_of_tnode tnode =
+    let open Source.Metadata in
+    let open ParserState in
+    let (span, _) = tnode.token in
+    { span = span;
+      full_span = ParserState.full_span tnode;
+      tokens = [tnode.token];
+      leading_tokens = tnode.leading_tokens;
+      trailing_tokens = tnode.trailing_tokens }
 
-    let empty source_id = {
-        name = source_id;
-        declarations = IdMap.empty
-    }
-
-    let name source = source.name
-    let namespaces source =
-      let names = List.map (fun b -> let (i, v) = b in Ident.name i)
-                    (IdMap.bindings source.declarations) in
-      List.sort_uniq Name.compare names
-
-    let plus source decl =
-      let ident = (NamespaceDeclaration.ident decl) in
-      { source with declarations = IdMap.add ident decl source.declarations } 
-      
-    let plus_all source decls =
-      let add map decl = IdMap.add (NamespaceDeclaration.ident decl) decl map in
-      let new_decls = List.fold_left add source.declarations decls in
-      { source with declarations = new_decls }
-
-    let lookup_namespace_declaration source ident =
-      IdMap.find_opt ident source.declarations
-
-    let lookup_namespace_declarations source name =
-      let matches_name pair =
-        let (id, value) = pair in
-        Name.equal (Ident.name id) name in
-      let second pair =
-        let (first, second) = pair in
-        second in
-      Seq.map second @@ Seq.filter matches_name @@ IdMap.to_seq source.declarations
-
-    let namespace_declaration_seq source = IdMap.to_seq source.declarations
-  end
-
-  (* module Namespaces : NAMESPACES
-   *        with type name = Name.t
-   *        with type ident = Ident.t
-   *        with type namespace = Namespace.t
-   *        with type module_type = module_type_alias
-   *        with type module_term = module_term_alias
-   *        with type env = Env.t = struct
-   *   type name = Name.t
-   *   type ident = Ident.t
-   *   type namespace = Namespace.t
-   *   type module_type = module_type_alias
-   *   type module_term = module_term_alias
-   * 
-   *   module NameMap = Map.Make(Name)
-   *   module IdentMap = Map.Make(Ident)
-   * 
-   *   type t = namespace NameMap.t
-   * 
-   *   type env = {
-   *       namespaces: t;
-   *       current_path: Path.t option;
-   *       namespace_remappings: Name.t NameMap.t;
-   *       value_types: Path.t NameMap.t;
-   *       type_decls: Path.t NameMap.t;
-   *       module_types: Path.t NameMap.t;
-   *       type_defs: Path.t NameMap.t;
-   *       terms: Path.t NameMap.t;
-   *       module_terms: Path.t NameMap.t;
-   *       ident_paths: Path.t IdentMap.t
-   *   }
-   * 
-   *   module Env : ENV
-   *          with type t = env
-   *          with type ident = Ident.t
-   *          with type path = Path.t
-   *          with type name = Name.t
-   *          with type type_decl = type_decl
-   *          with type value_type = value_type
-   *          with type module_type = module_type_alias
-   *          with type type_def = type_def
-   *          with type term = term
-   *          with type module_term = module_term_alias = struct
-   *     type t = env
-   *     type path = Path.t
-   *     type ident = Ident.t
-   *     type name = Name.t
-   *     type type_decl = type_decl_alias
-   *     type value_type = Lang.value_type
-   *     type module_type = module_type_alias
-   *     type type_def = type_def_alias
-   *     type term = Lang.term
-   *     type module_term = module_term_alias
-   * 
-   *     let current_path env = env.current_path
-   * 
-   *     let with_current_path env path =
-   *       { env with current_path = path }
-   * 
-   *     let plus_current_path env name =
-   *       match current_path env with
-   *       | Some path -> with_current_path env (Some (Path.plus path name))
-   *       | None -> env
-   * 
-   *     let find_value_type env path =
-   *       match NameMap.find_opt  env.value_types with
-   *         
-   * 
-   *     let find_type_decl env path = ()
-   *     let find_module_type env path = ()
-   * 
-   *     let find_type_def env path = ()
-   *     let find_term env path = ()
-   *     let find_module_term env path = ()
-   * 
-   *   end
-   * 
-   * end *)
+  let rec parse_expr state =
+    let module Expr = Source.Expr in
+    let starts_with = ParserState.starts_with state in
+    let open TokenMatchers in
+    if starts_with [string] then
+      let tnode = Stream.next state.tokens in
+      let (errors, contents) = string_contents state tnode in
+      let metadata = metadata_of_tnode tnode in
+      (errors, (metadata, Expr.String contents))
+    else
+      raise (Failure "Cannot parse expression")
 end
- *)
+

@@ -91,6 +91,12 @@ let () =
   Printf.printf "\n**fast lexer**\n";
   let substr token = Wombat.Token.substr text token in
   let tokens = Wombat.Lexer.lex input in
-  Stream.iter (fun tok -> Printf.printf "%s \"%s\"\n" (Wombat.Token.to_string tok) (String.escaped (substr tok)))
-    tokens
+  (* Stream.iter (fun tok -> Printf.printf "%s \"%s\"\n" (Wombat.Token.to_string tok) (String.escaped (substr tok)))
+   *   tokens; *)
+  let parser_state = Wombat.SourceParser.ParserState.create filename text in
+  let results = Wombat.SourceParser.parse_expr parser_state in
+  match results with
+  | (errors, (md, Wombat.Source.Expr.String contents)) ->
+     Printf.printf "Errors: %s\nContents:\n*****\n%s\n*****\n" (Wombat.ParseError.string_of_errors errors) contents
+  | (errors, _) -> Printf.printf "Errors: %s\n\n" (Wombat.ParseError.string_of_errors errors)
   (* Stream.iter (fun tok -> ()) tokens *)

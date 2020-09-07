@@ -33,22 +33,7 @@ let loc input =
 let offset input = input.pos
 let full_text input = input.data
 
-let advance_loc loc str end_pos =
-  let line = ref (Loc.line loc) in
-  let column = ref (Loc.column loc) in
-  let pos = ref (Loc.offset loc) in
-  let str_len = (String.length str) in
-  while !pos < end_pos && !pos < str_len do
-    let chr = String.get str !pos in
-    match chr with
-    | '\n' -> (line := !line + 1; column := 0; pos := !pos + 1)
-    | '\r' -> if !pos < end_pos - 1 && String.get str (!pos + 1) = '\n' then
-                (line := !line + 1; column := 0; pos := !pos + 2)
-              else
-                (column := !column + 1; pos := !pos + 1)
-    | _ -> (column := !column + 1; pos := !pos + 1)
-  done;
-  Loc.create (Loc.filename loc) !line !column !pos
+let advance_loc = Loc.advance_to
 
 let end_loc input amount =
   let str_len = String.length input.data in
