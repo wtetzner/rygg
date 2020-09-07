@@ -1,0 +1,30 @@
+
+(env
+  (dev
+    ;; Don't treat warnings as errors
+    (flags (:standard -warn-error -A -w -A)))
+  (check
+    ;; Treat all warnings as errors
+    (flags (:standard -warn-error A -w A)))
+  (static
+    ;; Statically link
+    (flags (:standard -warn-error -A -ccopt -static))))
+
+(executable
+ (name cmplang)
+ (modes (best exe) (byte c))
+ (libraries Wombat ANSITerminal)
+ (preprocess (pps ppx_inline_test))
+ (modules Cmplang))
+
+(library
+ (name Wombat)
+ (inline_tests)
+ (modules Wombat Location Input)
+ (preprocess (pps ppx_inline_test))
+ (wrapped false))
+
+; (install
+;  (section bin)
+;  (files (wombat.exe as wombat)
+;         ))

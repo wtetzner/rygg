@@ -2,7 +2,13 @@
 Build
 =====
 
-To build, run
+Requires opam 2.0.
+
+Install dependencies and build:
+
+    opam install . --working-dir --locked
+
+To build using dune directly, run
 
     dune build @all
 

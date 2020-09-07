@@ -1240,5 +1240,25 @@ end = struct
       (errors, (metadata, Expr.String contents))
     else
       raise (Failure "Cannot parse expression")
+
+  let%test_unit "unicode_out_of_bounds" =
+    let sprintf = Printf.sprintf in
+    let filename = "<unknown>" in
+    let text = {|"foo bar baz \u{FFFFFF}"|} in
+    let parser_state = ParserState.create filename text in
+    match parse_expr parser_state with
+    | ([`Unicode_value_out_of_range span],
+       (_, Source.Expr.String {|foo bar baz \u{FFFFFF}|})) ->
+       let expected = Span.from
+                        (Loc.create filename 1 13 13)
+                        (Loc.create filename 1 23 23) in
+       if not (Span.equal span expected) then
+         raise (Failure (sprintf "Span mismatch. %s (actual) vs %s (expected)"
+                           (Span.to_string span)
+                           (Span.to_string expected)))
+    | (errors, (_, Source.Expr.String contents)) ->
+       raise (Failure (sprintf "Didn't get expected error. Errors: %s; contents: %s"
+                         (ParseError.string_of_errors errors)
+                         contents))
 end
 
