@@ -1,6 +1,4 @@
 
-open Location
-
 type t = {
     source: string;
     data: string;

@@ -1,6 +1,4 @@
 
-open Location
-
 type t
 
 type regexp_match_result = {

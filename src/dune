@@ -20,9 +20,10 @@
 (library
  (name Wombat)
  (inline_tests)
- (modules Wombat Location Input)
+ (modules Wombat)
+ (libraries Compiler)
  (preprocess (pps ppx_inline_test))
- (wrapped false))
+ (wrapped true))
 
 ; (install
 ;  (section bin)

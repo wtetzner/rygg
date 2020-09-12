@@ -1,55 +1,5 @@
 
-open Location
-
-module Name: sig
-  type t
-
-  val input : string -> t
-  val internal : string -> t
-
-  val is_input : t -> bool
-  val is_internal : t -> bool
-
-  val equal : t -> t -> bool
-  val compare : t -> t -> int
-  val to_string : t -> string
-  val debug_string : t -> string
-end = struct
-  type t = { tag: int; name: string }
-  type tag = Input | Internal
-
-  let input_tag = 0
-  let current_internal_tag = ref (input_tag + 1)
-
-  let input name = { tag = input_tag; name }
-  let internal name =
-    let tag = !current_internal_tag in
-    current_internal_tag := !current_internal_tag + 1;
-    { tag; name }
-
-  let is_input name = name.tag = input_tag
-  let is_internal name = name.tag != input_tag
-
-  let equal n1 n2 =
-    n1.tag = n2.tag
-    && String.equal n1.name n2.name
-
-  let compare n1 n2 =
-    let tag_cmp = Int.compare n1.tag n2.tag in
-    if tag_cmp = 0 then
-      String.compare n1.name n2.name
-    else
-      tag_cmp
-
-  let to_string name =
-    if name.tag = input_tag then
-      name.name
-    else
-      Printf.sprintf "%s%%%d" name.name name.tag
-
-  let debug_string name = Printf.sprintf "{ tag = %d; name = %s }" name.tag name.name
-end
-
+open Compiler
 open Wombat
 
 let () =
@@ -95,8 +45,11 @@ let () =
    *   tokens; *)
   let parser_state = Wombat.SourceParser.ParserState.create filename text in
   let results = Wombat.SourceParser.parse_expr parser_state in
+  let module Expr = Wombat.Source.Expr in
   match results with
-  | (errors, (md, Wombat.Source.Expr.String contents)) ->
-     Printf.printf "Errors: %s\nContents:\n*****\n%s\n*****\n" (Wombat.ParseError.string_of_errors errors) contents
-  | (errors, _) -> Printf.printf "Errors: %s\n\n" (Wombat.ParseError.string_of_errors errors)
+  | Some (errors, expr, state) -> Printf.printf "Errors: %s\nExpr: %s\nState: %s\n\n"
+                                    (Wombat.ParseError.string_of_errors errors)
+                                    (Expr.to_string expr)
+                                    (Wombat.SourceParser.ParserState.to_string state)
+  | None -> Printf.printf "Could not parse expression\n"
   (* Stream.iter (fun tok -> ()) tokens *)

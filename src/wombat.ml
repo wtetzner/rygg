@@ -1,5 +1,5 @@
 
-open Location
+open Compiler
 
 module type LOC = sig
   type t
@@ -226,6 +226,8 @@ module Token: sig
     | Asterisk
     | Slash
     | Comma
+    | Question
+    | Exclamation
     | Type
     | Namespace
     | Module
@@ -279,6 +281,8 @@ end = struct
     | Asterisk
     | Slash
     | Comma
+    | Question
+    | Exclamation
     | Type
     | Namespace
     | Module
@@ -321,6 +325,8 @@ end = struct
       | Asterisk -> "*"
       | Slash -> "/"
       | Comma -> ","
+      | Question -> "?"
+      | Exclamation -> "!"
       | Type -> "type"
       | Namespace -> "namespace"
       | Module -> "module"
@@ -371,6 +377,7 @@ module Source = struct
 
     val span : t -> Span.t
     val full_span : t -> Span.t
+    val merge : t -> t -> t
     val tokens : t -> Token.t list
     val leading_tokens : t -> Token.t list
     val trailing_tokens : t -> Token.t list
@@ -385,6 +392,17 @@ module Source = struct
 
     let span md = md.span
     let full_span md = md.full_span
+    let merge md1 md2 =
+      {
+        span = Span.merge (span md1) (span md2);
+        full_span = Span.merge (full_span md1) (full_span md2);
+        tokens =
+          (let left = List.rev_append (List.rev md1.tokens) md1.trailing_tokens in
+           let right = List.rev_append (List.rev md2.leading_tokens) md2.tokens in
+           List.rev_append (List.rev left) right);
+        leading_tokens = md1.leading_tokens;
+        trailing_tokens = md2.trailing_tokens
+      }
     let tokens md = md.tokens
     let leading_tokens md = md.leading_tokens
     let trailing_tokens md = md.trailing_tokens
@@ -403,40 +421,104 @@ module Source = struct
       def_concrete: deftype option
   }
 
-  type value_type_node = unit
-  type value_type = Metadata.t * value_type_node
+  module ValueType = struct
+    type node = Name of string
+    type t = Metadata.t * node
+
+    let to_string value =
+      let (_, node) = value in
+      match node with
+      | Name name -> name
+  end
+  type value_type = ValueType.t
+
   type module_decl = unit
 
-  module Expr: sig
+  module Expr = struct
+    module Binop = struct
+      type t =
+        | Plus
+        | Minus
+        | Times
+        | Divide
+        | Dot
+
+      let to_string = function
+        | Plus -> "+"
+        | Minus -> "-"
+        | Times -> "*"
+        | Divide -> "/"
+        | Dot -> "."
+    end
+
+    module PrefixOp = struct
+      type t =
+        | Plus
+        | Minus
+
+      let to_string = function
+        | Plus -> "+"
+        | Minus -> "-"
+    end
+
+    module PostfixOp = struct
+      type t =
+        | Question
+        | Colon
+
+      let to_string = function
+        | Question -> "?"
+        | Colon -> ":"
+    end
+
     type node =
       | Path of Path.t
-      | Type_ann of t * (metadata * value_type)
-      | Binop of t * t * t
-      | Prefix_op of t * t
-      | Posfix_op of t * t
+      | Type_ann of t * value_type
+      | Binop of Binop.t * t * t
+      | Prefix_op of PrefixOp.t * t
+      | Postfix_op of PostfixOp.t * t
       | Application of t * t list
       | Number of string
       | String of string
       | Invalid
     and t = metadata * node
 
-    val metadata : t -> metadata
-    val span : t -> Span.t
-    val full_span : t -> Span.t
-    val leading_tokens : t -> Token.t list
-    val trailing_tokens : t -> Token.t list
-  end = struct
-    type node =
-      | Path of Path.t
-      | Type_ann of t * (metadata * value_type)
-      | Binop of t * t * t
-      | Prefix_op of t * t
-      | Posfix_op of t * t
-      | Application of t * t list
-      | Number of string
-      | String of string
-      | Invalid
-    and t = metadata * node
+    let is_complex expr =
+      let (_, node) = expr in
+      match node with
+      | Path _ -> false
+      | Type_ann _ -> true
+      | Binop (_, _, _) -> true
+      | Prefix_op (_, _) -> true
+      | Postfix_op (_, _) -> true
+      | Application (_, _) -> false
+      | Number _ | String _ | Invalid -> false
+
+    let rec to_string expr =
+      let open Printf in
+      let (_, node) = expr in
+      match node with
+      | Path path -> Path.to_string path
+      | Type_ann (e, v) -> sprintf "%s:%s" (wrap e) (ValueType.to_string v)
+      | Binop (Binop.Dot, l, r) ->
+         sprintf "%s.%s" (wrap l) (wrap r)
+      | Binop (op, l, r) ->
+         sprintf "%s %s %s" (wrap l) (Binop.to_string op) (wrap r)
+      | Prefix_op (op, e) -> sprintf "%s%s" (PrefixOp.to_string op) (wrap e)
+      | Postfix_op (op, e) -> sprintf "%s%s" (wrap e) (PostfixOp.to_string op)
+      | Application (c, a) ->
+         let args = String.concat ", " (List.map to_string a) in
+         sprintf "%s(%s)" (wrap c) args
+      | Number num -> num
+      | String str -> sprintf "\"%s\"" (String.escaped str)
+      | Invalid -> "<INVALID>"
+
+    and wrap expr =
+      let open Printf in
+      if is_complex expr then
+        sprintf "(%s)" (to_string expr)
+      else
+        to_string expr
 
     let metadata = function (metadata, _) -> metadata
     let span expr = Metadata.span (metadata expr)
@@ -797,7 +879,7 @@ end = struct
     | ' ' | '\t' | '\r' | '\n' | '\b' -> true
     | '{' | '}' | '(' | ')' | '[' | ']' | ':' | '=' | ';'
       | '.' | '|' | '+' | '-' | '*' | '/' | '<' | '>' | '`'
-      | ',' | '"' -> true
+      | ',' | '"' | '?' | '!' -> true
     | c when is_name_start c -> true
     | _ -> false
 
@@ -858,6 +940,8 @@ end = struct
              else
                single Slash
     | ',' -> single Comma
+    | '?' -> single Question
+    | '!' -> single Exclamation
     | '"' -> lex_string input
     | 'r' -> if Input.starts_with !input "r\"" || Input.starts_with !input "r#" then
                lex_raw_string input
@@ -893,6 +977,9 @@ module ParseError = struct
     | `Ascii_value_out_of_range of Span.t
     | `Unicode_value_out_of_range of Span.t
     | `Lone_surrogate_unicode_escape of Span.t
+    | `Missing_closing_paren of Span.t * Span.t
+    | `Expected_expression of Span.t
+    | `Expected_type_expression of Span.t
   ]
 
   let to_string error =
@@ -904,6 +991,9 @@ module ParseError = struct
     | `Ascii_value_out_of_range span -> sprintf "Ascii_value_out_of_range %s" (Span.to_string span)
     | `Unicode_value_out_of_range span -> sprintf "Unicode_value_out_of_range %s" (Span.to_string span)
     | `Lone_surrogate_unicode_escape span -> sprintf "Lone_surrogate_unicode_escape %s" (Span.to_string span)
+    | `Missing_closing_paren (paren_span, span) -> sprintf "Missing_closing_paren %s" (Span.to_string span)
+    | `Expected_expression span -> sprintf "Expected_expression %s" (Span.to_string span)
+    | `Expected_type_expression span -> sprintf "Expected_type_expression %s" (Span.to_string span)
 
   let string_of_errors errors =
     let result = ref "[" in
@@ -918,27 +1008,37 @@ module ParseError = struct
     !result ^ "]"
 end
 
+module type PARSER_STATE = sig
+  type t
+  type tnode = {
+      token: Token.t;
+      leading_tokens: Token.t list;
+      trailing_tokens: Token.t list
+  }
+
+  val create : string -> string -> t
+  val text : t -> string
+  val get : t -> int -> tnode
+  val next : t -> tnode * t
+  val npeek : int -> t -> tnode list
+  val peek : t -> tnode option
+  val peek_type : t -> Token.token_type option
+  val is_empty : t -> bool
+  val token_type : tnode -> Token.token_type
+  val starts_with : t -> (Token.t -> bool) list -> bool
+  val span : tnode -> Span.t
+  val full_span : tnode -> Span.t
+  val substr : t -> tnode -> string
+  val full_substr : t -> tnode -> string
+  val to_string : t -> string
+end
+
 module SourceParser: sig
   type parse_error = ParseError.t
 
-  module ParserState: sig
-    type t
-    type tnode = {
-        token: Token.t;
-        leading_tokens: Token.t list;
-        trailing_tokens: Token.t list
-    }
+  module ParserState: PARSER_STATE
 
-    val create : string -> string -> t
-    val text : t -> string
-    val tokens : t -> tnode Stream.t
-    val span : tnode -> Span.t
-    val full_span : tnode -> Span.t
-    val substr : t -> tnode -> string
-    val full_substr : t -> tnode -> string
-  end
-
-  val parse_expr : ParserState.t -> (parse_error list) * Source.Expr.t
+  val parse_expr : ParserState.t -> ((parse_error list) * Source.Expr.t * ParserState.t) option
 end = struct
   type parse_error = ParseError.t
 
@@ -980,15 +1080,13 @@ end = struct
     let name = function (_, Name) -> true | _ -> false
     let invalid = function (_, Invalid _) -> true | _ -> false
 
-    let any_string = Token.is_any_string
-
     let trivia = function (_, Whitespace)
                         | (_, Comment _)
                           | (_, Invalid _) -> true
                         | _ -> false
   end
 
-  module ParserState = struct
+  module ParserState: PARSER_STATE = struct
     type tnode = {
         token: Token.t;
         leading_tokens: Token.t list;
@@ -997,8 +1095,14 @@ end = struct
 
     type t = {
         text: string;
-        tokens: tnode Stream.t
+        tokens: tnode array;
+        index: int
     }
+
+    let array_of_stream stream =
+      let list = ref [] in
+      Stream.iter (fun tok -> list := tok :: !list) stream;
+      Array.of_list (List.rev !list)
 
     let rec last list =
       match list with
@@ -1057,7 +1161,11 @@ end = struct
 
     let create filename text =
       let input = Input.from_string filename text in
-      { text = text; tokens = tnodes_of_tokens (Lexer.lex input) }
+      {
+        text = text;
+        tokens = array_of_stream (tnodes_of_tokens (Lexer.lex input));
+        index = 0
+      }
 
     let text state = state.text
     let tokens state = state.tokens
@@ -1072,9 +1180,44 @@ end = struct
            false
       | _ -> false
 
+    let get state idx = Array.get state.tokens idx
+
+    let next state = (get state state.index, { state with index = state.index + 1 })
+
+    let npeek num_toks state =
+      let list = ref [] in
+      let idx = ref state.index in
+      let len = Array.length state.tokens in
+      while (!idx - state.index) < num_toks && (!idx - state.index) < len do
+        list := (get state !idx) :: !list;
+        idx := !idx + 1
+      done;
+      List.rev !list
+
+    let peek state =
+      if state.index < Array.length state.tokens then
+        Some (get state state.index)
+      else
+        None
+
+    let is_empty state =
+      (state.index >= Array.length state.tokens)
+
+    let to_string state =
+      let a = Array.sub state.tokens state.index (Array.length state.tokens - state.index) in
+      let list = Array.to_list a in
+      list
+      |> List.map (fun t -> Printf.sprintf "\"%s\"" (String.escaped (substr state t)))
+      |> String.concat " "
+
+    let token_type tnode = let (_, tt) = tnode.token in tt
+
+    let peek_type state =
+      peek state |> (Option.map token_type)
+
     let starts_with state predicates =
       let num_toks = List.length predicates in
-      let start_toks = Stream.npeek num_toks state.tokens in
+      let start_toks = npeek num_toks state in
       if num_toks != (List.length start_toks) then
         false
       else
@@ -1229,26 +1372,202 @@ end = struct
       leading_tokens = tnode.leading_tokens;
       trailing_tokens = tnode.trailing_tokens }
 
-  let rec parse_expr state =
+  let parse_value_type state =
+    if ParserState.starts_with state [TokenMatchers.name] then
+      let (tnode, state) = (ParserState.next state) in
+      match ParserState.token_type tnode with
+      | Name ->
+         let metadata = metadata_of_tnode tnode in
+         let name_text = ParserState.substr state tnode in
+         Some ([], (metadata, Source.ValueType.Name name_text), state)
+      | _ -> None
+    else
+      None
+
+  let binary_op token_type =
+    let module T = Token in
+    let module E = Source.Expr in
+    let module B = E.Binop in
+    match token_type with
+    | T.Plus -> Some (1, 2, B.Plus)
+    | T.Dash -> Some (1, 2, B.Minus)
+
+    | T.Asterisk -> Some (3, 4, B.Times)
+    | T.Slash -> Some (3, 4, B.Divide)
+
+    | T.Dot -> Some (51, 50, B.Dot)
+    | _ -> None
+
+  let prefix_op token_type =
+    let module T = Token in
+    let module E = Source.Expr in
+    let module P = E.PrefixOp in
+    match token_type with
+    | T.Plus -> Some ((), 6, P.Plus)
+    | T.Dash -> Some ((), 6, P.Minus)
+    | _ -> None
+
+  let postfix_op token_type =
+    let module T = Token in
+    let module E = Source.Expr in
+    let module P = Source.Expr.PostfixOp in
+    match token_type with
+    | T.Question -> Some (5, (), P.Question)
+    | T.Colon -> Some (5, (), P.Colon)
+    | _ -> None
+
+  let rec parse_expr_bp state errors min_bp =
+    let module Expr = Source.Expr in
+    match ParserState.peek state with
+    | Some tok ->
+       match parse_left_expr state errors tok min_bp with
+       | Some (lerrors, lhs, state) -> begin
+           match read_postfix state errors lhs min_bp with
+           | Some (rerrors, result, state) ->
+              Some (List.rev_append (List.rev_append rerrors lerrors) errors,
+                    result,
+                    state)
+           | None -> Some (List.rev_append lerrors errors, lhs, state)
+         end
+       | None -> None
+    | None -> None
+
+  and read_postfix state errors lhs min_bp =
+    let module Metadata = Source.Metadata in
+    let module Expr = Source.Expr in
+    let module P = Expr.PostfixOp in
+    match ParserState.peek_type state |> (Option.map postfix_op) |> Option.join with
+    | Some (l_bp, _, _) when l_bp < min_bp -> Some (errors, lhs, state)
+    | Some (l_bp, (), P.Colon) ->
+       let (colon, state) = ParserState.next state in
+       begin
+         match parse_value_type state with
+         | Some (verrors, (vmd, value), state) ->
+            let (lmd, _) = lhs in
+            let colon_md = metadata_of_tnode colon in
+            let metadata = Metadata.merge (Metadata.merge lmd colon_md) vmd in
+            let errors = List.rev_append verrors errors in
+            let new_lhs = (metadata, Expr.Type_ann (lhs, (vmd, value))) in
+            read_postfix state errors new_lhs min_bp
+         | None ->
+            let metadata = metadata_of_tnode colon in
+            let span = Metadata.span metadata in
+            Some ((`Expected_type_expression span) :: errors,
+             (metadata, Invalid),
+             state)
+       end
+    | Some (l_bp, (), postfix) ->
+       let (tok, state) = ParserState.next state in
+       let (lmd, _) = lhs in
+       let metadata = Metadata.merge lmd (metadata_of_tnode tok) in
+       let new_lhs = (metadata, Expr.Postfix_op (postfix, lhs)) in
+       read_postfix state errors new_lhs min_bp
+    | None -> read_infix state errors lhs min_bp
+
+  and read_infix state errors lhs min_bp =
+    let module Metadata = Source.Metadata in
+    let module Expr = Source.Expr in
+    match ParserState.peek_type state |> (Option.map binary_op) |> Option.join with
+    | Some (l_bp, _, _) when l_bp < min_bp -> Some (errors, lhs, state)
+    | Some (l_bp, r_bp, op) ->
+       let (tok, state) = ParserState.next state in
+       let (lmd, _) = lhs in
+       let middle_md = metadata_of_tnode tok in begin
+           match parse_expr_bp state errors r_bp with
+           | Some (rerrors, (rmd, rhs), state) -> begin
+               let metadata = Metadata.merge (Metadata.merge lmd middle_md) rmd in
+               let errors = List.rev_append rerrors errors in
+               let new_lhs = (metadata, Expr.Binop (op, lhs, (rmd, rhs))) in
+               read_postfix state errors new_lhs min_bp
+             end
+           | None ->
+              let span = Span.singular (Span.finish (ParserState.span tok)) in
+              let (lmd, _) = lhs in
+              let metadata = Metadata.merge lmd (metadata_of_tnode tok) in
+              Some ((`Expected_expression span) :: errors,
+                    (metadata, Invalid),
+                    state)
+         end
+    | None -> Some (errors, lhs, state)
+
+  and parse_left_expr state errors tok min_bp =
+    let module Expr = Source.Expr in
+    match prefix_op (ParserState.token_type tok) with
+    | Some ((), r_bp, op) -> begin
+        let (_, state) = ParserState.next state in
+        match parse_expr_bp state [] r_bp with
+        | Some (ferrors, exp, state) -> begin
+            let metadata = Source.Metadata.merge (metadata_of_tnode tok) (Expr.metadata exp) in
+            Some (List.rev_append ferrors errors, (metadata, Expr.Prefix_op (op, exp)), state)
+          end
+        | None -> None
+      end
+    | None -> parse_simple_expr state errors 0
+
+  and parse_simple_expr state errors min_bp =
     let module Expr = Source.Expr in
     let starts_with = ParserState.starts_with state in
     let open TokenMatchers in
     if starts_with [string] then
-      let tnode = Stream.next state.tokens in
-      let (errors, contents) = string_contents state tnode in
+      let (tnode, state) = ParserState.next state in
+      let (serrors, contents) = string_contents state tnode in
       let metadata = metadata_of_tnode tnode in
-      (errors, (metadata, Expr.String contents))
+      Some (List.rev_append serrors errors, (metadata, Expr.String contents), state)
+    else if starts_with [raw_string] then
+      let (tnode, state) = ParserState.next state in
+      let metadata = metadata_of_tnode tnode in
+      match tnode.token with
+      | (_, Raw_string prefix) ->
+         let start, length = Span.slice (ParserState.span tnode) in
+         let start_len = prefix + 2 in
+         let end_len = prefix + 1 in
+         let contents = String.sub (ParserState.text state)
+                          (start + start_len)
+                          (length - start_len - end_len) in
+         Some (errors, (metadata, Expr.String contents), state)
+      | _ -> raise (Failure "!!!")
+    else if starts_with [number] then
+      let (tnode, state) = ParserState.next state in
+      let metadata = metadata_of_tnode tnode in
+      let text = ParserState.substr state tnode in
+      Some (errors, (metadata, Expr.Number text), state)
+    else if starts_with [name] then
+      let (tnode, state) = ParserState.next state in
+      let metadata = metadata_of_tnode tnode in
+      let text = ParserState.substr state tnode in
+      Some (errors, (metadata, Expr.Path (Path.create [Name.input text])), state)
+    else if starts_with [left_paren] then
+      let (tnode, state) = ParserState.next state in
+      match parse_expr_bp state errors 0 with
+      | Some (ierrors, expr, state) ->
+         let errors = List.rev_append ierrors errors in
+         if ParserState.starts_with state [right_paren] then
+           let (_, state) = ParserState.next state in
+           Some (errors, expr, state)
+         else
+           let first_span = ParserState.span tnode in
+           let (md, exp) = expr in
+           let expr_span = Source.Metadata.span md in
+           let final_span = Span.singular (Span.finish expr_span) in
+           Some ((`Missing_closing_paren (first_span, final_span)) :: errors,
+                 expr,
+                 state)
+      | None -> Some ((`Expected_expression (ParserState.span tnode)) :: errors,
+                      (metadata_of_tnode tnode, Expr.Invalid),
+                      state)
     else
-      raise (Failure "Cannot parse expression")
+      None
+
+  let parse_expr state = parse_expr_bp state [] 0
 
   let%test_unit "unicode_out_of_bounds" =
     let sprintf = Printf.sprintf in
     let filename = "<unknown>" in
     let text = {|"foo bar baz \u{FFFFFF}"|} in
     let parser_state = ParserState.create filename text in
-    match parse_expr parser_state with
-    | ([`Unicode_value_out_of_range span],
-       (_, Source.Expr.String {|foo bar baz \u{FFFFFF}|})) ->
+    match parse_expr_bp parser_state [] 0 with
+    | Some ([`Unicode_value_out_of_range span],
+       (_, Source.Expr.String {|foo bar baz \u{FFFFFF}|}), _) ->
        let expected = Span.from
                         (Loc.create filename 1 13 13)
                         (Loc.create filename 1 23 23) in
@@ -1256,9 +1575,11 @@ end = struct
          raise (Failure (sprintf "Span mismatch. %s (actual) vs %s (expected)"
                            (Span.to_string span)
                            (Span.to_string expected)))
-    | (errors, (_, Source.Expr.String contents)) ->
+    | Some (errors, (_, Source.Expr.String contents), _) ->
        raise (Failure (sprintf "Didn't get expected error. Errors: %s; contents: %s"
                          (ParseError.string_of_errors errors)
                          contents))
+    | None -> raise (Failure "No expression found.")
+
 end
 
