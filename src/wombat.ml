@@ -218,6 +218,7 @@ module Token: sig
     | Colon
     | Double_colon
     | Equal
+    | Double_equal
     | Semicolon
     | Dot
     | Pipe
@@ -273,6 +274,7 @@ end = struct
     | Colon
     | Double_colon
     | Equal
+    | Double_equal
     | Semicolon
     | Dot
     | Pipe
@@ -317,6 +319,7 @@ end = struct
       | Colon -> ":"
       | Double_colon -> "::"
       | Equal -> "="
+      | Double_equal -> "=="
       | Semicolon -> ";"
       | Dot -> "."
       | Pipe -> "|"
@@ -465,10 +468,12 @@ module Source = struct
       type t =
         | Question
         | Colon
+        | Left_paren
 
       let to_string = function
         | Question -> "?"
         | Colon -> ":"
+        | Left_paren -> "("
     end
 
     type node =
@@ -477,10 +482,13 @@ module Source = struct
       | Binop of Binop.t * t * t
       | Prefix_op of PrefixOp.t * t
       | Postfix_op of PostfixOp.t * t
-      | Application of t * t list
+      | Application of t * arg list
       | Number of string
       | String of string
       | Invalid
+    and arg =
+      | Named_arg of metadata * Name.t * t
+      | Unnamed_arg of t
     and t = metadata * node
 
     let is_complex expr =
@@ -507,11 +515,18 @@ module Source = struct
       | Prefix_op (op, e) -> sprintf "%s%s" (PrefixOp.to_string op) (wrap e)
       | Postfix_op (op, e) -> sprintf "%s%s" (wrap e) (PostfixOp.to_string op)
       | Application (c, a) ->
-         let args = String.concat ", " (List.map to_string a) in
+         let args = String.concat ", " (List.map arg_to_string a) in
          sprintf "%s(%s)" (wrap c) args
       | Number num -> num
       | String str -> sprintf "\"%s\"" (String.escaped str)
       | Invalid -> "<INVALID>"
+
+    and arg_to_string arg =
+      let open Printf in
+      match arg with
+      | Named_arg (_, name, expr) ->
+         sprintf "%s = %s" (Name.to_string name) (to_string expr)
+      | Unnamed_arg expr -> to_string expr
 
     and wrap expr =
       let open Printf in
@@ -879,7 +894,7 @@ end = struct
     | ' ' | '\t' | '\r' | '\n' | '\b' -> true
     | '{' | '}' | '(' | ')' | '[' | ']' | ':' | '=' | ';'
       | '.' | '|' | '+' | '-' | '*' | '/' | '<' | '>' | '`'
-      | ',' | '"' | '?' | '!' -> true
+      | ',' | '"' | '?' | '!' | '=' -> true
     | c when is_name_start c -> true
     | _ -> false
 
@@ -913,6 +928,10 @@ end = struct
     | ')' -> single Right_paren
     | '[' -> single Left_bracket
     | ']' -> single Right_bracket
+    | '=' -> if Input.starts_with !input "==" then
+               handle_simple input 2 Double_equal
+             else
+               single Equal
     | '<' -> if Input.starts_with !input "<-" then
                handle_simple input 2 Back_arrow
              else
@@ -973,6 +992,7 @@ module ParseError = struct
     (* | `Unexpected_token of Token.t *)
     | `Invalid_token of Span.t
     | `Backslash_at_end_of_string of Span.t
+    | `Expected_comma_or_right_paren_args_list of Span.t
     | `Invalid_escape_sequence of Span.t
     | `Ascii_value_out_of_range of Span.t
     | `Unicode_value_out_of_range of Span.t
@@ -987,6 +1007,7 @@ module ParseError = struct
     match error with
     | `Invalid_token span -> sprintf "Invalid_token %s" (Span.to_string span)
     | `Backslash_at_end_of_string span -> sprintf "Backslash_at_end_of_string %s" (Span.to_string span)
+    | `Expected_comma_or_right_paren_args_list span -> sprintf "Expected_comma_or_right_paren_args_list %s" (Span.to_string span)
     | `Invalid_escape_sequence span -> sprintf "Invalid_escape_sequence %s" (Span.to_string span)
     | `Ascii_value_out_of_range span -> sprintf "Ascii_value_out_of_range %s" (Span.to_string span)
     | `Unicode_value_out_of_range span -> sprintf "Unicode_value_out_of_range %s" (Span.to_string span)
@@ -1374,7 +1395,7 @@ end = struct
 
   let parse_value_type state =
     if ParserState.starts_with state [TokenMatchers.name] then
-      let (tnode, state) = (ParserState.next state) in
+      let (tnode, state) = ParserState.next state in
       match ParserState.token_type tnode with
       | Name ->
          let metadata = metadata_of_tnode tnode in
@@ -1414,7 +1435,12 @@ end = struct
     match token_type with
     | T.Question -> Some (5, (), P.Question)
     | T.Colon -> Some (5, (), P.Colon)
+    | T.Left_paren -> Some (5, (), P.Left_paren)
     | _ -> None
+
+  let extract_md =
+    let open Source.Expr in
+    function Named_arg (md, _, _) -> md | Unnamed_arg (md, _) -> md
 
   let rec parse_expr_bp state errors min_bp =
     let module Expr = Source.Expr in
@@ -1431,6 +1457,64 @@ end = struct
          end
        | None -> None
     | None -> None
+
+  and read_arg state =
+    let open TokenMatchers in
+    let module Metadata = Source.Metadata in
+    let module Expr = Source.Expr in
+    if ParserState.starts_with state [name; equal] then
+      let (name_tok, state) = ParserState.next state in
+      let (equal, state) = ParserState.next state in
+      let name_str = ParserState.substr state name_tok in
+      let name = Name.input name_str in
+      let name_md = metadata_of_tnode name_tok in
+      let prefix_md = Metadata.merge name_md (metadata_of_tnode equal) in
+      match parse_expr_bp state [] 0 with
+      | Some (errors, (md, expr), state) ->
+         let metadata = Metadata.merge prefix_md md in
+         Some (errors,
+               Expr.Named_arg (metadata, name, (md, expr)),
+               state)
+      | None ->
+         let loc = Span.finish (ParserState.span equal) in
+         let span = Span.singular loc in
+         let module M = Metadata in
+         let metadata = {
+             M.span = span;
+             M.full_span = span;
+             M.tokens = [];
+             M.leading_tokens = [];
+             M.trailing_tokens = []
+           } in
+         Some ([`Expected_expression span],
+               Expr.Named_arg (prefix_md, name, (metadata, Expr.Invalid)),
+               state)
+    else
+      match parse_expr_bp state [] 0 with
+      | Some (errors, expr, state) ->
+         Some (errors, Expr.Unnamed_arg expr, state)
+      | None -> None
+
+  and read_arg_list state =
+    let module Metadata = Source.Metadata in
+    let module Expr = Source.Expr in
+    let rec read_args state errors args =
+      match read_arg state with
+      | Some (aerrors, arg, state) ->
+         let errors = List.rev_append aerrors errors in
+         if ParserState.starts_with state [TokenMatchers.comma] then
+           let (comma, state) = ParserState.next state in
+           read_args state errors (arg :: args)
+         else if ParserState.starts_with state [TokenMatchers.right_paren] then
+           (errors, arg :: args, state)
+         else
+           let span = Span.singular (Span.finish (Metadata.span (extract_md arg))) in
+           let errors = (`Expected_comma_or_right_paren_args_list span) :: errors in
+           read_args state errors (arg :: args)
+      | None -> (errors, args, state)
+    in
+    let (errors, args, state) = read_args state [] [] in
+    (errors, args, state)
 
   and read_postfix state errors lhs min_bp =
     let module Metadata = Source.Metadata in
@@ -1455,6 +1539,26 @@ end = struct
             Some ((`Expected_type_expression span) :: errors,
              (metadata, Invalid),
              state)
+       end
+    | Some (l_bp, (), P.Left_paren) ->
+       let (lparen, state) = ParserState.next state in
+       begin
+         let (lerrors, args, state) = read_arg_list state in
+         let args = List.rev args in
+         let lmeta = metadata_of_tnode lparen in
+         let metadata = List.fold_left Metadata.merge lmeta (List.map extract_md args) in
+         let metadata = Metadata.merge lmeta metadata in
+         let errors = List.rev_append lerrors errors in
+         if ParserState.starts_with state [TokenMatchers.right_paren] then
+           let (right_paren, state) = ParserState.next state in
+           let metadata = Metadata.merge metadata (metadata_of_tnode right_paren) in
+           let call = Expr.Application (lhs, args) in
+           Some (errors, (metadata, call), state)
+         else
+           let span = Metadata.span metadata in
+           let call = Expr.Application (lhs, args) in
+           let errors = (`Expected_comma_or_right_paren_args_list span) :: errors in
+           Some (errors, (metadata, call), state)
        end
     | Some (l_bp, (), postfix) ->
        let (tok, state) = ParserState.next state in
