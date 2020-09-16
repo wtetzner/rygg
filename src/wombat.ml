@@ -22,132 +22,6 @@ module type NAME = sig
   val debug_string : t -> string
 end
 
-module type PATH = sig
-  type t
-  type name
-
-  val create : name list -> t
-  val create_ns : name -> name list -> t
-  val namespace : t -> name option
-  val plus : t -> name -> t
-  val equal : t -> t -> bool
-  val compare : t -> t -> int
-  val to_string : t -> string
-  val debug_string : t -> string
-end
-
-module Make_path
-         (Name: NAME): PATH
-       with type name = Name.t = struct
-  type name = Name.t
-
-  type t = {
-      namespace: Name.t option;
-      parts: name array
-  }
-
-  let has_ns path =
-    match path.namespace with
-    | Some _ -> true
-    | None -> false
-                       
-  let create names =
-    let parts = Array.of_list names in
-    { namespace = None; parts }
-
-  let create_ns namespace names =
-    let intermediate = create names in
-    { intermediate with namespace = Some namespace }
-
-  let namespace path = path.namespace
-
-  let plus path part =
-    let { parts } = path in
-    { path with parts = Array.append parts [| part |] }
-
-  let ns_equal ns1 ns2 =
-    match (ns1, ns2) with
-    | (Some n1, Some n2) -> Name.equal n1 n2
-    | (None, None) -> true
-    | _ -> false
-
-  let ns_compare ns1 ns2 =
-    match (ns1, ns2) with
-    | (Some n1, Some n2) -> Name.compare n1 n2
-    | (None, None) -> 0
-    | (Some _, None) -> 1
-    | (None, Some _) -> -1
-
-  let equal left right =
-    if (ns_equal left.namespace right.namespace)
-       && (Array.length left.parts) = (Array.length right.parts) then
-      let still_equal = ref true in
-      let pos = ref 0 in
-      while !still_equal do
-        if not (Name.equal (Array.get left.parts !pos) (Array.get right.parts !pos)) then
-          still_equal := false
-        else ();
-        pos := !pos + 1
-      done;
-      !still_equal
-    else
-      false
-
-  let compare left right =
-    let namespace_cmp = ns_compare left.namespace right.namespace in
-    if namespace_cmp = 0 then
-      let llen = Array.length left.parts in
-      let rlen = Array.length right.parts in
-      let pos = ref 0 in
-      let cmp_result = ref 0 in
-      while !cmp_result = 0 do
-        if !pos >= llen && !pos < rlen then
-          cmp_result := -1
-        else if !pos >= rlen && !pos < llen then
-          cmp_result := 1
-        else if !pos < llen && !pos < rlen then
-          cmp_result := Name.compare (Array.get left.parts !pos) (Array.get right.parts !pos)
-        else ();
-        pos := !pos + 1
-      done;
-      !cmp_result
-    else
-      namespace_cmp
-
-  let to_string path =
-    let output = match path.namespace with
-      | None -> ref ""
-      | Some ns -> ref ((Name.to_string ns) ^ "::") in
-    let first = ref true in
-    Array.iter
-      (fun name ->
-        begin
-          if !first then
-            first := false
-          else 
-            output := !output ^ ".";
-        end;
-        output := !output ^ Name.to_string name)
-      path.parts;
-    !output
-
-  let debug_string path =
-    let output = ref "{ namespace = " in
-    (match path.namespace with
-     | None -> output := !output ^ "None"
-     | Some ns -> output := !output ^ ("Some " ^ (Name.debug_string ns)));
-    output := !output ^ ", parts = [";
-    let first = ref true in
-    Array.iter (fun name -> (if !first then
-                      first := false
-                    else
-                      output := !output ^ ", ");
-                    output := !output ^ (Name.debug_string name)) path.parts;
-    output := !output ^ "]";
-    output := !output ^ " }";
-    !output
-end
-
 module Name: sig
   type t
 
@@ -196,8 +70,6 @@ end = struct
 
   let debug_string name = Printf.sprintf "{ tag = %d; name = %s }" name.tag name.name
 end
-
-module Path = Make_path(Name)
 
 module Token: sig
   type comment_type = Line | Multiline
@@ -378,6 +250,7 @@ module Source = struct
         trailing_tokens: Token.t list
     }
 
+    val from_span : Span.t -> t
     val span : t -> Span.t
     val full_span : t -> Span.t
     val merge : t -> t -> t
@@ -393,6 +266,14 @@ module Source = struct
         trailing_tokens: Token.t list
     }
 
+    let from_span span =
+      {
+        span = span;
+        full_span = span;
+        tokens = [];
+        leading_tokens = [];
+        trailing_tokens = []
+      }
     let span md = md.span
     let full_span md = md.full_span
     let merge md1 md2 =
@@ -425,13 +306,16 @@ module Source = struct
   }
 
   module ValueType = struct
-    type node = Name of string
+    type node =
+      | Name of string
+      | Invalid
     type t = Metadata.t * node
 
     let to_string value =
       let (_, node) = value in
       match node with
       | Name name -> name
+      | Invalid -> "<INVALID>"
   end
   type value_type = ValueType.t
 
@@ -445,6 +329,7 @@ module Source = struct
         | Times
         | Divide
         | Dot
+        | Equal
 
       let to_string = function
         | Plus -> "+"
@@ -452,6 +337,7 @@ module Source = struct
         | Times -> "*"
         | Divide -> "/"
         | Dot -> "."
+        | Equal -> "=="
     end
 
     module PrefixOp = struct
@@ -476,8 +362,15 @@ module Source = struct
         | Left_paren -> "("
     end
 
+    type ident = metadata * Name.t
+
+    type name =
+      | Simple_name of ident
+      | Qualified_name of ident * ident
+      | Invalid_qualified_name of ident
+
     type node =
-      | Path of Path.t
+      | Name of name
       | Type_ann of t * value_type
       | Binop of Binop.t * t * t
       | Prefix_op of PrefixOp.t * t
@@ -485,6 +378,7 @@ module Source = struct
       | Application of t * arg list
       | Number of string
       | String of string
+      | Boolean of bool
       | Invalid
     and arg =
       | Named_arg of metadata * Name.t * t
@@ -494,19 +388,21 @@ module Source = struct
     let is_complex expr =
       let (_, node) = expr in
       match node with
-      | Path _ -> false
+      | Name _ -> false
       | Type_ann _ -> true
       | Binop (_, _, _) -> true
       | Prefix_op (_, _) -> true
       | Postfix_op (_, _) -> true
       | Application (_, _) -> false
-      | Number _ | String _ | Invalid -> false
+      | Number _ | String _ | Boolean _ | Invalid -> false
 
     let rec to_string expr =
       let open Printf in
       let (_, node) = expr in
       match node with
-      | Path path -> Path.to_string path
+      | Name (Simple_name (_, name)) -> Name.to_string name
+      | Name (Qualified_name ((_, ns), (_, name))) -> sprintf "%s::%s" (Name.to_string ns) (Name.to_string name)
+      | Name (Invalid_qualified_name (_, ns)) -> sprintf "%s::<INVALID>" (Name.to_string ns)
       | Type_ann (e, v) -> sprintf "%s:%s" (wrap e) (ValueType.to_string v)
       | Binop (Binop.Dot, l, r) ->
          sprintf "%s.%s" (wrap l) (wrap r)
@@ -519,6 +415,7 @@ module Source = struct
          sprintf "%s(%s)" (wrap c) args
       | Number num -> num
       | String str -> sprintf "\"%s\"" (String.escaped str)
+      | Boolean bool -> if bool then "true" else "false"
       | Invalid -> "<INVALID>"
 
     and arg_to_string arg =
@@ -592,7 +489,7 @@ module Source = struct
   ]
 
   and module_term = [
-    | `Path of Path.t
+    (* | `Path of Path.t *)
     | `Structure of Span.t * structure
     | `Functor of ident * module_type * module_term
     | `Apply of module_term * module_term
@@ -1000,6 +897,7 @@ module ParseError = struct
     | `Missing_closing_paren of Span.t * Span.t
     | `Expected_expression of Span.t
     | `Expected_type_expression of Span.t
+    | `Expected_identifier of Span.t
   ]
 
   let to_string error =
@@ -1015,6 +913,7 @@ module ParseError = struct
     | `Missing_closing_paren (paren_span, span) -> sprintf "Missing_closing_paren %s" (Span.to_string span)
     | `Expected_expression span -> sprintf "Expected_expression %s" (Span.to_string span)
     | `Expected_type_expression span -> sprintf "Expected_type_expression %s" (Span.to_string span)
+    | `Expected_identifier span -> sprintf "Expected_identifier %s" (Span.to_string span)
 
   let string_of_errors errors =
     let result = ref "[" in
@@ -1416,7 +1315,7 @@ end = struct
     | T.Asterisk -> Some (3, 4, B.Times)
     | T.Slash -> Some (3, 4, B.Divide)
 
-    | T.Dot -> Some (51, 50, B.Dot)
+    | T.Dot -> Some (50, 51, B.Dot)
     | _ -> None
 
   let prefix_op token_type =
@@ -1438,6 +1337,56 @@ end = struct
     | T.Left_paren -> Some (5, (), P.Left_paren)
     | _ -> None
 
+  let read_namespace state =
+    let open TokenMatchers in
+    let module Metadata = Source.Metadata in
+    let rec read_names state names =
+      if ParserState.starts_with state [name] then
+        let (tnode, state) = ParserState.next state in
+        if ParserState.starts_with state [dot] then
+          let (dot_node, state) = ParserState.next state in
+          read_names state (dot_node :: tnode :: names)
+        else
+          (state, tnode :: names)
+      else
+        (state, names) in
+    let state, rev_names = read_names state [] in
+    let names = List.rev rev_names in
+    match names with
+    | [] -> None
+    | first :: rest ->
+       let first_md = metadata_of_tnode first in
+       let metadata = List.map metadata_of_tnode rest
+                      |> List.fold_left Metadata.merge first_md in
+       let text = List.map (fun n -> ParserState.substr state n) names
+                |> String.concat "" in
+       Some (metadata, text, state)
+
+  let read_qualified_name state =
+    let module Metadata = Source.Metadata in
+    let module Expr = Source.Expr in
+    match read_namespace state with
+    | Some (metadata, text, state) ->
+       if ParserState.starts_with state [TokenMatchers.double_colon] then
+         let (double_colon, state) = ParserState.next state in
+         let dcmd = metadata_of_tnode double_colon in
+         let ns = (metadata, Name.input text) in
+         if ParserState.starts_with state [TokenMatchers.name] then
+           let (name_tok, state) = ParserState.next state in
+           let name_md = metadata_of_tnode name_tok in
+           let name_text = ParserState.substr state name_tok in
+           let full_md = Metadata.merge (Metadata.merge metadata dcmd) name_md in
+           let name = (name_md, (Name.input name_text)) in
+           Some ([], (full_md, (Expr.Name (Expr.Qualified_name (ns, name)))), state)
+         else
+           let full_md = Metadata.merge metadata dcmd in
+           let err_span = Span.singular (Span.finish (Metadata.span dcmd)) in
+           let error = `Expected_identifier err_span in
+           Some ([error], (full_md, (Expr.Name (Expr.Invalid_qualified_name ns))), state)
+       else
+         None
+    | None -> None
+
   let extract_md =
     let open Source.Expr in
     function Named_arg (md, _, _) -> md | Unnamed_arg (md, _) -> md
@@ -1448,12 +1397,10 @@ end = struct
     | Some tok ->
        match parse_left_expr state errors tok min_bp with
        | Some (lerrors, lhs, state) -> begin
-           match read_postfix state errors lhs min_bp with
+           match read_postfix state lerrors lhs min_bp with
            | Some (rerrors, result, state) ->
-              Some (List.rev_append (List.rev_append rerrors lerrors) errors,
-                    result,
-                    state)
-           | None -> Some (List.rev_append lerrors errors, lhs, state)
+              Some (rerrors, result, state)
+           | None -> Some (lerrors, lhs, state)
          end
        | None -> None
     | None -> None
@@ -1534,11 +1481,19 @@ end = struct
             let new_lhs = (metadata, Expr.Type_ann (lhs, (vmd, value))) in
             read_postfix state errors new_lhs min_bp
          | None ->
+            let module M = Metadata in
             let metadata = metadata_of_tnode colon in
             let span = Metadata.span metadata in
-            Some ((`Expected_type_expression span) :: errors,
-             (metadata, Invalid),
-             state)
+            let md = {
+                M.span = span;
+                M.full_span = span;
+                M.tokens = [colon.token];
+                M.leading_tokens = [];
+                M.trailing_tokens = []
+            } in
+            let errors = (`Expected_type_expression span) :: errors in
+            let new_lhs = (metadata, Expr.Type_ann (lhs, (md, Invalid))) in
+            read_postfix state errors new_lhs min_bp
        end
     | Some (l_bp, (), P.Left_paren) ->
        let (lparen, state) = ParserState.next state in
@@ -1578,9 +1533,8 @@ end = struct
        let (lmd, _) = lhs in
        let middle_md = metadata_of_tnode tok in begin
            match parse_expr_bp state errors r_bp with
-           | Some (rerrors, (rmd, rhs), state) -> begin
+           | Some (errors, (rmd, rhs), state) -> begin
                let metadata = Metadata.merge (Metadata.merge lmd middle_md) rmd in
-               let errors = List.rev_append rerrors errors in
                let new_lhs = (metadata, Expr.Binop (op, lhs, (rmd, rhs))) in
                read_postfix state errors new_lhs min_bp
              end
@@ -1588,9 +1542,17 @@ end = struct
               let span = Span.singular (Span.finish (ParserState.span tok)) in
               let (lmd, _) = lhs in
               let metadata = Metadata.merge lmd (metadata_of_tnode tok) in
-              Some ((`Expected_expression span) :: errors,
-                    (metadata, Invalid),
-                    state)
+              let module M = Metadata in
+              let md = {
+                  M.span = span;
+                  M.full_span = span;
+                  M.tokens = [];
+                  M.leading_tokens = [];
+                  M.trailing_tokens = []
+                } in
+                Some ((`Expected_expression span) :: errors,
+                      (metadata, Expr.Binop (op, lhs, (md, Expr.Invalid))),
+                      state)
          end
     | None -> Some (errors, lhs, state)
 
@@ -1635,11 +1597,22 @@ end = struct
       let metadata = metadata_of_tnode tnode in
       let text = ParserState.substr state tnode in
       Some (errors, (metadata, Expr.Number text), state)
-    else if starts_with [name] then
+    else if starts_with [is_true] then
       let (tnode, state) = ParserState.next state in
       let metadata = metadata_of_tnode tnode in
-      let text = ParserState.substr state tnode in
-      Some (errors, (metadata, Expr.Path (Path.create [Name.input text])), state)
+      Some (errors, (metadata, Expr.Boolean true), state)
+    else if starts_with [is_false] then
+      let (tnode, state) = ParserState.next state in
+      let metadata = metadata_of_tnode tnode in
+      Some (errors, (metadata, Expr.Boolean true), state)
+    else if starts_with [name] then
+      match read_qualified_name state with
+      | Some (err, qualified, state) -> Some (List.rev_append err errors, qualified, state)
+      | None ->
+         let (tnode, state) = ParserState.next state in
+         let metadata = metadata_of_tnode tnode in
+         let text = ParserState.substr state tnode in
+         Some (errors, (metadata, Expr.Name (Expr.Simple_name (metadata, Name.input text))), state)
     else if starts_with [left_paren] then
       let (tnode, state) = ParserState.next state in
       match parse_expr_bp state errors 0 with

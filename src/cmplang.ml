@@ -8,14 +8,11 @@ let () =
   let span2 = Span.from loc (Loc.create "foo.cmp" 7 4 25) in
   let span3 = Span.from loc (Loc.create "some-file.cmp" 4 15 25) in
   let name = Name.internal "foo" in
-  let path = Path.create_ns (Name.input "org.bovinegenius") (List.map Name.input ["Foo"; "abc"; "xyz"; "baz"]) in
   Printf.printf "%s\n" (Loc.to_string loc);
   Printf.printf "%s\n" (Span.to_string span);
   Printf.printf "%s\n" (Span.to_string span2);
   Printf.printf "%s\n" (Span.to_string span3);
-  Printf.printf "%s\n" (Name.to_string name);
-  Printf.printf "%s\n" (Path.to_string path);
-  Printf.printf "%s\n" (Path.debug_string path)
+  Printf.printf "%s\n" (Name.to_string name)
 
 let read_whole_file filename =
   let ch = open_in filename in
@@ -53,3 +50,5 @@ let () =
                                     (Wombat.SourceParser.ParserState.to_string state)
   | None -> Printf.printf "Could not parse expression\n"
   (* Stream.iter (fun tok -> ()) tokens *)
+
+              
