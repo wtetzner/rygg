@@ -107,6 +107,7 @@ module Token: sig
     | Let
     | True
     | False
+    | Implicit
     | Backtick
     | String
     | Raw_string of raw_string_prefix_count
@@ -127,6 +128,8 @@ module Token: sig
 
   val substr : string -> t -> string
   val to_string : t -> string
+
+  val compare_type : token_type -> token_type -> int
 end = struct
   type comment_type = Line | Multiline
   type raw_string_prefix_count = int
@@ -163,6 +166,7 @@ end = struct
     | Let
     | True
     | False
+    | Implicit
     | Backtick
     | String
     | Raw_string of raw_string_prefix_count
@@ -208,6 +212,7 @@ end = struct
       | Let -> "let"
       | True -> "true"
       | False -> "false"
+      | Implicit -> "implicit"
       | Backtick -> "`"
       | String -> "String"
       | Raw_string prefix_count ->
@@ -220,6 +225,49 @@ end = struct
       | Invalid message -> sprintf "Invalid \"%s\"" message
     in
     sprintf "%s: %s" (Span.to_string span) tok_str
+
+  let compare_value = function
+    | Whitespace -> 0
+    | Left_brace -> 1
+    | Right_brace -> 2
+    | Left_paren -> 3
+    | Right_paren -> 4
+    | Left_bracket -> 5
+    | Right_bracket -> 6
+    | Less_than -> 7
+    | Greater_than -> 8
+    | Arrow -> 9
+    | Back_arrow -> 10
+    | Colon -> 11
+    | Double_colon -> 12
+    | Equal -> 13
+    | Double_equal -> 14
+    | Semicolon -> 15
+    | Dot -> 16
+    | Pipe -> 17
+    | Plus -> 18
+    | Dash -> 19
+    | Asterisk -> 20
+    | Slash -> 21
+    | Comma -> 22
+    | Question -> 23
+    | Exclamation -> 24
+    | Type -> 25
+    | Namespace -> 26
+    | Module -> 27
+    | Let -> 28
+    | True -> 29
+    | False -> 30
+    | Implicit -> 31
+    | Backtick -> 32
+    | String -> 33
+    | Number -> 34
+    | Name -> 35
+    | Raw_string _ -> 36
+    | Comment _ -> 37
+    | Invalid _ -> 38
+
+  let compare_type l r = Int.compare (compare_value l) (compare_value r)
 
   let is_whitespace = function (_, Whitespace) -> true | _ -> false
 
@@ -556,6 +604,7 @@ end = struct
       | _ when matches "let" -> Let
       | _ when matches "true" -> True
       | _ when matches "false" -> False
+      | _ when matches "implicit" -> Implicit
       | _ -> Name
     in
     Some (span, tok)
@@ -1304,6 +1353,108 @@ end = struct
     else
       None
 
+  module Precedence: sig
+    type t
+
+    val prefix : Token.token_type -> ((unit * int) * Source.Expr.PrefixOp.t) option
+    val infix : Token.token_type -> ((int * int) * Source.Expr.Binop.t) option
+    val postfix : Token.token_type -> ((int * unit) * Source.Expr.PostfixOp.t) option
+  end = struct
+    module OpType = struct
+      type op_type = Infix | Prefix | Postfix
+
+      let value = function
+        | Infix -> 0
+        | Prefix -> 1
+        | Postfix -> 2
+
+      let compare l r = Int.compare (value l) (value r)
+    end
+
+    module TokenTypeMap = Map.Make(struct
+                              type t = Token.token_type
+                              let compare = Token.compare_type
+                            end)
+
+    type t = {
+        prefix: ((unit * int) * Source.Expr.PrefixOp.t) TokenTypeMap.t;
+        infix: ((int * int) * Source.Expr.Binop.t) TokenTypeMap.t;
+        postfix: ((int * unit) * Source.Expr.PostfixOp.t) TokenTypeMap.t
+    }
+
+    let empty = {
+        prefix = TokenTypeMap.empty;
+        infix = TokenTypeMap.empty;
+        postfix = TokenTypeMap.empty
+      }
+
+    let plus_prefix t tok bp out =
+      let (_, rbp) = bp in
+      { t with prefix = TokenTypeMap.add tok (((), rbp), out) t.prefix }
+
+    let plus_infix t tok bp out =
+      { t with infix = TokenTypeMap.add tok (bp, out) t.infix }
+
+    let plus_postfix t tok bp out =
+      let (lbp, _) = bp in
+      { t with postfix = TokenTypeMap.add tok ((lbp, ()), out) t.postfix }
+
+    let mapping: t =
+      let current_chunk = ref 1 in
+      let next_group () = current_chunk := !current_chunk + 2 in
+      let group () =
+        let value = !current_chunk in
+        (value, value + 1) in
+      let record = ref empty in
+      let prefix tok out =
+        let bp = group () in
+        let new_val = plus_prefix !record tok bp out in
+        record := new_val;
+        () in
+      let infix tok out =
+        let bp = group () in
+        let new_val = plus_infix !record tok bp out in
+        record := new_val;
+        () in
+      let postfix tok out =
+        let bp = group () in
+        let new_val = plus_postfix !record tok bp out in
+        record := new_val;
+        ()
+      in
+
+      let module T = Token in
+      let module B = Source.Expr.Binop in
+      let module Pre = Source.Expr.PrefixOp in
+      let module Post = Source.Expr.PostfixOp in
+
+      next_group ();
+      infix T.Plus B.Plus;
+      infix T.Dash B.Minus;
+
+      next_group ();
+      infix T.Asterisk B.Times;
+      infix T.Slash B.Divide;
+
+      next_group ();
+      postfix T.Colon Post.Colon;
+
+      next_group ();
+      prefix T.Plus Pre.Plus;
+      prefix T.Dash Pre.Minus;
+
+      next_group ();
+      infix T.Dot B.Dot;
+      postfix T.Question Post.Question;
+      postfix T.Left_paren Post.Left_paren;
+
+      !record
+
+    let prefix tok = TokenTypeMap.find_opt tok mapping.prefix
+    let infix tok = TokenTypeMap.find_opt tok mapping.infix
+    let postfix tok = TokenTypeMap.find_opt tok mapping.postfix
+  end
+
   let binary_op token_type =
     let module T = Token in
     let module E = Source.Expr in
@@ -1332,9 +1483,9 @@ end = struct
     let module E = Source.Expr in
     let module P = Source.Expr.PostfixOp in
     match token_type with
-    | T.Question -> Some (5, (), P.Question)
+    | T.Question -> Some (50, (), P.Question)
     | T.Colon -> Some (5, (), P.Colon)
-    | T.Left_paren -> Some (5, (), P.Left_paren)
+    | T.Left_paren -> Some (50, (), P.Left_paren)
     | _ -> None
 
   let read_namespace state =
