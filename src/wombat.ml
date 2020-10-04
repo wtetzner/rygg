@@ -1437,15 +1437,17 @@ end = struct
       infix T.Slash B.Divide;
 
       next_group ();
-      postfix T.Colon Post.Colon;
+      postfix T.Question Post.Question;
 
       next_group ();
       prefix T.Plus Pre.Plus;
       prefix T.Dash Pre.Minus;
 
       next_group ();
+      postfix T.Colon Post.Colon;
+
+      next_group ();
       infix T.Dot B.Dot;
-      postfix T.Question Post.Question;
       postfix T.Left_paren Post.Left_paren;
 
       !record
@@ -1456,37 +1458,19 @@ end = struct
   end
 
   let binary_op token_type =
-    let module T = Token in
-    let module E = Source.Expr in
-    let module B = E.Binop in
-    match token_type with
-    | T.Plus -> Some (1, 2, B.Plus)
-    | T.Dash -> Some (1, 2, B.Minus)
-
-    | T.Asterisk -> Some (3, 4, B.Times)
-    | T.Slash -> Some (3, 4, B.Divide)
-
-    | T.Dot -> Some (50, 51, B.Dot)
-    | _ -> None
+    match Precedence.infix token_type with
+    | Some ((l, r), o) -> Some (l, r, o)
+    | None -> None
 
   let prefix_op token_type =
-    let module T = Token in
-    let module E = Source.Expr in
-    let module P = E.PrefixOp in
-    match token_type with
-    | T.Plus -> Some ((), 6, P.Plus)
-    | T.Dash -> Some ((), 6, P.Minus)
-    | _ -> None
+    match Precedence.prefix token_type with
+    | Some ((l, r), o) -> Some (l, r, o)
+    | None -> None
 
   let postfix_op token_type =
-    let module T = Token in
-    let module E = Source.Expr in
-    let module P = Source.Expr.PostfixOp in
-    match token_type with
-    | T.Question -> Some (50, (), P.Question)
-    | T.Colon -> Some (5, (), P.Colon)
-    | T.Left_paren -> Some (50, (), P.Left_paren)
-    | _ -> None
+    match Precedence.postfix token_type with
+    | Some ((l, r), o) -> Some (l, r, o)
+    | None -> None
 
   let read_namespace state =
     let open TokenMatchers in
@@ -1755,7 +1739,7 @@ end = struct
     else if starts_with [is_false] then
       let (tnode, state) = ParserState.next state in
       let metadata = metadata_of_tnode tnode in
-      Some (errors, (metadata, Expr.Boolean true), state)
+      Some (errors, (metadata, Expr.Boolean false), state)
     else if starts_with [name] then
       match read_qualified_name state with
       | Some (err, qualified, state) -> Some (List.rev_append err errors, qualified, state)

@@ -1,6 +1,9 @@
 *~
 .#*
+#*
 _build
+_opam
 *.byte
 *.native
 /local
+.merlin
