@@ -11,7 +11,7 @@ local switch. To do so, `cd` into the source directory, and run:
 
 Install dependencies:
 
-    opam install ./cmplang.opam.locked --deps-only --unlock-base -y
+    opam install . --deps-only --unlock-base --locked -y
 
 To build using dune directly, run
 
@@ -28,7 +28,7 @@ To build a statically-linked executable (doesn't work on macOS):
 Lockfile
 ========
 
-To re-generate the lockfile, run `opam lock`.
+To re-generate the lockfile, run `opam lock .`.
 
 utop
 ====
