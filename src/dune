@@ -1,4 +1,9 @@
 
+(env
+  (dev
+    ;; Don't treat warnings as errors
+    (flags (:standard -warn-error -A))))
+
 (executable
  (name wombat)
  (libraries Vmu Compiler core ANSITerminal)

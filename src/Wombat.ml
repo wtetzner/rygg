@@ -48,7 +48,7 @@ let vmu_cmd =
   let compile_cmd =
     Command.basic
       ~summary:"Compiler for the Wombat programming language"
-      ~readme:(fun () -> "Assembler for Dreamcast VMU")
+      ~readme:(fun () -> "Compiler for the Wombat programming language")
       Command.Let_syntax.(
       let%map_open output = flag ~aliases:["-o"] "-output" (required string) ~doc:"Output File"
       and filename = anon ("input-file" %: string)
