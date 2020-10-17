@@ -1,7 +1,7 @@
 
 module Env = Env
 module Span = Span
-module Location = Span.Location
+module Loc = Loc
 
 module Position : sig
   type t =
