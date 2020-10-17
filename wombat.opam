@@ -3,6 +3,9 @@ name: "wombat"
 maintainer: "Walter Tetzner"
 version: "0.1.0"
 synopsis: "VMU language"
+authors: "Walter Tetzner"
+homepage: "N/A"
+bug-reports: "N/A"
 description: """
 Longer description
 """
@@ -16,6 +19,7 @@ depends: [
   "ANSITerminal" {>= "0.8"}
   "dune" {>= "1.6.2" build}
   "ppx_deriving" {>= "4.5" build}
+  "ppx_inline_test" {>= "4.5" build}
   "ppx_let" {>= "0.14.0" build}
   "ocaml" {>= "4.10.0" build}
 ]
