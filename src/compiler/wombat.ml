@@ -1,6 +1,4 @@
 
-open Compiler
-
 module type LOC = sig
   type t
   type source

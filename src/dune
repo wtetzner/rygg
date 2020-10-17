@@ -13,17 +13,16 @@
 (executable
  (name cmplang)
  (modes (best exe) (byte c))
- (libraries Wombat ANSITerminal)
+ (libraries Compiler ANSITerminal)
  (preprocess (pps ppx_inline_test))
  (modules Cmplang))
 
-(library
- (name Wombat)
- (inline_tests)
- (modules Wombat)
- (libraries Compiler)
- (preprocess (pps ppx_inline_test))
- (wrapped true))
+; (library
+;  (name Wombat)
+;  (inline_tests)
+;  (modules Compiler)
+;  (preprocess (pps ppx_inline_test))
+;  (wrapped true))
 
 ; (install
 ;  (section bin)

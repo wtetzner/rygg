@@ -1,4 +1,5 @@
 
 (library
  (name Compiler)
+ (preprocess (pps ppx_inline_test))
  (wrapped true))
