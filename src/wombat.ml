@@ -84,7 +84,9 @@ module Token: sig
     | Left_bracket
     | Right_bracket
     | Less_than
+    | Less_equal
     | Greater_than
+    | Greater_equal
     | Arrow
     | Back_arrow
     | Colon
@@ -143,7 +145,9 @@ end = struct
     | Left_bracket
     | Right_bracket
     | Less_than
+    | Less_equal
     | Greater_than
+    | Greater_equal
     | Arrow
     | Back_arrow
     | Colon
@@ -189,7 +193,9 @@ end = struct
       | Left_bracket -> "["
       | Right_bracket -> "]"
       | Less_than -> "<"
+      | Less_equal -> "<="
       | Greater_than -> ">"
+      | Greater_equal -> ">="
       | Arrow -> "->"
       | Back_arrow -> "<-"
       | Colon -> ":"
@@ -226,7 +232,8 @@ end = struct
     in
     sprintf "%s: %s" (Span.to_string span) tok_str
 
-  let compare_value = function
+  let compare_value =
+    function
     | Whitespace -> 0
     | Left_brace -> 1
     | Right_brace -> 2
@@ -266,6 +273,8 @@ end = struct
     | Raw_string _ -> 36
     | Comment _ -> 37
     | Invalid _ -> 38
+    | Less_equal -> 39
+    | Greater_equal -> 40
 
   let compare_type l r = Int.compare (compare_value l) (compare_value r)
 
@@ -378,6 +387,10 @@ module Source = struct
         | Divide
         | Dot
         | Equal
+        | Less_than
+        | Less_equal
+        | Greater_than
+        | Greater_equal
 
       let to_string = function
         | Plus -> "+"
@@ -386,6 +399,10 @@ module Source = struct
         | Divide -> "/"
         | Dot -> "."
         | Equal -> "=="
+        | Less_than -> "<"
+        | Less_equal -> "<="
+        | Greater_than -> ">"
+        | Greater_equal -> ">="
     end
 
     module PrefixOp = struct
@@ -880,9 +897,14 @@ end = struct
                single Equal
     | '<' -> if Input.starts_with !input "<-" then
                handle_simple input 2 Back_arrow
+             else if Input.starts_with !input "<=" then
+               handle_simple input 2 Less_equal
              else
                single Less_than
-    | '>' -> single Greater_than
+    | '>' -> if Input.starts_with !input ">=" then
+               handle_simple input 2 Greater_equal
+             else
+               single Greater_than
     | ':' -> if Input.starts_with !input "::" then
                handle_simple input 2 Double_colon
              else
@@ -1427,6 +1449,13 @@ end = struct
       let module B = Source.Expr.Binop in
       let module Pre = Source.Expr.PrefixOp in
       let module Post = Source.Expr.PostfixOp in
+
+      next_group ();
+      infix T.Double_equal B.Equal;
+      infix T.Less_than B.Less_than;
+      infix T.Less_equal B.Less_equal;
+      infix T.Greater_than B.Greater_than;
+      infix T.Greater_equal B.Greater_equal;
 
       next_group ();
       infix T.Plus B.Plus;
