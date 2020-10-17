@@ -1,3 +1,4 @@
+
 Usage
 =====
 
@@ -50,22 +51,39 @@ Build
 
 Requires opam 2.0.
 
-Install dependencies and build:
+When trying to build for the first time, you may want to create a
+local switch. To do so, `cd` into the source directory, and run:
 
-    opam install . --working-dir --locked
+    opam switch create . --empty
 
-To build directly with dune (after dependencies are installed)
+Install dependencies:
 
-    dune build -p wombat -j 3
+    opam install . --deps-only --unlock-base --locked -y
 
-If you use `opam install`, then the `wombat` executable will be in your
-path. If you use `dune` to do the build, the executable will be at
-`./_build/install/default/bin/wombat`. The reason to use `dune`
-over `opam install` is that it runs faster, because it doesn't have to
-do any dependency resolution, so it gives better turn-around time when
-developing.
+To build using dune directly, run
 
-Links:
+    dune build @all
+
+To build with all warnings as errors:
+
+    dune build @all --profile check
+
+To build a statically-linked executable (doesn't work on macOS):
+    
+    dune build @all --profile static
+
+Lockfile
+========
+
+To re-generate the lockfile, run `opam lock .`.
+
+utop
+====
+
+    dune utop src
+
+Links
+=====
 
 ([How to do local builds](https://opam.ocaml.org/blog/opam-install-dir/))
 

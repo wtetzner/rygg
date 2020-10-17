@@ -2,23 +2,29 @@
 (env
   (dev
     ;; Don't treat warnings as errors
-    (flags (:standard -warn-error -A))))
+    (flags (:standard -warn-error -A -w -A)))
+  (check
+    ;; Treat all warnings as errors
+    (flags (:standard -warn-error A -w A)))
+  (static
+    ;; Statically link
+    (flags (:standard -warn-error -A -ccopt -static))))
 
 (executable
  (name wombat)
+ (modes (best exe) (byte c))
  (libraries Vmu Compiler core ANSITerminal)
- (preprocess (pps ppx_let))
- ; (flags (-ccopt -static))
- (modules Wombat))
+ (preprocess (pps ppx_let ppx_inline_test))
+ (modules Cmplang))
 
-(executable
- (name       mytoplevel)
- (libraries  Vmu core ANSITerminal compiler-libs.toplevel)
- (link_flags (-linkall))
- (modules mytoplevel)
- (modes      byte))
+; (library
+;  (name Wombat)
+;  (inline_tests)
+;  (modules Compiler)
+;  (preprocess (pps ppx_inline_test))
+;  (wrapped true))
 
-(install
- (section bin)
- (files (wombat.exe as wombat)
-        (mytoplevel.exe as mytoplevel)))
+; (install
+;  (section bin)
+;  (files (wombat.exe as wombat)))
+

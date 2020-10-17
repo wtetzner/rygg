@@ -1,11 +1,13 @@
-
 module Env = Env
 module Span = Span
 module Loc = Loc
+module Input = Input
+
+module Wombat = Wombat
 
 module Position : sig
   type t =
-    | Location of Span.Location.t
+    | Loc of Loc.t
     | Span of Span.t
     | No_position
 
@@ -14,7 +16,7 @@ module Position : sig
   val merge : t -> t -> t
 end = struct
   type t =
-    | Location of Span.Location.t
+    | Loc of Loc.t
     | Span of Span.t
     | No_position
 
@@ -25,10 +27,10 @@ end = struct
 
   let merge left right =
     match left, right with
-    | Location l1, Location l2 -> Location l1
+    | Loc l1, Loc l2 -> Loc l1
     | Span s1, Span s2 -> Span (Span.merge s1 s2)
-    | Location l, Span s -> Location (Span.Location.merge l s.start_pos)
-    | Span s, Location l -> Location (Span.Location.merge s.start_pos l)
+    | Loc l, Span s -> Loc (Loc.merge l s.start_pos)
+    | Span s, Loc l -> Loc (Loc.merge s.start_pos l)
     | No_position, other -> other
     | other, No_position -> other
 end
@@ -100,35 +102,35 @@ end = struct
 
   let print_pos pos =
     let open Position in
-    let module Location = Span.Location in
+    let module Loc = Loc in
     match pos with
-    | Location loc ->
+    | Loc loc ->
       ANSITerminal.(
-        printf [yellow] "%s" (Location.source loc);
+        printf [yellow] "%s" (Loc.source loc);
         print_string [] ":";
-        printf [Bold] "%d:%d" (Location.line loc) (Location.column loc)
+        printf [Bold] "%d:%d" (Loc.line loc) (Loc.column loc)
       )
     | Span span ->
        let start = span.start_pos in
        let endp = span.end_pos in
-       if (Location.line start) = (Location.line endp) then
+       if (Loc.line start) = (Loc.line endp) then
          ANSITerminal.(
-         printf [yellow] "%s" (Location.source start);
+         printf [yellow] "%s" (Loc.source start);
          print_string [] ":";
          printf [Bold] "%d:%d-%d"
-           (Location.line start)
-           (Location.column start)
-           (Location.column endp)
+           (Loc.line start)
+           (Loc.column start)
+           (Loc.column endp)
          )
        else
          ANSITerminal.(
-         printf [yellow] "%s" (Location.source start);
+         printf [yellow] "%s" (Loc.source start);
          print_string [] ":";
          printf [Bold] "%d:%d-%d:%d"
-           (Location.line start)
-           (Location.column start)
-           (Location.line endp)
-           (Location.column endp)
+           (Loc.line start)
+           (Loc.column start)
+           (Loc.line endp)
+           (Loc.column endp)
          )
     | No_position -> ()
 
@@ -217,19 +219,19 @@ end = struct
       ();
     print_string msg;
     (match pos with
-     | Position.Location loc ->
-        let line = Location.line loc in
-        let text = Files.get files (Location.source loc) in
+     | Position.Loc loc ->
+        let line = Loc.line loc in
+        let text = Files.get files (Loc.source loc) in
         let line_text = (get_some (lookup_line text line)) in
         Printf.printf "\n  %s\n" line_text;
-        print_caret (Location.column loc) line_text
+        print_caret (Loc.column loc) line_text
      | Position.Span span ->
-        let line = Location.line span.Span.start_pos in
-        let text = Files.get files (Location.source span.Span.start_pos) in
+        let line = Loc.line span.Span.start_pos in
+        let text = Files.get files (Loc.source span.Span.start_pos) in
         let line_text = (get_some (lookup_line text line)) in
         Printf.printf "\n  %s\n" line_text;
-        let start = Location.column span.Span.start_pos in
-        let endp = Location.column span.Span.end_pos in
+        let start = Loc.column span.Span.start_pos in
+        let endp = Loc.column span.Span.end_pos in
         print_span start (endp - start) line_text
      | _ -> ())
 

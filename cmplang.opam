@@ -1,0 +1,20 @@
+opam-version: "2.0"
+name: "cmplang"
+maintainer: "Walter Tetzner"
+version: "0.1.0"
+synopsis: "VMU language"
+authors: "Walter Tetzner"
+homepage: "N/A"
+bug-reports: "N/A"
+description: """
+Longer description
+"""
+build: [
+  ["dune" "build" "@all" "-j" jobs]
+]
+depends: [
+  "ANSITerminal" {>= "0.8"}
+  "dune" {>= "1.6.2" build}
+  "ppx_inline_test" {>= "4.5" build}
+  "ocaml" {>= "4.10.0" build}
+]
