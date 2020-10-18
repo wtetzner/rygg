@@ -1,5 +1,5 @@
 
-module org.bovinegenius.wombat::Main
+module org.bovinegenius.rygg::Main
 
 main args = {
     println s"$d{args}" // Prints:  args: ["foo", "bar"]

@@ -15,14 +15,14 @@ let read_whole_file filename =
 
 let vmu_compile input_file output_file =
   let text = read_whole_file input_file in
-  let parser_state = Compiler.Wombat.SourceParser.ParserState.create input_file text in
-  let results = Compiler.Wombat.SourceParser.parse_expr parser_state in
-  let module Expr = Compiler.Wombat.Source.Expr in
+  let parser_state = Compiler.Rygg.SourceParser.ParserState.create input_file text in
+  let results = Compiler.Rygg.SourceParser.parse_expr parser_state in
+  let module Expr = Compiler.Rygg.Source.Expr in
   match results with
   | Some (errors, expr, state) -> Printf.printf "Errors: %s\nExpr: %s\nState: %s\n\n"
-                                    (Compiler.Wombat.ParseError.string_of_errors errors)
+                                    (Compiler.Rygg.ParseError.string_of_errors errors)
                                     (Expr.to_string expr)
-                                    (Compiler.Wombat.SourceParser.ParserState.to_string state)
+                                    (Compiler.Rygg.SourceParser.ParserState.to_string state)
   | None -> Printf.printf "Could not parse expression\n"
 
 let vmu_cmd =
@@ -49,8 +49,8 @@ let vmu_cmd =
   in
   let compile_cmd =
     Command.basic
-      ~summary:"Compiler for the Wombat programming language"
-      ~readme:(fun () -> "Compiler for the Wombat programming language")
+      ~summary:"Compiler for the Rygg programming language"
+      ~readme:(fun () -> "Compiler for the Rygg programming language")
       Command.Let_syntax.(
       let%map_open output = flag ~aliases:["-o"] "-output" (required string) ~doc:"Output File"
       and filename = anon ("input-file" %: string)

@@ -11,14 +11,14 @@
     (flags (:standard -warn-error -A -ccopt -static))))
 
 (executable
- (name wombat)
+ (name rygg)
  (modes (best exe) (byte c))
  (libraries Vmu Compiler core ANSITerminal)
  (preprocess (pps ppx_let ppx_inline_test))
- (modules Wombat))
+ (modules Rygg))
 
 ; (library
-;  (name Wombat)
+;  (name Rygg)
 ;  (inline_tests)
 ;  (modules Compiler)
 ;  (preprocess (pps ppx_inline_test))
@@ -26,5 +26,5 @@
 
 ; (install
 ;  (section bin)
-;  (files (wombat.exe as wombat)))
+;  (files (rygg.exe as rygg)))
 

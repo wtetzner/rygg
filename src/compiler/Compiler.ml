@@ -3,7 +3,7 @@ module Span = Span
 module Loc = Loc
 module Input = Input
 
-module Wombat = Wombat
+module Rygg = Rygg
 
 module Position : sig
   type t =

@@ -1,6 +1,6 @@
 
 module org.bovinegenius::CoolGame : VmuGame
-open wombat::Std
+open rygg::Std
 
 fn create-point(module A: Allocator, x, y = 11) {
 
@@ -40,7 +40,7 @@ namespace foo.bar.baz {
 
     fn foo : (u8, u8, c: u8 = 12) -> u8 wref
     fn foo : (u8, u8, c: u8 = 12) -> u8 vmu::WRam.ref
-    fn foo(a, b, c) = wombat::Std.construct(vmu::WRam.alloc, a + b + c)
+    fn foo(a, b, c) = rygg::Std.construct(vmu::WRam.alloc, a + b + c)
 
     fn bar(x, y) = x * (34 | f32)
   }
@@ -50,7 +50,7 @@ namespace foo.bar.baz {
   }
 }
 
-namespace wombat {
+namespace rygg {
   module Option {
     type t
   }

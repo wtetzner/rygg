@@ -1,5 +1,5 @@
 opam-version: "2.0"
-name: "wombat"
+name: "rygg"
 maintainer: "Walter Tetzner"
 version: "0.1.0"
 synopsis: "Compiler for a VMU programming language"

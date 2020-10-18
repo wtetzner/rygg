@@ -5,18 +5,18 @@ Usage
 The compiler is still a work-in-progress, and is not yet
 functional. Once it is functional, however, it can be invoked using:
 
-    wombat vmu compile example.wb -output example.vms
+    rygg vmu compile example.wb -output example.vms
 
-To assemble a file, use the `wombat vmu assemble` command:
+To assemble a file, use the `rygg vmu assemble` command:
 
-    wombat vmu assemble example.s -output example.vms
+    rygg vmu assemble example.s -output example.vms
 
-For help, run `wombat help`:
+For help, run `rygg help`:
 
-    % wombat help
+    % rygg help
     Compiler and build tool for Dreamcast VMU
     
-      wombat SUBCOMMAND
+      rygg SUBCOMMAND
     
     === subcommands ===
     
@@ -26,23 +26,23 @@ For help, run `wombat help`:
 
 The `help` command can be used on subcommands as well:
 
-    % wombat help vmu
+    % rygg help vmu
     Operations for Dreamcast VMU
     
-      wombat vmu SUBCOMMAND
+      rygg vmu SUBCOMMAND
     
     === subcommands ===
     
       assemble  Assembler for Dreamcast VMU
-      compile   Compiler for the Wombat programming language
+      compile   Compiler for the Rygg programming language
       help      explain a given subcommand (perhaps recursively)
 
 ---
 
-    % wombat vmu help assemble
+    % rygg vmu help assemble
     Assembler for Dreamcast VMU
     
-      wombat vmu assemble INPUT-FILE
+      rygg vmu assemble INPUT-FILE
     
     === flags ===
     
