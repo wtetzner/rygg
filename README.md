@@ -5,7 +5,7 @@ Usage
 The compiler is still a work-in-progress, and is not yet
 functional. Once it is functional, however, it can be invoked using:
 
-    rygg vmu compile example.wb -output example.vms
+    rygg vmu compile example.rg -output example.vms
 
 To assemble a file, use the `rygg vmu assemble` command:
 
