@@ -2,6 +2,11 @@
 Usage
 =====
 
+The compiler is still a work-in-progress, and is not yet
+functional. Once it is functional, however, it can be invoked using:
+
+    wombat vmu compile example.wb -output example.vms
+
 To assemble a file, use the `wombat vmu assemble` command:
 
     wombat vmu assemble example.s -output example.vms
