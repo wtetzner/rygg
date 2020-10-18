@@ -1,6 +1,6 @@
 
 module Span = Compiler.Span
-module Location = Span.Location
+module Loc = Compiler.Loc
 module Env = Compiler.Env
 module Position = Compiler.Position
 

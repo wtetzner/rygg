@@ -33,6 +33,9 @@ let inc_column loc amount =
   { loc with column = loc.column + amount;
              offset = loc.offset + amount }
 
+let with_filename loc filename =
+  { loc with filename = filename }
+
 let advance_to loc str end_pos =
   let line = ref (line loc) in
   let column = ref (column loc) in

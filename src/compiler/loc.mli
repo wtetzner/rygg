@@ -12,6 +12,8 @@ val line : t -> int
 val column : t -> int
 val offset : t -> int
 
+val with_filename : t -> string -> t
+
 val inc_column : t -> int -> t
 val advance_to : t -> string -> int -> t
 

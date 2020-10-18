@@ -1,24 +1,223 @@
 
-module org.bovinegenius.wombat/Main
+module org.bovinegenius::CoolGame : VmuGame
+open wombat::Std
 
-main args = {
-    println s"$d{args}" // Prints:  args: ["foo", "bar"]
+fn create-point(module A: Allocator, x, y = 11) {
+
+  // Call built-in 'construct' function to allocate a point using the
+  // Allocator module.
+  construct(A, (x, y))
 }
 
-signature Functor = {
-  type 'a t
-  map : ('a -> 'b) -> 'a t -> 'b t
-  wrap : 'a -> 'a t
+fn main() {
+  // Explicitly pass in an allocator module.
+  let point = create-point(vmu::WRam.Allocator, 4, 5);
+
+  // Make vmu::WRam.Allocator an implicit module.
+  implicit module WRamAllocator = vmu::WRam.Allocator;
+
+  let array: [u8; 50] = Stack.slice(50);
+  implicit module StackAllocator = RegionAllocator({ val slice = array });
+
+  // Call create-point, allowing the compiler to automatically
+  // discover the implicit WRamAllocator module.
+  let point2 = create-point(6, 7);
 }
 
-module list: Functor {
-  type 'a t =
-    | Nil
-    | Cons 'a ('a t)
-  map f l = match l
-    | Nil -> Nil
-    | Cons first rest -> Cons (f rest) (map f rest)
-}
-                  
-wrap : () 'a -> 'a t
+// -------------------------------------------------------------------
 
+namespace foo.bar.baz {
+  module Foo: {
+    const bar : u8
+
+    fn foo : (u8, u8, c: u8 = 12) -> u8 vmu::WRam.ref
+    fn bar : (f32, f32) -> f32
+  } = {
+
+    type 'a ref
+
+    val bar = 87 ref
+
+    fn foo : (u8, u8, c: u8 = 12) -> u8 wref
+    fn foo : (u8, u8, c: u8 = 12) -> u8 vmu::WRam.ref
+    fn foo(a, b, c) = wombat::Std.construct(vmu::WRam.alloc, a + b + c)
+
+    fn bar(x, y) = x * (34 | f32)
+  }
+
+  module Bar = {
+    fn mult(a, b, c) = a * b * c
+  }
+}
+
+namespace wombat {
+  module Option {
+    type t
+  }
+
+  module Access {
+    type readonly = Readonly
+    type readwrite = Readwrite
+    type immutable = Immutable
+  }
+
+  module type REF {
+    type 'a t
+
+    fn deref : 'a t -> 'a
+  }
+
+  module type GET_INDEX {
+    module Ref : REF
+    type 'a t
+    type 'a Ref.t
+    type index
+
+    fn get : 'a t -> index -> ('a ref) Option.t
+  }
+
+  module type SET_INDEX {
+    type 'a t
+    type index
+
+    fn set : 'a t -> index -> 'a -> unit
+  }
+
+  module type SLICE {
+    type 'a t
+    type 'a ref
+    type index
+
+    fn length : 'a t -> index
+    fn get : 'a t -> index -> 'a ref
+  }
+
+  module type MUTABLE_SLICE : SLICE {
+    type 'a ref
+    type 'a t
+    type index
+
+    fn length : 'a t -> index
+    fn get : 'a t -> index -> 'a ref
+    fn set : 'a t -> index -> 'a -> unit
+  }
+
+  module type ALLOCATOR {
+    module Slice: MUTABLE_SLICE + SLICE
+
+    type ref = u8 Slice.ref
+    type slice = u8 Slice.ref
+    type index = Slice.index
+
+    fn alloc-bytes : index -> slice
+  }
+
+  module Memory: {
+    fn alloc(module Allocator: ALLOCATOR, (u8 Allocator.slice) -> unit) -> Allocator.slice
+  } {
+    fn alloc(module Allocator: ALLOCATOR, create: (u8 Allocator.slice) -> unit) = {
+       
+    }
+  }
+}
+
+namespace vmu {
+  module WRam : ALLOCATOR + {
+    type ref
+    type slice
+    type index
+
+    fn alloc-bytes : index -> slice
+  } {
+    module Slice {
+      type 'a ref = u16
+      type 'a t = { start: u16, length: u16 }
+      type index = u16
+
+      fn length : 'a t -> index
+      fn get : 'a t -> index -> 'a ref
+      fn set : 'a t -> index -> 'a -> unit
+    }
+
+    type ref = u8 Slice.ref
+    type slice = u8 Slice.ref
+    type index = Slice.index
+
+    fn alloc-bytes : index -> slice
+  }
+}
+
+namespace foo.bar.org {
+  open vmu::WRam.{ type ref as wref }
+  module Bar: {
+    fn do-stuff : 'a 'b -> { foo: u8, bar: i16 } wref
+  } {
+    fn do-stuff : 'a 'b -> { foo: u8, bar: i16 } wref
+    fn do-stuff a b {
+      let thingy = 0xFF:u8 in
+      let my-record = alloc vmu::WRam { foo = thingy, bar = -43:i16 } in
+      Debug.print "my-record: {}" my-record;
+      my-record | SomeModule.frobnicate-thing
+    }
+
+    fn path = org.foo.bar::Bar.Baz.record.field.inner-field
+  }
+}
+
+namespace org.bovinegenius.net {
+
+  module type FOO {
+    fn foo : int -> int -> int
+    fn bar : int -> int -> int
+  }
+
+  module Map {
+    module Make(Key: ORD): MAP {
+    }
+  }
+
+  module Foo {
+    let foo x y = x + y
+    let bar x y = (foo x y) * 2
+    let baz x y = foo.bar.org/Bar.do-stuff(x, y)
+    let blah = foo.bar.org/Bar
+    let blah2 = foo.bar.org/
+    let blah3 = foo.bar.org
+    let blah4 = _foo_
+
+    const some-path1 = foo.bar.org::Module.get-path
+    const some-path2 = foo.bar-baz.org/Module.get-path
+
+    let bob s t = s `plus` t
+
+    fn do-stuff : ((int, int), { a: int, b: int }) -> int
+    fn do-stuff (x, y), {a, b: 1} = 7
+              | (4, 9), _ = 4
+
+    fn do-things (x, y), {a, b: 1} = 7
+    fn do-things (4, 9), _ = 4
+
+    fn some-func | x y 8 = 43
+                 | a 9 c = 9
+
+    fn plus : (int, int) -> int
+    fn x `plus` y -> x + y
+
+    fn boo = r"A raw string"
+    fn bloo = r####"Another raw "###" string"####
+    fn irs = r#
+
+    fn plain_string = "this is \r \na \ \" \\cool string"
+
+    fn invalid_raw_string = r####"Invalid raw string"###
+  }
+
+
+  // this is a single line comment
+  // this is another single line comment
+
+  /* multiline comment
+    /* nested comment // and stuff */
+   */
+
+}

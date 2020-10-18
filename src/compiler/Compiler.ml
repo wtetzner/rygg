@@ -29,8 +29,8 @@ end = struct
     match left, right with
     | Loc l1, Loc l2 -> Loc l1
     | Span s1, Span s2 -> Span (Span.merge s1 s2)
-    | Loc l, Span s -> Loc (Loc.merge l s.start_pos)
-    | Span s, Loc l -> Loc (Loc.merge s.start_pos l)
+    | Loc l, Span _ -> Loc l
+    | Span s, Loc _ -> Loc (Span.start s)
     | No_position, other -> other
     | other, No_position -> other
 end
@@ -106,16 +106,16 @@ end = struct
     match pos with
     | Loc loc ->
       ANSITerminal.(
-        printf [yellow] "%s" (Loc.source loc);
+        printf [yellow] "%s" (Loc.filename loc);
         print_string [] ":";
         printf [Bold] "%d:%d" (Loc.line loc) (Loc.column loc)
       )
     | Span span ->
-       let start = span.start_pos in
-       let endp = span.end_pos in
+       let start = Span.start span in
+       let endp = Span.start span in
        if (Loc.line start) = (Loc.line endp) then
          ANSITerminal.(
-         printf [yellow] "%s" (Loc.source start);
+         printf [yellow] "%s" (Loc.filename start);
          print_string [] ":";
          printf [Bold] "%d:%d-%d"
            (Loc.line start)
@@ -124,7 +124,7 @@ end = struct
          )
        else
          ANSITerminal.(
-         printf [yellow] "%s" (Loc.source start);
+         printf [yellow] "%s" (Loc.filename start);
          print_string [] ":";
          printf [Bold] "%d:%d-%d:%d"
            (Loc.line start)
@@ -221,17 +221,17 @@ end = struct
     (match pos with
      | Position.Loc loc ->
         let line = Loc.line loc in
-        let text = Files.get files (Loc.source loc) in
+        let text = Files.get files (Loc.filename loc) in
         let line_text = (get_some (lookup_line text line)) in
         Printf.printf "\n  %s\n" line_text;
         print_caret (Loc.column loc) line_text
      | Position.Span span ->
-        let line = Loc.line span.Span.start_pos in
-        let text = Files.get files (Loc.source span.Span.start_pos) in
+        let line = Loc.line (Span.start span) in
+        let text = Files.get files (Loc.filename (Span.start span)) in
         let line_text = (get_some (lookup_line text line)) in
         Printf.printf "\n  %s\n" line_text;
-        let start = Loc.column span.Span.start_pos in
-        let endp = Loc.column span.Span.end_pos in
+        let start = Loc.column (Span.start span) in
+        let endp = Loc.column (Span.finish span) in
         print_span start (endp - start) line_text
      | _ -> ())
 

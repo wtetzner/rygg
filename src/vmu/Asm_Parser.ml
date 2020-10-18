@@ -8,11 +8,12 @@ module D = Directive
 module E = Expression
 module I = Instruction
 
-module Location = Span.Location
+module Span = Compiler.Span
+module Loc = Compiler.Loc
 
 module Files = Compiler.Files
 
-exception Lexer_failure of Location.t * string
+exception Lexer_failure of Loc.t * string
 exception Parse_failure of Span.t * string
 
 let fail_lex loc msg =
@@ -46,7 +47,7 @@ let maybe_get str pos =
     None
 
 module Token = struct
-  type t = Span.t * token_type [@@deriving show {with_path=false}, ord, eq]
+  type t = Span.t * token_type [@@deriving ord, eq]
   and token_type =
     | LeftParen
     | RightParen
@@ -67,7 +68,7 @@ module Token = struct
     | R1
     | R2
     | R3
-    | EOF [@@deriving show {with_path=false}, ord, eq]
+    | EOF [@@deriving ord, eq]
 
   let clean_str str =
     let inner = String.sub str 1 ((String.length str) - 2) in
@@ -170,13 +171,13 @@ end = struct
   type t = {
       str: string;
       lexbuf: Sedlexing.lexbuf;
-      mutable loc: Location.t
+      mutable loc: Loc.t
     }
 
   let from_string name str = {
       str = str;
       lexbuf = Sedlexing.Utf8.from_string str;
-      loc = Location.with_source Location.empty name
+      loc = Loc.with_filename Loc.unknown name
     }
 
   let read_lexeme lexer =
@@ -184,9 +185,9 @@ end = struct
     let lexeme = Sedlexing.Utf8.lexeme buf in
     let len = String.length lexeme in
     let loc = lexer.loc in
-    let new_loc =  Location.update loc lexer.str ((Location.offset loc) + len) in
+    let new_loc =  Loc.advance_to loc lexer.str ((Loc.offset loc) + len) in
     lexer.loc <- new_loc;
-    (Span.make loc new_loc, lexeme)
+    (Span.from loc new_loc, lexeme)
 
   let indirection_mode = [%sedlex.regexp? "@", (Chars "rR"), (Chars "0123")]
   let ident_start = [%sedlex.regexp? 'a'..'z'|'A'..'Z'|'_' ]
@@ -205,7 +206,7 @@ end = struct
         let lexeme = Sedlexing.Utf8.lexeme buf in
         let len = String.length lexeme in
         let loc = lexer.loc in
-        let new_loc = Location.update loc lexer.str ((Location.offset loc) + len) in
+        let new_loc = Loc.advance_to loc lexer.str ((Loc.offset loc) + len) in
         lexer.loc <- new_loc
      | _ -> ());
     let read func = let span, lexeme = read_lexeme lexer in (span, (func lexeme)) in
@@ -767,7 +768,7 @@ let do_assemble filename inc_dir output =
   with
   | Asm.Asm_failure (pos,msg) -> print_error pos msg files
   | Lexer_failure (loc, msg) ->
-     let pos = Compiler.Position.Location loc in
+     let pos = Compiler.Position.Loc loc in
      print_error pos msg files
   | Parse_failure (span, msg) ->
      let pos = Compiler.Position.Span span in

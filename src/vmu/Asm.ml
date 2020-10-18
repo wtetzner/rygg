@@ -1,6 +1,6 @@
 
 module Span = Compiler.Span
-module Location = Span.Location
+module Loc = Compiler.Loc
 module Env = Compiler.Env
 module Position = Compiler.Position
 
@@ -11,7 +11,7 @@ let () =
   Printexc.register_printer (function
       | Asm_failure (pos, msg) -> begin
           match pos with
-          | Position.Location loc -> Some (Printf.sprintf "%s %s" (Location.to_string loc) msg)
+          | Position.Loc loc -> Some (Printf.sprintf "%s %s" (Loc.to_string loc) msg)
           | Position.Span span -> Some (Printf.sprintf "%s %s" (Span.to_string span) msg)
           | Position.No_position -> Some msg
         end

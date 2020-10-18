@@ -7,23 +7,25 @@ let vmu_assemble input_file inc_dir output_file =
 let vmu_disassemble input_file =
   Vmu.Disasm.disassemble input_file
 
-let vmu_lir_compile input_file =
-  let open Vmu.Lir in
-  let functions = ref Env.empty in
-  functions := Env.add "_get_keys" (Function.AsmFunc [S.instruction (I.Ld_d9 (E.var "p3"))]) !functions;
-  let statements = Compiler.compile !functions Env.empty in
-  Stream.iter (fun s -> print_endline (S.to_string s)) statements
+let read_whole_file filename =
+  let ch = open_in filename in
+  let s = really_input_string ch (in_channel_length ch) in
+  close_in ch;
+  s
+
+let vmu_compile input_file output_file =
+  let text = read_whole_file input_file in
+  let parser_state = Compiler.Wombat.SourceParser.ParserState.create input_file text in
+  let results = Compiler.Wombat.SourceParser.parse_expr parser_state in
+  let module Expr = Compiler.Wombat.Source.Expr in
+  match results with
+  | Some (errors, expr, state) -> Printf.printf "Errors: %s\nExpr: %s\nState: %s\n\n"
+                                    (Compiler.Wombat.ParseError.string_of_errors errors)
+                                    (Expr.to_string expr)
+                                    (Compiler.Wombat.SourceParser.ParserState.to_string state)
+  | None -> Printf.printf "Could not parse expression\n"
 
 let vmu_cmd =
-  let lir_cmd =
-    Command.basic
-      ~summary:"Compiler for Dreamcast VMU Low-level Intermediate Language"
-      ~readme:(fun () -> "Compiler for Dreamcast VMU Low-level Intermediate Language")
-      Command.Let_syntax.(
-      let%map_open filename = anon ("input-file" %: string) in
-      fun () -> vmu_lir_compile filename
-    )
-  in
   let disassemble_cmd =
     Command.basic
       ~summary:"Disassembler for Dreamcast VMU"
@@ -53,13 +55,12 @@ let vmu_cmd =
       let%map_open output = flag ~aliases:["-o"] "-output" (required string) ~doc:"Output File"
       and filename = anon ("input-file" %: string)
       in
-      fun () -> raise (Failure (Printf.sprintf "compile is not yet implemented; (output = %s, filename = %s)" output filename))
+      fun () -> vmu_compile filename output
     ) in
   Command.group ~summary:"Operations for Dreamcast VMU"
     [ "assemble", assemble_cmd;
       "disassemble", disassemble_cmd;
-      "compile", compile_cmd;
-      "lir", lir_cmd ]
+      "compile", compile_cmd ]
 
 let command =
   Command.group ~summary:"Compiler and build tool for Dreamcast VMU"

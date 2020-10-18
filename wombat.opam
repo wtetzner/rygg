@@ -2,12 +2,12 @@ opam-version: "2.0"
 name: "wombat"
 maintainer: "Walter Tetzner"
 version: "0.1.0"
-synopsis: "VMU language"
+synopsis: "Compiler for a VMU programming language"
 authors: "Walter Tetzner"
 homepage: "N/A"
 bug-reports: "N/A"
 description: """
-Longer description
+Compiler for a VMU programming language
 """
 build: [
   ["dune" "build" "-p" name "-j" jobs]

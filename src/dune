@@ -15,7 +15,7 @@
  (modes (best exe) (byte c))
  (libraries Vmu Compiler core ANSITerminal)
  (preprocess (pps ppx_let ppx_inline_test))
- (modules Cmplang))
+ (modules Wombat))
 
 ; (library
 ;  (name Wombat)
