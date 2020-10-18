@@ -80,6 +80,12 @@ To re-generate the lockfile, run `opam lock .`.
 utop
 ====
 
+Ensure `utop` is installed:
+
+    opam install utop
+
+Start `utop` with the sources from the current project:
+
     dune utop src
 
 Links
