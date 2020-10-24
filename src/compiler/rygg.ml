@@ -108,6 +108,8 @@ module Token: sig
     | True
     | False
     | Implicit
+    | Val
+    | Fn
     | Backtick
     | String
     | Raw_string of raw_string_prefix_count
@@ -169,6 +171,8 @@ end = struct
     | True
     | False
     | Implicit
+    | Val
+    | Fn
     | Backtick
     | String
     | Raw_string of raw_string_prefix_count
@@ -217,6 +221,8 @@ end = struct
       | True -> "true"
       | False -> "false"
       | Implicit -> "implicit"
+      | Val -> "val"
+      | Fn -> "fn"
       | Backtick -> "`"
       | String -> "String"
       | Raw_string prefix_count ->
@@ -273,6 +279,8 @@ end = struct
     | Invalid _ -> 38
     | Less_equal -> 39
     | Greater_equal -> 40
+    | Val -> 41
+    | Fn -> 42
 
   let compare_type l r = Int.compare (compare_value l) (compare_value r)
 
@@ -552,7 +560,7 @@ module Source = struct
   ]
 
   and module_term = [
-    (* | `Path of Path.t *)
+    | `Path of module_path
     | `Structure of Span.t * structure
     | `Functor of ident * module_type * module_term
     | `Apply of module_term * module_term
@@ -564,7 +572,34 @@ module Source = struct
     | `Module_type of ident * module_type
     | `Module_term of ident * module_term
     | `Module_open of module_term * open_mask option
+    | `Open of module_path * open_mask option
   ]
+  and module_path = [
+    | `Ident of namespace option * ident
+    | `Dot of module_path * ident
+  ]
+  and export_entry = [
+    | `Name of ident
+    | `Rename of ident * ident
+  ]
+  and export_line = [
+    | `Module_export of metadata * export_entry list
+    | `Module_type_export of metadata * export_entry list
+  ]
+  and export = [
+    | `All
+    | `Only of export_line list
+    ]
+  and hide = [
+    | `All
+    | `Only of ident list
+  ]
+  and namespace = {
+      namespace: string;
+      export: export option;
+      hide: hide option;
+      namespace_entries: namespace_entry list;
+  }
 
 end
 
@@ -620,6 +655,8 @@ end = struct
       | _ when matches "true" -> True
       | _ when matches "false" -> False
       | _ when matches "implicit" -> Implicit
+      | _ when matches "val" -> Val
+      | _ when matches "fn" -> Fn
       | _ -> Name
     in
     Some (span, tok)
@@ -1068,6 +1105,8 @@ end = struct
     let comment = function (_, Comment _) -> true | _ -> false
     let name = function (_, Name) -> true | _ -> false
     let invalid = function (_, Invalid _) -> true | _ -> false
+    let val_kw = function (_, Val) -> true | _ -> false
+    let fn = function (_, Fn) -> true | _ -> false
 
     let trivia = function (_, Whitespace)
                         | (_, Comment _)
@@ -1798,6 +1837,29 @@ end = struct
       None
 
   let parse_expr state = parse_expr_bp state [] 0
+
+  let parse_val state =
+    let starts_with = ParserState.starts_with state in
+    let open TokenMatchers in
+    let (val_tok, state) = ParserState.next state in
+    if starts_with [name] then
+      let (name_tok, state) = ParserState.next state in
+      ()
+      (* capture name *)
+    else
+      ()
+      (* Fail here with an error *)
+
+  (* let parse_namespace state =
+   *   let open TokenMatchers in
+   *   if ParserState.starts_with state [namespace] then
+   *   else *)
+      
+
+  let parse_file state =
+    (* let open TokenMatchers in
+     * if ParserState.starts_with state [] then *)
+    parse_expr state
 
   let%test_unit "unicode_out_of_bounds" =
     let sprintf = Printf.sprintf in
