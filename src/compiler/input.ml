@@ -7,11 +7,6 @@ type t = {
     column: int
   }
 
-type regexp_match_result = {
-    string: string;
-    groups: string list
-}
-
 let from_string filename string = {
     source = filename;
     data = string;

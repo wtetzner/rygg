@@ -82,6 +82,13 @@ Lockfile
 
 To re-generate the lockfile, run `opam lock .`.
 
+Unit Tests
+==========
+
+To run the unit tests, use
+
+    dune runtest
+
 utop
 ====
 

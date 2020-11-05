@@ -13,25 +13,14 @@
 (executable
  (name rygg)
  (modes (best exe) (byte c))
- (libraries Vmu Compiler core ANSITerminal)
+ (libraries Vmu Compiler Text core ANSITerminal)
  (preprocess (pps ppx_let ppx_inline_test))
  (modules Rygg))
 
-(executable
- (name librygg)
- (modes (native object))
- (libraries Vmu Compiler core ANSITerminal)
- (preprocess (pps ppx_let ppx_inline_test))
- (modules librygg))
-
-; (library
-;  (name Rygg)
-;  (inline_tests)
-;  (modules Compiler)
-;  (preprocess (pps ppx_inline_test))
-;  (wrapped true))
-
-; (install
-;  (section bin)
-;  (files (rygg.exe as rygg)))
+; (executable
+;  (name librygg)
+;  (modes (native object))
+;  (libraries Vmu Compiler core ANSITerminal)
+;  (preprocess (pps ppx_let ppx_inline_test))
+;  (modules librygg))
 

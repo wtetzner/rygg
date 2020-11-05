@@ -1,5 +1,6 @@
 
 module Command = Core.Command
+module TextSpan = Text.Span
 
 let vmu_assemble input_file inc_dir output_file =
   Vmu.Asm.Parser.assemble input_file inc_dir output_file
@@ -14,6 +15,8 @@ let read_whole_file filename =
   s
 
 let vmu_compile input_file output_file =
+  let () = Printf.printf "text_span: %s\n" (TextSpan.to_string (TextSpan.from 10 23)) in
+  let () = Printf.printf "text_span debug: %s\n" (TextSpan.debug_string (TextSpan.from 10 23)) in
   let text = read_whole_file input_file in
   let parser_state = Compiler.Rygg.SourceParser.ParserState.create input_file text in
   let results = Compiler.Rygg.SourceParser.parse_expr parser_state in

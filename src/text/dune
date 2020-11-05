@@ -2,5 +2,12 @@
 (library
  (name Text)
  (libraries core)
- (preprocess (pps ppx_deriving.show ppx_deriving.eq ppx_deriving.ord ppx_inline_test))
+ (preprocess (pps
+     ppx_let
+     ppx_deriving.show
+     ppx_deriving.eq
+     ppx_deriving.ord
+     ppx_inline_test))
+ (modules Text Span)
+ (inline_tests)
  (wrapped true))

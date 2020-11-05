@@ -1,11 +1,6 @@
 
 type t
 
-type regexp_match_result = {
-    string: string;
-    groups: string list
-}
-
 (* filename -> data -> input *)
 val from_string : string -> string -> t
 val length : t -> int
