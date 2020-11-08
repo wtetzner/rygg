@@ -29,14 +29,14 @@ let line loc = loc.line
 let column loc = loc.column
 let offset loc = loc.offset
 
-let inc_column loc amount =
+let inc_column loc ~amount =
   { loc with column = loc.column + amount;
              offset = loc.offset + amount }
 
-let with_filename loc filename =
+let with_filename loc ~filename =
   { loc with filename = filename }
 
-let advance_to loc str end_pos =
+let advance_to loc ~str ~end_pos =
   let line = ref (line loc) in
   let column = ref (column loc) in
   let pos = ref (offset loc) in

@@ -1,7 +1,7 @@
 
 (library
  (name Compiler)
- (libraries ANSITerminal core)
+ (libraries ANSITerminal core Text)
  (preprocess (pps ppx_deriving.show ppx_deriving.eq ppx_deriving.ord ppx_inline_test))
  (inline_tests)
  (wrapped true))

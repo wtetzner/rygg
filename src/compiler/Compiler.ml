@@ -1,3 +1,5 @@
+module Token = Token
+
 module Env = Env
 module Span = Span
 module Loc = Loc

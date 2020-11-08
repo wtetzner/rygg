@@ -11,6 +11,7 @@ module type INPUT = sig
   val current_char : t -> char
   val in_bounds : t -> int -> bool
   val advance_by : t -> int -> t
+  val to_string : t -> string
 end
 
 module Span = Span

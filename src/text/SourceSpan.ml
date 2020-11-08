@@ -64,3 +64,6 @@ let to_string span =
 let debug_string span = Printf.sprintf "{ start = %s; finish = %s }"
                           (Loc.debug_string span.start)
                           (Loc.debug_string span.finish)
+
+let to_span span =
+  Span.from_bounds (Loc.offset span.start) (Loc.offset span.finish)
