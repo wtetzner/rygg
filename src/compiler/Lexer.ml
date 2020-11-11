@@ -2,6 +2,7 @@
 module type S = sig
   type input
   type loc
+  type span
   type token = loc Token.t
 
   val lex : input -> token Stream.t
@@ -9,6 +10,14 @@ end
 
 module Make(Input: Input.S) = struct
   open Token
+
+  module Span = Text.SourceSpan
+  module Loc = Text.SourceLoc
+
+  type input = Input.t
+  type loc = Input.loc
+  type span = Input.span
+  type token = span Token.t
 
   let is_name_start chr =
     (chr >= 'a' && chr <= 'z')
@@ -24,28 +33,27 @@ module Make(Input: Input.S) = struct
   let handle_simple input length token_type = begin
       let start = Input.loc !input in
       input := Input.advance_by !input length;
-      Some (Span.from start (Input.loc !input), token_type)
+      Some (Input.span start (Input.loc !input), token_type)
     end
 
-  let in_bounds text idx = idx < (String.length text)
+  let in_bounds text idx = idx < (Input.length text)
 
   let rec read_name text curr =
     if in_bounds text curr then
-      match String.get text curr with
+      match Input.get text curr with
       | c when is_name_body c -> read_name text (curr + 1)
       | _ -> curr
     else
       curr
 
   let lex_name input =
-    let text = (Input.full_text !input) in
-    let curr = (Input.offset !input) in
     let start = Input.loc !input in
-    let end_idx = read_name text curr in
+    let start_idx = Input.offset !input in
+    let end_idx = read_name !input 0 in
     let old_input = !input in
-    let len = (end_idx - (Loc.offset start)) in
+    let len = (end_idx - start_idx) in
     input := Input.advance_by !input len;
-    let span = Span.from start (Input.loc !input) in
+    let span = Input.span start (Input.loc !input) in
     let matches str = len = (String.length str) && Input.starts_with old_input str in
     let tok = match len with
       | _ when matches "type" -> Type
@@ -63,9 +71,9 @@ module Make(Input: Input.S) = struct
 
   let rec read_multiline_comment text curr nesting =
     if in_bounds text curr then
-      match String.get text curr with
+      match Input.get text curr with
       | '*' -> if in_bounds text (curr + 1) then
-                 match String.get text (curr + 1) with
+                 match Input.get text (curr + 1) with
                  | '/' -> if nesting = 1 then
                             (curr + 2, true)
                           else
@@ -74,7 +82,7 @@ module Make(Input: Input.S) = struct
                else
                  (curr + 1, false)
       | '/' -> if in_bounds text (curr + 1) then
-                 match String.get text (curr + 1) with
+                 match Input.get text (curr + 1) with
                  | '*' -> read_multiline_comment text (curr + 2) (nesting + 1)
                  | _ -> read_multiline_comment text (curr + 1) nesting
                else
@@ -84,14 +92,13 @@ module Make(Input: Input.S) = struct
       (curr, false)
 
   let lex_multiline_comment input =
-    let text = Input.full_text !input in
     let start = Input.loc !input in
-    let start_idx = Loc.offset start in
-    let end_idx, successful = read_multiline_comment text start_idx 0 in
+    let start_idx = Input.offset !input in
+    let end_idx, successful = read_multiline_comment !input 0 0 in
     let len = end_idx - start_idx in
     input := Input.advance_by !input len;
     let finish = Input.loc !input in
-    let span = Span.from start finish in
+    let span = Input.span start finish in
     if successful then
       Some (span, Comment Multiline)
     else
@@ -99,30 +106,29 @@ module Make(Input: Input.S) = struct
 
   let rec read_line_comment text curr =
     if in_bounds text curr then
-      match String.get text curr with
+      match Input.get text curr with
       | '\n' -> curr
       | _ -> read_line_comment text (curr + 1)
     else
       curr
 
   let lex_line_comment input =
-    let text = Input.full_text !input in
     let start = Input.loc !input in
-    let start_idx = Loc.offset start in
-    let end_idx = read_line_comment text (start_idx + 2) in
+    let start_idx = Input.offset !input in
+    let end_idx = read_line_comment !input (start_idx + 2) in
     let len = end_idx - start_idx in
     input := Input.advance_by !input len;
     let finish = Input.loc !input in
-    let span = Span.from start finish in
+    let span = Input.span start finish in
     Some (span, Comment Line)
 
   let rec read_whitespace text curr =
     if in_bounds text curr then
-      match String.get text curr with
+      match Input.get text curr with
       | '\n' -> curr + 1
       | '\r' -> begin
           if in_bounds text (curr + 1) then
-            match String.get text (curr + 1) with
+            match Input.get text (curr + 1) with
             | '\n' -> curr + 2
             | _ -> read_whitespace text (curr + 1)
           else
@@ -134,19 +140,18 @@ module Make(Input: Input.S) = struct
       curr
 
   let lex_whitespace input =
-    let text = Input.full_text !input in
     let start = Input.loc !input in
-    let start_idx = Loc.offset start in
-    let end_idx = read_whitespace text (start_idx + 1) in
+    let start_idx = Input.offset !input in
+    let end_idx = read_whitespace !input (start_idx + 1) in
     let len = end_idx - start_idx in
     input := Input.advance_by !input len;
     let finish = Input.loc !input in
-    let span = Span.from start finish in
+    let span = Input.span start finish in
     Some (span, Whitespace)
 
   let rec read_raw_prefix text curr =
     if in_bounds text curr then
-      match String.get text curr with
+      match Input.get text curr with
       | '#' -> read_raw_prefix text (curr + 1)
       | '"' -> (curr + 1, true)
       | _ -> (curr, false)
@@ -158,7 +163,7 @@ module Make(Input: Input.S) = struct
       true
     else
       if in_bounds text curr then
-        match String.get text curr with
+        match Input.get text curr with
         | '#' -> matches_suffix text (curr + 1) (len - 1)
         | _ -> false
       else
@@ -166,7 +171,7 @@ module Make(Input: Input.S) = struct
 
   let rec read_raw_body text curr suffix =
     if in_bounds text curr then
-      match String.get text curr with
+      match Input.get text curr with
       | '"' -> if matches_suffix text (curr + 1) suffix then
                  (curr, true)
                else
@@ -176,39 +181,38 @@ module Make(Input: Input.S) = struct
       (curr, false)
 
   let lex_raw_string input =
-    let text = Input.full_text !input in
     let start_idx = Input.offset !input in
-    let (pos, successful_prefix) = read_raw_prefix text (start_idx + 1) in
+    let (pos, successful_prefix) = read_raw_prefix !input (start_idx + 1) in
     let start = Input.loc !input in
     if successful_prefix then
       begin
         let suffix = (pos - start_idx - 2) in
-        let (end_pos, successful) = read_raw_body text pos suffix in
+        let (end_pos, successful) = read_raw_body !input pos suffix in
         if successful then
           begin
             let len = (end_pos + suffix + 1) - start_idx in
             input := Input.advance_by !input len;
-            let span = Span.from start (Input.loc !input) in
+            let span = Input.span start (Input.loc !input) in
             Some (span, Raw_string suffix)
           end
         else
           begin
             let len = end_pos - start_idx in
             input := Input.advance_by !input len;
-            let span = Span.from start (Input.loc !input) in
+            let span = Input.span start (Input.loc !input) in
             Some (span, Invalid "Invalid raw string")
           end
       end
     else
       begin
         input := Input.advance_by !input (pos - start_idx);
-        let span = Span.from start (Input.loc !input) in
+        let span = Input.span start (Input.loc !input) in
         Some (span, Invalid "Expected \"")
       end
 
   let rec read_string text curr =
     if in_bounds text curr then
-      match String.get text curr with
+      match Input.get text curr with
       | '\\' ->
          begin
            if in_bounds text curr then
@@ -222,22 +226,21 @@ module Make(Input: Input.S) = struct
       (curr, false)    
 
   let lex_string input =
-    let text = Input.full_text !input in
     let start_idx = Input.offset !input in
-    let finish, successful = read_string text (start_idx + 1) in
+    let finish, successful = read_string !input (start_idx + 1) in
     let start = Input.loc !input in
     if successful then
       begin
         let len = (finish + 1) - start_idx in
         input := Input.advance_by !input len;
-        let span = Span.from start (Input.loc !input) in
+        let span = Input.span start (Input.loc !input) in
         Some (span, String)
       end
     else
       begin
         let len = finish - start_idx in
         input := Input.advance_by !input len;
-        let span = Span.from start (Input.loc !input) in
+        let span = Input.span start (Input.loc !input) in
         Some (span, Invalid "Expected \"")
       end
 
@@ -250,7 +253,7 @@ module Make(Input: Input.S) = struct
 
   let rec read_digits is_digit text curr =
     if in_bounds text curr then
-      match String.get text curr with
+      match Input.get text curr with
       | c when is_digit c -> read_digits is_digit text (curr + 1)
       | _ -> curr
     else
@@ -260,9 +263,9 @@ module Make(Input: Input.S) = struct
     if in_bounds text curr then
       let end_digits = read_digits is_decimal_digit text curr in
       if in_bounds text end_digits then
-        match String.get text end_digits with
+        match Input.get text end_digits with
         | '.' -> if in_bounds text (end_digits + 1) then
-                   match String.get text (end_digits + 1) with
+                   match Input.get text (end_digits + 1) with
                    | c when is_decimal_digit c ->
                       read_digits is_decimal_digit text (end_digits + 1)
                    | _ -> end_digits
@@ -275,13 +278,13 @@ module Make(Input: Input.S) = struct
       curr
 
   let lex_number input prefix_len read_digits =
-    let text = Input.full_text !input in
-    let start_idx = Input.offset !input in
-    let start = Input.loc !input in
+    let text = !input in
+    let start_idx = Input.offset text in
+    let start = Input.loc text in
     let end_idx = read_digits text (start_idx + prefix_len) in
     let len = end_idx - start_idx in
-    input := Input.advance_by !input len;
-    let span = Span.from start (Input.loc !input) in
+    input := Input.advance_by text len;
+    let span = Input.span start (Input.loc text) in
     if len = prefix_len then
       Some (span, Invalid "Invalid number")
     else
@@ -298,7 +301,7 @@ module Make(Input: Input.S) = struct
 
   let rec read_invalid text curr =
     if in_bounds text curr then
-      if is_valid_token_start (String.get text curr) then
+      if is_valid_token_start (Input.get text curr) then
         curr
       else
         read_invalid text (curr + 1)
@@ -306,14 +309,14 @@ module Make(Input: Input.S) = struct
       curr
 
   let lex_invalid input =
-    let text = Input.full_text !input in
+    let text = !input in
     let start = Input.loc !input in
-    let start_idx = Loc.offset start in
+    let start_idx = Input.offset !input in
     let end_idx = read_invalid text (start_idx + 1) in
     let len = end_idx - start_idx in
     input := Input.advance_by !input len;
     let finish = Input.loc !input in
-    let span = Span.from start finish in
+    let span = Input.span start finish in
     Some (span, Invalid "Unknown token")
 
   let lex_token input =

@@ -4,11 +4,21 @@ module type S = sig
   type loc
   type span
 
+  val span : loc -> loc -> span
+
+  module Span: sig
+    type t
+
+    val start : t -> loc
+    val ending : t -> loc
+    val merge : t -> t -> t
+  end with type t = span
+  
   val length : t -> int
   val is_empty : t -> bool
   val loc : t -> loc
   val offset : t -> int
-  val starts_with : t -> bool
+  val starts_with : t -> substr:string -> bool
   val get : t -> index:int -> char
   val advance_by : t -> amount:int -> t
   val current_char : t -> char
@@ -40,7 +50,6 @@ end = struct
   type span = Text.SourceSpan.t
 
   module Loc = Text.SourceLoc
-  module Span = Text.SourceSpan
 
   let from_string ~filename ~string = {
       source = filename;
@@ -49,6 +58,8 @@ end = struct
       line = 1;
       column = 0
     }
+
+  let span l r = Text.SourceSpan.from l r
 
   let length input =
     (String.length input.data) - input.pos
@@ -82,7 +93,16 @@ end = struct
   let advance input substr =
     advance_by input (String.length substr)
 
-  let starts_with input substr =
+  let rec starts_with_at string substr str_idx sub_idx =
+    let sub_len = String.length substr in
+    if sub_idx >= sub_len then
+      true
+    else if (String.get string str_idx) != (String.get substr sub_idx) then
+      false
+    else
+      starts_with_at string substr (str_idx + 1) (sub_idx + 1)
+
+  let starts_with input ~substr =
     let slen = (String.length substr) in
     let ilen = length input in
     if ilen < slen then
@@ -95,10 +115,17 @@ end = struct
   let in_bounds input ~index = index >= 0 && index < (length input)
 
   let substr input ~span =
-    let start = Loc.offset (Span.start span) in
-    let finish = Loc.offset (Span.finish span) in
+    let start = Loc.offset (Text.SourceSpan.start span) in
+    let finish = Loc.offset (Text.SourceSpan.finish span) in
     String.sub input.data start (finish - start)
 
   let to_string input =
     String.sub input.data input.pos (length input)
+
+  module Span = struct
+    type t = span
+    let start = Text.SourceSpan.start
+    let ending = Text.SourceSpan.finish
+    let merge = Text.SourceSpan.merge
+  end
 end
